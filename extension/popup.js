@@ -40,6 +40,6 @@ const openDash = (path) => {
 };
 
 $('login').onclick = () => openDash('/login');
-$('dash').onclick = () => openDash('/reports');
+$('dash').onclick = () => openDash('/');   // the grid IS the list; /reports is gone
 
 fjSession().then(render);
