@@ -5,6 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { supabaseServer } from '@/lib/supabase/server';
 import { ReportView } from '@/components/report-view';
 import { isScreenshot, timeline, type SharedReport } from '@/lib/types';
+import { httpUrl } from '@/lib/format';
 
 // A share token is the credential, so a token that looks nothing like one is
 // not worth a database round trip — and passing junk to a uuid parameter is a
@@ -45,6 +46,9 @@ export default async function SharedReportPage(props: PageProps<'/s/[token]'>) {
   const report = await getShared(token);
   if (!report) notFound();
 
+  // Never an href straight from captured data — see httpUrl().
+  const safeUrl = httpUrl(report.page_url);
+
   // Signed by the owner when they created the link — this page has no session
   // and could never sign it. Null means the report was filed without media.
   const media = report.share_url
@@ -61,11 +65,11 @@ export default async function SharedReportPage(props: PageProps<'/s/[token]'>) {
               <span>{report.project ?? '—'}</span>
               <span aria-hidden>·</span>
               <span>{new Date(report.created_at).toLocaleString()}</span>
-              {report.page_url ? (
+              {safeUrl ? (
                 <>
                   <span aria-hidden>·</span>
                   <a
-                    href={report.page_url}
+                    href={safeUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-grape hover:underline"

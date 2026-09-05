@@ -2,7 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
-import { offset, stamp, clock, ms, shortUrl } from './src/lib/format.ts';
+import { offset, stamp, clock, ms, shortUrl, httpUrl } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed, isScreenshot } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 
@@ -70,5 +70,30 @@ assert.strictEqual(new Set(crossNav.map((e) => e.seq)).size, 1, 'seq really does
 assert.deepStrictEqual(crossNav.map((e) => e.uid), [0, 1, 2], 'uid is unique and in timeline order');
 assert.ok(isConsole(crossNav[0]) && crossNav[0].msg === 'before nav',
   'ordering is still by time, not by uid');
+
+// ── httpUrl: an href never takes a captured URL unfiltered ────────────────
+// page_url is whatever the reported page was, and redact.js does not restrict
+// the scheme. The share page hands this href to people who are not the owner,
+// so `javascript:` would let a report's author run script in their session.
+assert.strictEqual(httpUrl('https://app.example/x?y=1'), 'https://app.example/x?y=1');
+assert.strictEqual(httpUrl('http://localhost:3000/'), 'http://localhost:3000/');
+assert.strictEqual(httpUrl('javascript:alert(1)'), null, 'javascript: is not linkable');
+assert.strictEqual(httpUrl(' javascript:alert(1)'), null, 'leading space is trimmed by URL, still caught');
+assert.strictEqual(httpUrl('JavaScript:alert(1)'), null, 'scheme match is case-insensitive');
+assert.strictEqual(httpUrl('data:text/html,<script>x</script>'), null, 'data: is not linkable');
+assert.strictEqual(httpUrl('blob:https://a/b'), null, 'blob: is not linkable');
+assert.strictEqual(httpUrl('not a url'), null);
+assert.strictEqual(httpUrl(null), null);
+assert.strictEqual(httpUrl(''), null);
+
+// ── login redirect: ?next must stay on this origin ────────────────────────
+// The login page is public, so `?next=` is attacker-controlled: sign in on the
+// real site, get bounced to a fake one. Mirrors the guard in sign-in.tsx.
+const safeNext = (raw: string) =>
+  raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\') ? raw : '/';
+assert.strictEqual(safeNext('/reports/abc'), '/reports/abc');
+assert.strictEqual(safeNext('https://evil.example'), '/', 'absolute URL is refused');
+assert.strictEqual(safeNext('//evil.example'), '/', 'protocol-relative is refused');
+assert.strictEqual(safeNext('/\\evil.example'), '/', 'backslash form is refused');
 
 console.log('viewer logic ok');

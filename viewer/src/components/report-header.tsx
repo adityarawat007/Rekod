@@ -3,8 +3,11 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { StatusSelect } from '@/components/status-select';
 import { ShareButton } from '@/components/share-button';
 import type { Report } from '@/lib/types';
+import { httpUrl } from '@/lib/format';
 
 export function ReportHeader({ report }: { report: Report }) {
+  const safeUrl = httpUrl(report.page_url);
+
   return (
     <div className="border-b px-6 py-5 md:px-8">
       <Link
@@ -20,11 +23,11 @@ export function ReportHeader({ report }: { report: Report }) {
             <span>{report.project ?? '—'}</span>
             <span aria-hidden>·</span>
             <span>{new Date(report.created_at).toLocaleString()}</span>
-            {report.page_url ? (
+            {safeUrl ? (
               <>
                 <span aria-hidden>·</span>
                 <a
-                  href={report.page_url}
+                  href={safeUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-grape hover:underline"

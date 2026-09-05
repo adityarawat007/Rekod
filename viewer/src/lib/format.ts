@@ -32,3 +32,26 @@ export function ago(iso: string) {
 }
 
 export const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+
+/**
+ * A captured URL, but only if it is safe to put in an `href`.
+ *
+ * `page_url` is whatever the reported page was, and `redact.js` deliberately
+ * does not restrict the scheme: `blob:` and `data:` are legitimate in the
+ * network log, where URLs are rendered as text. A link is different —
+ * `javascript:` in an href executes on THIS origin, and the share page is
+ * handed to people who are not the owner, so the author of a report would
+ * otherwise be able to run script in a recipient's session.
+ *
+ * Returns null when there is nothing safe to link to; the caller renders no
+ * link at all rather than a dead one.
+ */
+export function httpUrl(u: string | null | undefined): string | null {
+  if (!u) return null;
+  try {
+    const { protocol } = new URL(u);
+    return protocol === 'http:' || protocol === 'https:' ? u : null;
+  } catch {
+    return null; // not parseable as a URL, so not linkable
+  }
+}

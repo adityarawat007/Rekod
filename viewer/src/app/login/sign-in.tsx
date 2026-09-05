@@ -15,7 +15,13 @@ type Mode = 'signin' | 'signup';
 export function SignIn() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || '/';
+  // Only a same-origin path. proxy.ts always writes a pathname here, but the
+  // login page is public and unauthenticated, so `?next=https://evil.example`
+  // is a phishing redirect anyone can craft: sign in on the real site, land on
+  // a fake one. `//host` and `/\host` are protocol-relative and leave the
+  // origin too, so a leading-slash test alone is not enough.
+  const raw = params.get('next') || '/';
+  const next = raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\') ? raw : '/';
 
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
