@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "FlamJam",
+  "version": "0.2.0",
+  "description": "Internal bug reporter for the Flam team.",
+  "permissions": [
+    "tabCapture",
+    "activeTab",
+    "offscreen",
+    "storage",
+    "cookies",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.supabase.co/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "commands": {
+    "capture": {
+      "suggested_key": {
+        "default": "Alt+Shift+J"
+      },
+      "description": "Report a bug"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": [
+        "redact.js",
+        "capture.js"
+      ]
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED",
+      "js": [
+        "widget.js"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FlamJam",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}
