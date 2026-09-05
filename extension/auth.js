@@ -8,7 +8,12 @@
 // both.
 const SUPABASE_URL  = 'https://odrrzeqctgkrsyposkun.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_h344Jny4uvxnKnepiOhAjw_UgU9vgSc';
-const DASH = 'http://localhost:3100';
+// Prod first, then the dev server. Whichever holds a live session wins, so the
+// extension keeps working while you develop without editing this line twice a
+// day. Both need a matching entry in host_permissions or chrome.cookies returns
+// nothing for that origin.
+const DASH_ORIGINS = ['https://flamjam.vercel.app', 'http://localhost:3100'];
+const DASH = DASH_ORIGINS[0];   // where the Login button sends you
 
 // @supabase/ssr writes sb-<project-ref>-auth-token, split into .0/.1/… when the
 // value is over ~3KB, and prefixes the JSON with `base64-`.
@@ -19,11 +24,9 @@ const fromBase64Url = (s) =>
     Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)),
   );
 
-/** The dashboard's live session, or null if absent or expired.
- *  Needs chrome.cookies: worker.js and popup.html only. The offscreen document
- *  asks the worker for it ({ to: 'bg', t: 'session' }). */
-async function fjSession() {
-  const parts = (await chrome.cookies.getAll({ url: DASH }))
+/** The session in one origin's cookie jar, or null. */
+async function fjSessionAt(origin) {
+  const parts = (await chrome.cookies.getAll({ url: origin }))
     .filter((c) => c.name === COOKIE || c.name.startsWith(`${COOKIE}.`))
     .sort((a, b) => a.name.localeCompare(b.name));
   if (!parts.length) return null;
@@ -38,4 +41,15 @@ async function fjSession() {
   } catch {
     return null;                                  // half-written chunks, mid-refresh
   }
+}
+
+/** The dashboard's live session, or null if absent or expired everywhere.
+ *  Needs chrome.cookies: worker.js and popup.html only. The offscreen document
+ *  asks the worker for it ({ to: 'bg', t: 'session' }). */
+async function fjSession() {
+  for (const origin of DASH_ORIGINS) {
+    const s = await fjSessionAt(origin);
+    if (s) return s;
+  }
+  return null;
 }

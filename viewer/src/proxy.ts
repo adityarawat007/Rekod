@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
 // Refreshes the session cookie and gates everything except /login and the
 // OAuth callback. Without this the access token expires mid-session and reads
@@ -17,8 +18,8 @@ export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll: () => req.cookies.getAll(),

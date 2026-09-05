@@ -13,6 +13,7 @@
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
+    "https://flamjam.vercel.app/*",
     "http://localhost/*"
   ],
   "background": {

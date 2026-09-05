@@ -46,7 +46,9 @@ list is what keeps `owner` and `share_token` from leaking, so never make it
 
 **The extension is authenticated, but it never signs in.** It cannot file as
 `anon`. `extension/auth.js` reads the dashboard's `sb-*-auth-token` cookie via
-`chrome.cookies` — one session, owned by the dashboard, no copy in
+`chrome.cookies` — from the first origin in `DASH_ORIGINS` that has a live one
+(prod, then the dev server), and every origin listed there needs a matching
+`host_permissions` entry. One session, owned by the dashboard, no copy in
 `chrome.storage`. Expired cookie means the popup shows the expired card and
 sends you to `/login`; the extension deliberately never refreshes (two
 refreshers race Supabase's reuse detection).
@@ -80,7 +82,10 @@ cd viewer && npm run build
 ```
 
 `viewer/` uses **pnpm**; `pnpm dev` serves :3100 (pinned with `-p`, because
-`extension/auth.js` hardcodes that origin). `npm run lint` is clean — three
+`extension/auth.js` lists that origin). The two `NEXT_PUBLIC_SUPABASE_*` values
+come from `lib/supabase/env.ts`, which throws a named error when they are
+missing — never read `process.env` for them directly, or a missing var becomes a
+blank 500 from `proxy.ts` on every route, static ones included. `npm run lint` is clean — three
 warnings in `report-view.tsx`, no errors. Keep it that way.
 
 ## The dashboard streams

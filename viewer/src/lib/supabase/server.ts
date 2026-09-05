@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from './env';
 
 /** Anon key only. RLS decides what this session can read — no service_role
  *  anywhere in this app, unlike the interim viewer.js it replaces.
@@ -10,8 +11,8 @@ import { createServerClient } from '@supabase/ssr';
 export const supabaseServer = cache(async () => {
   const store = await cookies();
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll: () => store.getAll(),
