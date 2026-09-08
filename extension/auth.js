@@ -88,6 +88,13 @@ async function fjWhy() {
     } catch (e) { bits.push(`ERROR ${e.message}`); }
     out.push(bits.join(' '));
   }
+  // Every host the extension can see that cookie on, whatever DASH_ORIGINS
+  // says. Permission-gated, so a host that is not listed stays invisible here —
+  // which is itself the answer when a live cookie exists and this says nothing.
+  try {
+    const anywhere = await chrome.cookies.getAll({ name: COOKIE });
+    out.push(`by name: ${anywhere.map((c) => c.domain + c.path).join(' ') || 'nowhere visible'}`);
+  } catch (e) { out.push(`by name ERROR ${e.message}`); }
   // Also the active tab, in case the dashboard you are signed into is not one of
   // the origins above — a preview deployment, a custom domain, another port.
   // activeTab grants this popup cookie access to that origin without listing it.
