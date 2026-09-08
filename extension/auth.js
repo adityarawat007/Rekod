@@ -28,14 +28,25 @@ const fromBase64Url = (s) =>
     Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)),
   );
 
+/** The cookie value, reassembled exactly the way @supabase/ssr's combineChunks
+ *  does it: an unchunked cookie wins outright, otherwise `.0`, `.1`, … in
+ *  NUMERIC order, stopping at the first gap. Both details matter — a leftover
+ *  unchunked cookie joined onto the chunks is garbage, and a lexical sort puts
+ *  `.10` before `.2`. Mirrored by hand; the extension has no bundler. */
+async function fjRawAt(origin) {
+  const jar = new Map(
+    (await chrome.cookies.getAll({ url: origin })).map((c) => [c.name, c.value]),
+  );
+  if (jar.get(COOKIE)) return jar.get(COOKIE);
+  const parts = [];
+  for (let i = 0; jar.get(`${COOKIE}.${i}`); i++) parts.push(jar.get(`${COOKIE}.${i}`));
+  return parts.length ? parts.join('') : null;
+}
+
 /** The session in one origin's cookie jar, expired or not, or null. */
 async function fjCookieAt(origin) {
-  const parts = (await chrome.cookies.getAll({ url: origin }))
-    .filter((c) => c.name === COOKIE || c.name.startsWith(`${COOKIE}.`))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  if (!parts.length) return null;
-
-  let raw = parts.map((c) => c.value).join('');
+  let raw = await fjRawAt(origin);
+  if (!raw) return null;
   try { raw = decodeURIComponent(raw); } catch {}
   try {
     if (raw.startsWith('base64-')) raw = fromBase64Url(raw.slice(7));
@@ -59,6 +70,35 @@ async function fjPoke(origin) {
   } catch {}
   const s = await fjCookieAt(origin);
   return s && fjLive(s) ? s : null;
+}
+
+// The gate has now claimed "expired" for three different causes, so it says
+// which one. `origin` is stripped of its port for permissions.contains(), since
+// a match pattern with a port in it is invalid and throws.
+const fjPattern = (origin) => { const u = new URL(origin); return `${u.protocol}//${u.hostname}/*`; };
+
+/** One line per dashboard origin: is the host permission actually granted, what
+ *  sb-* cookies are visible, and what the session in them says. */
+async function fjWhy() {
+  const out = [];
+  for (const origin of DASH_ORIGINS) {
+    const bits = [new URL(origin).host];
+    try {
+      bits.push(`perm=${await chrome.permissions.contains({ origins: [fjPattern(origin)] })}`);
+    } catch (e) { bits.push(`perm=? (${e.message})`); }
+    try {
+      const all = await chrome.cookies.getAll({ url: origin });
+      const mine = all.filter((c) => c.name.startsWith('sb-'));
+      bits.push(`cookies=${all.length}`,
+        `sb=[${mine.map((c) => `${c.name}:${c.value.length}b`).join(' ') || 'none'}]`);
+      const s = await fjCookieAt(origin);
+      bits.push(s
+        ? `exp=${Math.round((s.expires_at * 1000 - Date.now()) / 1000)}s refresh=${!!s.refresh_token}`
+        : mine.length ? 'PARSE FAILED' : 'no session cookie');
+    } catch (e) { bits.push(`ERROR ${e.message}`); }
+    out.push(bits.join(' '));
+  }
+  return `want ${COOKIE}\n${out.join('\n')}`;
 }
 
 /** The dashboard's live session, or null if there is none to refresh.

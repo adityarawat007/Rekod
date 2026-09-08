@@ -42,4 +42,12 @@ const openDash = (path) => {
 $('login').onclick = () => openDash('/login');
 $('dash').onclick = () => openDash('/');   // the grid IS the list; /reports is gone
 
-fjSession().then(render);
+fjSession().then(async (session) => {
+  render(session);
+  if (session) return;
+  // Right-click the popup > Inspect to read it there too; the worker logs its
+  // own copy to the service worker console.
+  const why = await fjWhy();
+  console.log('[FlamJam] no session\n' + why);
+  fail(why);
+});
