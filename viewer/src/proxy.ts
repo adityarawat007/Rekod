@@ -62,7 +62,12 @@ export async function proxy(req: NextRequest) {
     const to = req.nextUrl.clone();
     to.pathname = '/';
     to.search = '';
-    return NextResponse.redirect(to);
+    const bounce = NextResponse.redirect(to);
+    // Carry whatever getClaims() just refreshed. Returning a bare redirect
+    // rotates the refresh token server-side and never tells the browser, so the
+    // next request presents a spent one — a logout at random, an hour later.
+    for (const c of res.cookies.getAll()) bounce.cookies.set(c);
+    return bounce;
   }
   return settle(res);
 }
