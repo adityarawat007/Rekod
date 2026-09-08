@@ -59,13 +59,21 @@ refresh-token error by deleting every `sb-*` cookie, and an extension-initiated
 fetch applies that `Set-Cookie` — so a "harmless" poke signs the user out for
 real. `test-auth.js` passes a `fetch` that throws, to keep it that way.
 
-`fjRawAt()` mirrors `@supabase/ssr`'s `combineChunks` by hand: an unchunked
-cookie wins outright, otherwise `.0`, `.1`, … in NUMERIC order, stopping at the
-first gap. Joining a leftover unchunked cookie onto the chunks decodes to
-garbage, which the parser reports as an expired session — the bug looks like
-auth and is really string handling. `fjWhy()` is what tells the two apart:
-per origin it prints whether the host permission is granted, which `sb-*`
-cookies are visible, and whether they parsed.
+**Read cookies with `chrome.cookies.get()`, never `getAll()`.** Measured here on
+a live cookie at the dashboard's own origin, with `<all_urls>` granted:
+`get({url, name})` returns it, while `getAll({url})`, `getAll({domain})` and
+`getAll({name})` all return `[]` — no error, no warning, an empty list that is
+indistinguishable from being signed out. The cookie is `SameSite=Lax` and an
+extension page is a different site, which is the likeliest reason getAll's
+would-this-be-sent filter drops it. `@supabase/ssr`'s own get-based adapter
+works the same way, chunk "hints" included. The cost is that `get()` needs the
+exact name, so every chunk is another call. `test-auth.js` stubs `get` and
+leaves `getAll` undefined, so going back to it throws.
+
+`fjRawAt()` also mirrors `combineChunks` by hand: an unchunked cookie wins
+outright, otherwise `.0`, `.1`, … in NUMERIC order, stopping at the first gap.
+Joining a leftover unchunked cookie onto the chunks decodes to garbage, which
+the parser reports as an expired session.
 
 **`extension/redact.js` is the ship gate.** It runs before `capture.js` in the
 MAIN world. Nothing leaves the tab unredacted. Changing it means running

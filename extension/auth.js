@@ -30,18 +30,34 @@ const fromBase64Url = (s) =>
     Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)),
   );
 
-/** The cookie value, reassembled exactly the way @supabase/ssr's combineChunks
- *  does it: an unchunked cookie wins outright, otherwise `.0`, `.1`, … in
- *  NUMERIC order, stopping at the first gap. Both details matter — a leftover
- *  unchunked cookie joined onto the chunks is garbage, and a lexical sort puts
- *  `.10` before `.2`. Mirrored by hand; the extension has no bundler. */
+/** The cookie value, read with chrome.cookies.get().
+ *
+ *  NOT getAll(). Measured on this machine, for a live cookie on the dashboard's
+ *  own origin: get({url, name}) returns it, while getAll({url}), getAll({domain})
+ *  and getAll({name}) all return [] — no error, no warning, just an empty list
+ *  that reads exactly like "you are signed out". The cookie is SameSite=Lax and
+ *  an extension page is a different site, which is the likeliest reason getAll's
+ *  would-this-be-sent filter drops it; the mechanism is a guess, the behaviour is
+ *  not. @supabase/ssr's own get-based adapter does the same thing for the same
+ *  reason, chunk "hints" included.
+ *
+ *  ponytail: get() needs the exact name, which is the whole cost — every chunk
+ *  is one more call. Fine at 2 or 3; if a session ever needs dozens of chunks,
+ *  that is the ceiling and getAll is not the way around it.
+ *
+ *  Assembly mirrors @supabase/ssr's combineChunks: an unchunked cookie wins
+ *  outright, otherwise `.0`, `.1`, … in NUMERIC order, stopping at the first
+ *  gap. Joining a leftover unchunked cookie onto the chunks decodes to garbage. */
 async function fjRawAt(origin) {
-  const jar = new Map(
-    (await chrome.cookies.getAll({ url: origin })).map((c) => [c.name, c.value]),
-  );
-  if (jar.get(COOKIE)) return jar.get(COOKIE);
+  const one = async (name) => (await chrome.cookies.get({ url: origin, name }))?.value || null;
+  const whole = await one(COOKIE);
+  if (whole) return whole;
   const parts = [];
-  for (let i = 0; jar.get(`${COOKIE}.${i}`); i++) parts.push(jar.get(`${COOKIE}.${i}`));
+  for (let i = 0; ; i++) {
+    const part = await one(`${COOKIE}.${i}`);
+    if (!part) break;
+    parts.push(part);
+  }
   return parts.length ? parts.join('') : null;
 }
 
@@ -61,55 +77,6 @@ async function fjCookieAt(origin) {
 
 // 60s of slack: a token that expires mid-upload fails the insert, not the fetch.
 const fjLive = (s) => s.expires_at * 1000 > Date.now() + 60_000;
-
-// The gate has now claimed "expired" for three different causes, so it says
-// which one. `origin` is stripped of its port for permissions.contains(), since
-// a match pattern with a port in it is invalid and throws.
-const fjPattern = (origin) => { const u = new URL(origin); return `${u.protocol}//${u.hostname}/*`; };
-
-/** One line per dashboard origin: is the host permission actually granted, what
- *  sb-* cookies are visible, and what the session in them says. */
-async function fjWhy() {
-  const out = [];
-  for (const origin of DASH_ORIGINS) {
-    const bits = [new URL(origin).host];
-    try {
-      bits.push(`perm=${await chrome.permissions.contains({ origins: [fjPattern(origin)] })}`);
-    } catch (e) { bits.push(`perm=? (${e.message})`); }
-    try {
-      const all = await chrome.cookies.getAll({ url: origin });
-      const mine = all.filter((c) => c.name.startsWith('sb-'));
-      bits.push(`cookies=${all.length}`,
-        `sb=[${mine.map((c) => `${c.name}:${c.value.length}b`).join(' ') || 'none'}]`);
-      const s = await fjCookieAt(origin);
-      bits.push(s
-        ? `exp=${Math.round((s.expires_at * 1000 - Date.now()) / 1000)}s refresh=${!!s.refresh_token}`
-        : mine.length ? 'PARSE FAILED' : 'no session cookie');
-    } catch (e) { bits.push(`ERROR ${e.message}`); }
-    out.push(bits.join(' '));
-  }
-  // Every host the extension can see that cookie on, whatever DASH_ORIGINS
-  // says. Permission-gated, so a host that is not listed stays invisible here —
-  // which is itself the answer when a live cookie exists and this says nothing.
-  try {
-    const anywhere = await chrome.cookies.getAll({ name: COOKIE });
-    out.push(`by name: ${anywhere.map((c) => c.domain + c.path).join(' ') || 'nowhere visible'}`);
-  } catch (e) { out.push(`by name ERROR ${e.message}`); }
-  // Also the active tab, in case the dashboard you are signed into is not one of
-  // the origins above — a preview deployment, a custom domain, another port.
-  // activeTab grants this popup cookie access to that origin without listing it.
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const origin = tab?.url && /^https?:/.test(tab.url) ? new URL(tab.url).origin : null;
-    if (origin && !DASH_ORIGINS.includes(origin)) {
-      const all = await chrome.cookies.getAll({ url: origin });
-      const mine = all.filter((c) => c.name.startsWith('sb-'));
-      out.push(`tab ${new URL(origin).host} cookies=${all.length} ` +
-        `sb=[${mine.map((c) => `${c.name}:${c.value.length}b`).join(' ') || 'none'}]`);
-    }
-  } catch (e) { out.push(`tab ERROR ${e.message}`); }
-  return `want ${COOKIE}\n${out.join('\n')}`;
-}
 
 /** The dashboard's live session, or null if absent or expired everywhere.
  *  Needs chrome.cookies: worker.js and popup.html only. The offscreen document

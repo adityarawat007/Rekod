@@ -34,8 +34,16 @@ const chunked = (mins, n) => {
   }));
 };
 
-// jar: { origin: cookie[] }. A stub fetch may mutate it, like a Set-Cookie would.
-const stub = (jar) => ({ cookies: { getAll: async ({ url }) => jar[url] ?? [] } });
+// jar: { origin: cookie[] }. Only `get` is stubbed, deliberately — the bug that
+// cost six rounds of debugging was auth.js reading with getAll(), which returns
+// [] for a live SameSite=Lax cookie on an extension page. Leaving getAll
+// undefined means going back to it throws here instead of quietly reading
+// nothing and reporting a signed-in user as expired.
+const stub = (jar) => ({
+  cookies: {
+    get: async ({ url, name }) => (jar[url] ?? []).find((c) => c.name === name) ?? null,
+  },
+});
 
 (async () => {
   const [PROD, DEV] = load(stub({})).DASH_ORIGINS;
