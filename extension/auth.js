@@ -2,14 +2,16 @@
 // straight out of the dashboard's cookie — nothing is stored on this side, so
 // there is no second copy to go stale and no password field in the popup.
 //
-// ponytail: no token handling here. An access token lasts an hour and NOTHING on
-// the dashboard refreshes it in the background — no page is mounted with a
-// browser client, so the cookie only gets a fresh token when a request passes
-// through proxy.ts. So when the cookie is stale but its refresh token is good,
-// this asks the dashboard for that request (fjPoke) instead of calling
-// /auth/v1/token itself. Still one refresher, so nothing races Supabase's
-// refresh-token reuse detection. Only a cookie with no refresh token at all
-// shows the "session expired" card.
+// ponytail: no token handling here, and no refresh of any kind. An expired
+// cookie shows the expired card and sends you to the dashboard, which refreshes
+// it on load. Two things this deliberately does NOT do:
+//   - call /auth/v1/token itself — two refreshers race Supabase's reuse
+//     detection and log you out of both.
+//   - GET the dashboard to make IT refresh. Tried, reverted: proxy.ts answers
+//     any refresh-token error by deleting every sb-* cookie, and an
+//     extension-initiated fetch applies that Set-Cookie, so the poke can log
+//     you out for real. Bring it back only with proxy.ts fixed to scope that
+//     deletion to real navigations.
 const SUPABASE_URL  = 'https://odrrzeqctgkrsyposkun.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_h344Jny4uvxnKnepiOhAjw_UgU9vgSc';
 // Prod first, then the dev server. Whichever holds a live session wins, so the
@@ -60,18 +62,6 @@ async function fjCookieAt(origin) {
 // 60s of slack: a token that expires mid-upload fails the insert, not the fetch.
 const fjLive = (s) => s.expires_at * 1000 > Date.now() + 60_000;
 
-/** GET a gated dashboard page so ITS proxy refreshes the cookie, then re-read.
- *  Must be a gated path: proxy.ts drops the refreshed cookies on the
- *  signed-in-visits-/login redirect. Host permission is what lets the request
- *  carry the cookie and the Set-Cookie land. */
-async function fjPoke(origin) {
-  try {
-    await fetch(`${origin}/`, { credentials: 'include', redirect: 'manual', cache: 'no-store' });
-  } catch {}
-  const s = await fjCookieAt(origin);
-  return s && fjLive(s) ? s : null;
-}
-
 // The gate has now claimed "expired" for three different causes, so it says
 // which one. `origin` is stripped of its port for permissions.contains(), since
 // a match pattern with a port in it is invalid and throws.
@@ -98,18 +88,29 @@ async function fjWhy() {
     } catch (e) { bits.push(`ERROR ${e.message}`); }
     out.push(bits.join(' '));
   }
+  // Also the active tab, in case the dashboard you are signed into is not one of
+  // the origins above — a preview deployment, a custom domain, another port.
+  // activeTab grants this popup cookie access to that origin without listing it.
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const origin = tab?.url && /^https?:/.test(tab.url) ? new URL(tab.url).origin : null;
+    if (origin && !DASH_ORIGINS.includes(origin)) {
+      const all = await chrome.cookies.getAll({ url: origin });
+      const mine = all.filter((c) => c.name.startsWith('sb-'));
+      out.push(`tab ${new URL(origin).host} cookies=${all.length} ` +
+        `sb=[${mine.map((c) => `${c.name}:${c.value.length}b`).join(' ') || 'none'}]`);
+    }
+  } catch (e) { out.push(`tab ERROR ${e.message}`); }
   return `want ${COOKIE}\n${out.join('\n')}`;
 }
 
-/** The dashboard's live session, or null if there is none to refresh.
+/** The dashboard's live session, or null if absent or expired everywhere.
  *  Needs chrome.cookies: worker.js and popup.html only. The offscreen document
  *  asks the worker for it ({ to: 'bg', t: 'session' }). */
 async function fjSession() {
-  let stale = null;
   for (const origin of DASH_ORIGINS) {
     const s = await fjCookieAt(origin);
     if (s && fjLive(s)) return s;
-    if (s?.refresh_token && !stale) stale = origin;
   }
-  return stale ? fjPoke(stale) : null;
+  return null;
 }

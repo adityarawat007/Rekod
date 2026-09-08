@@ -49,17 +49,23 @@ list is what keeps `owner` and `share_token` from leaking, so never make it
 `chrome.cookies` — from the first origin in `DASH_ORIGINS` that has a live one
 (prod, then the dev server), and every origin listed there needs a matching
 `host_permissions` entry. One session, owned by the dashboard, no copy in
-`chrome.storage`.
+`chrome.storage`. Expired cookie means the popup shows the expired card and
+sends you to `/login`.
 
-A stale access token is not a logged-out user: nothing on the dashboard
-refreshes in the background (no page mounts a browser client), so the cookie
-only gains a fresh token when a request passes through `proxy.ts`. `fjPoke()`
-GETs a **gated** dashboard path so that happens and re-reads the cookie — the
-extension still never calls `/auth/v1/token`, so there is only ever one
-refresher and nothing races Supabase's reuse detection. `/login` is the wrong
-path to poke: a signed-in visit there redirects, and the redirect has to carry
-the refreshed cookies or the rotated refresh token is lost. Only a cookie with
-no usable refresh token shows the expired card and sends you to `/login`.
+**The extension makes no network request of its own, and that is load-bearing.**
+Not `/auth/v1/token` (two refreshers race Supabase's reuse detection), and not a
+GET of the dashboard to make *it* refresh either: `proxy.ts` answers any
+refresh-token error by deleting every `sb-*` cookie, and an extension-initiated
+fetch applies that `Set-Cookie` — so a "harmless" poke signs the user out for
+real. `test-auth.js` passes a `fetch` that throws, to keep it that way.
+
+`fjRawAt()` mirrors `@supabase/ssr`'s `combineChunks` by hand: an unchunked
+cookie wins outright, otherwise `.0`, `.1`, … in NUMERIC order, stopping at the
+first gap. Joining a leftover unchunked cookie onto the chunks decodes to
+garbage, which the parser reports as an expired session — the bug looks like
+auth and is really string handling. `fjWhy()` is what tells the two apart:
+per origin it prints whether the host permission is granted, which `sb-*`
+cookies are visible, and whether they parsed.
 
 **`extension/redact.js` is the ship gate.** It runs before `capture.js` in the
 MAIN world. Nothing leaves the tab unredacted. Changing it means running
