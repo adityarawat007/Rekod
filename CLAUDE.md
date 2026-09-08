@@ -49,9 +49,17 @@ list is what keeps `owner` and `share_token` from leaking, so never make it
 `chrome.cookies` — from the first origin in `DASH_ORIGINS` that has a live one
 (prod, then the dev server), and every origin listed there needs a matching
 `host_permissions` entry. One session, owned by the dashboard, no copy in
-`chrome.storage`. Expired cookie means the popup shows the expired card and
-sends you to `/login`; the extension deliberately never refreshes (two
-refreshers race Supabase's reuse detection).
+`chrome.storage`.
+
+A stale access token is not a logged-out user: nothing on the dashboard
+refreshes in the background (no page mounts a browser client), so the cookie
+only gains a fresh token when a request passes through `proxy.ts`. `fjPoke()`
+GETs a **gated** dashboard path so that happens and re-reads the cookie — the
+extension still never calls `/auth/v1/token`, so there is only ever one
+refresher and nothing races Supabase's reuse detection. `/login` is the wrong
+path to poke: a signed-in visit there redirects, and the redirect has to carry
+the refreshed cookies or the rotated refresh token is lost. Only a cookie with
+no usable refresh token shows the expired card and sends you to `/login`.
 
 **`extension/redact.js` is the ship gate.** It runs before `capture.js` in the
 MAIN world. Nothing leaves the tab unredacted. Changing it means running
@@ -76,6 +84,7 @@ file, never editing an applied one.
 
 ```
 node test-redact.js              # the ship gate
+node test-auth.js                # the session gate: live / stale+poke / dead
 cd viewer && npm test            # timeline merge, pre-roll signs, timeline uids
 cd viewer && npm run typecheck
 cd viewer && npm run build

@@ -2,10 +2,14 @@
 // straight out of the dashboard's cookie — nothing is stored on this side, so
 // there is no second copy to go stale and no password field in the popup.
 //
-// ponytail: no refresh here. An expired cookie shows the "session expired" card
-// and sends you to the dashboard, which refreshes it on load. Refreshing from
-// two places races Supabase's refresh-token reuse detection and logs you out of
-// both.
+// ponytail: no token handling here. An access token lasts an hour and NOTHING on
+// the dashboard refreshes it in the background — no page is mounted with a
+// browser client, so the cookie only gets a fresh token when a request passes
+// through proxy.ts. So when the cookie is stale but its refresh token is good,
+// this asks the dashboard for that request (fjPoke) instead of calling
+// /auth/v1/token itself. Still one refresher, so nothing races Supabase's
+// refresh-token reuse detection. Only a cookie with no refresh token at all
+// shows the "session expired" card.
 const SUPABASE_URL  = 'https://odrrzeqctgkrsyposkun.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_h344Jny4uvxnKnepiOhAjw_UgU9vgSc';
 // Prod first, then the dev server. Whichever holds a live session wins, so the
@@ -24,8 +28,8 @@ const fromBase64Url = (s) =>
     Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)),
   );
 
-/** The session in one origin's cookie jar, or null. */
-async function fjSessionAt(origin) {
+/** The session in one origin's cookie jar, expired or not, or null. */
+async function fjCookieAt(origin) {
   const parts = (await chrome.cookies.getAll({ url: origin }))
     .filter((c) => c.name === COOKIE || c.name.startsWith(`${COOKIE}.`))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -36,20 +40,36 @@ async function fjSessionAt(origin) {
   try {
     if (raw.startsWith('base64-')) raw = fromBase64Url(raw.slice(7));
     const s = JSON.parse(raw);
-    // 60s of slack: a token that expires mid-upload fails the insert, not the fetch.
-    return s?.access_token && s.expires_at * 1000 > Date.now() + 60_000 ? s : null;
+    return s?.access_token ? s : null;
   } catch {
     return null;                                  // half-written chunks, mid-refresh
   }
 }
 
-/** The dashboard's live session, or null if absent or expired everywhere.
+// 60s of slack: a token that expires mid-upload fails the insert, not the fetch.
+const fjLive = (s) => s.expires_at * 1000 > Date.now() + 60_000;
+
+/** GET a gated dashboard page so ITS proxy refreshes the cookie, then re-read.
+ *  Must be a gated path: proxy.ts drops the refreshed cookies on the
+ *  signed-in-visits-/login redirect. Host permission is what lets the request
+ *  carry the cookie and the Set-Cookie land. */
+async function fjPoke(origin) {
+  try {
+    await fetch(`${origin}/`, { credentials: 'include', redirect: 'manual', cache: 'no-store' });
+  } catch {}
+  const s = await fjCookieAt(origin);
+  return s && fjLive(s) ? s : null;
+}
+
+/** The dashboard's live session, or null if there is none to refresh.
  *  Needs chrome.cookies: worker.js and popup.html only. The offscreen document
  *  asks the worker for it ({ to: 'bg', t: 'session' }). */
 async function fjSession() {
+  let stale = null;
   for (const origin of DASH_ORIGINS) {
-    const s = await fjSessionAt(origin);
-    if (s) return s;
+    const s = await fjCookieAt(origin);
+    if (s && fjLive(s)) return s;
+    if (s?.refresh_token && !stale) stale = origin;
   }
-  return null;
+  return stale ? fjPoke(stale) : null;
 }
