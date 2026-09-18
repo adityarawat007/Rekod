@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { JsonView } from '@/components/json-view';
-import { offset, stamp, ms, shortUrl, clock } from '@/lib/format';
+import { offset, stamp, ms, shortUrl, clock, trackPct } from '@/lib/format';
 import { isConsole, isError, isNet, isWarn, netFailed, type Entry, type Env, type TimelineEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +47,11 @@ const preRollClass =
 export function ReportView({ entries, t0, env, media }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const [now, setNow] = useState(0);
+  // The video is usually longer than the last log entry, so it has to be part of
+  // the timeline's span or the playhead runs off the end of the track. Infinity
+  // is what a MediaRecorder blob reports until it has been seeked, hence the
+  // finite check; trackPct clamps whatever is left.
+  const [dur, setDur] = useState(0);
   const [showPre, setShowPre] = useState(true);
   const [levels, setLevels] = useState<Set<string>>(new Set(['error', 'warn', 'log']));
   const [netType, setNetType] = useState('all');
@@ -66,7 +71,7 @@ export function ReportView({ entries, t0, env, media }: Props) {
     const cons = entries.filter((e) => isConsole(e) || e.kind === 'event');
     const nets = entries.filter(isNet);
     const lo = Math.min(0, ...entries.map((e) => offset(e.t, t0)));
-    const hi = Math.max(1, ...entries.map((e) => offset(e.t, t0)));
+    const hi = Math.max(1, dur, ...entries.map((e) => offset(e.t, t0)));
     return {
       consoleRows: cons,
       // websocket frames and closes are detail on the connection row, not rows
@@ -74,7 +79,7 @@ export function ReportView({ entries, t0, env, media }: Props) {
       events: entries.filter((e) => e.kind === 'event'),
       span: { lo, hi },
     };
-  }, [entries, t0]);
+  }, [entries, t0, dur]);
 
   const visibleConsole = consoleRows.filter((e) => {
     if (!showPre && off(e) < 0) return false;
@@ -89,7 +94,7 @@ export function ReportView({ entries, t0, env, media }: Props) {
   const errN = entries.filter(isError).length;
   const warnN = entries.filter(isWarn).length;
 
-  const pct = (s: number) => ((s - span.lo) / (span.hi - span.lo)) * 100;
+  const pct = (s: number) => trackPct(s, span.lo, span.hi);
 
   const toggleLevel = (l: string) =>
     setLevels((prev) => {
@@ -117,6 +122,10 @@ export function ReportView({ entries, t0, env, media }: Props) {
               preload="metadata"
               className="w-full"
               onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
+              onLoadedMetadata={(e) => {
+                const d = e.currentTarget.duration;
+                if (Number.isFinite(d) && d > 0) setDur(d);
+              }}
             />
           )}
         </div>

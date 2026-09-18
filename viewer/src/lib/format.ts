@@ -55,3 +55,16 @@ export function httpUrl(u: string | null | undefined): string | null {
     return null; // not parseable as a URL, so not linkable
   }
 }
+
+/**
+ * Where `s` seconds sits on a timeline spanning [lo, hi], as a percentage.
+ *
+ * Clamped, because the two ends do not agree: the span comes from the log
+ * entries, and the video keeps playing past the last one. An unclamped ratio
+ * put the progress bar's right edge outside its own container.
+ *
+ * Returns 0 for an empty or inverted span rather than NaN, which CSS drops
+ * silently and which reads as "the bar is missing".
+ */
+export const trackPct = (s: number, lo: number, hi: number) =>
+  hi > lo ? Math.min(100, Math.max(0, ((s - lo) / (hi - lo)) * 100)) : 0;

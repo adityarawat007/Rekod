@@ -2,7 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
-import { offset, stamp, clock, ms, shortUrl, httpUrl } from './src/lib/format.ts';
+import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed, isScreenshot } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 
@@ -33,6 +33,16 @@ assert.ok(
   netFailed({ status: 404, passive: true } as NetEntry),
   'a passive row with a real status is still judged on that status',
 );
+
+// ── the timeline track: a percentage that cannot leave its container ───────
+assert.strictEqual(Math.round(trackPct(0, -4, 10)), 29, 'pre-roll shifts the origin right');
+assert.strictEqual(trackPct(-4, -4, 10), 0);
+assert.strictEqual(trackPct(10, -4, 10), 100);
+// the reported bug: the video outlives the last log entry, so `now` overshoots
+assert.strictEqual(trackPct(9, 0, 5), 100, 'clamped, not 180%');
+assert.strictEqual(trackPct(-9, 0, 5), 0, 'and not negative');
+assert.strictEqual(trackPct(1, 5, 5), 0, 'an empty span is 0, never NaN');
+assert.ok(!Number.isNaN(trackPct(1, 5, 1)), 'an inverted span is not NaN either');
 
 // ── pre-roll: the sign is information, not decoration ──────────────────────
 assert.strictEqual(offset(T0 - 4000, T0), -4);
