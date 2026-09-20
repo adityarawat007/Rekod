@@ -1,11 +1,17 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Camera, Video } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, Camera, Loader2, Trash2, Video, X } from 'lucide-react';
 import { ago } from '@/lib/format';
 import { isScreenshot } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { deleteReports } from '@/components/delete-reports';
+import { cn } from '@/lib/utils';
 
 export type ListRow = {
   id: string;
-  title: string;
   project: string | null;
   created_at: string;
   video_path: string | null;
@@ -79,6 +85,32 @@ export function ReportList({
   previews?: Map<string, string>;
   empty?: React.ReactNode;
 }) {
+  const router = useRouter();
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const toggle = (id: string) =>
+    setSel((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  async function remove() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await deleteReports(rows.filter((r) => sel.has(r.id)));
+      setSel(new Set());
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!rows.length) {
     return (
       <div className="px-5 py-16 text-center text-sm text-muted-foreground">
@@ -93,27 +125,86 @@ export function ReportList({
   }
 
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {rows.map((r) => (
-        <li key={r.id}>
-          <Link
-            href={`/reports/${r.id}`}
-            className="block space-y-2.5 rounded-lg border bg-card p-2.5 transition-colors hover:border-jam/60"
-          >
-            <Thumb row={r} url={r.video_path ? previews?.get(r.video_path) : undefined} />
-            <div className="space-y-1.5 px-0.5 pb-0.5">
-              <p className="truncate font-medium leading-snug">{r.title}</p>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="mono truncate text-muted-foreground">{r.project ?? '—'}</span>
-                <span className="mono shrink-0 text-muted-foreground">{ago(r.created_at)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <Signal errors={r.error_count ?? 0} failed={r.failed_count ?? 0} />
-              </div>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3">
+      {/* Only once something is selected: an empty toolbar above every visit to
+          the list would be furniture. Sticky, because the selection can happen
+          at the bottom of a long grid. */}
+      {sel.size > 0 && (
+        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-lg border bg-card p-2 pl-3 shadow-sm">
+          <span className="text-sm font-medium">
+            {sel.size} selected
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>
+            <X /> Clear
+          </Button>
+          <Button size="sm" variant="destructive" className="ml-auto" onClick={remove} disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" /> : <Trash2 />}
+            Delete {sel.size === 1 ? 'recording' : 'recordings'}
+          </Button>
+          {err ? (
+            <p role="alert" className="w-full text-xs text-destructive">
+              {err}
+            </p>
+          ) : null}
+        </div>
+      )}
+
+      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {rows.map((r) => {
+          const on = sel.has(r.id);
+          return (
+            // The checkbox is a SIBLING of the link, not a child: an <a> may
+            // not contain another control, and nesting one made the whole card
+            // navigate on every click of it.
+            <li key={r.id} className="group relative">
+              <Link
+                href={`/reports/${r.id}`}
+                className={cn(
+                  'block space-y-2.5 rounded-lg border bg-card p-2.5 transition-colors hover:border-jam-deep/60',
+                  on && 'border-jam-deep ring-2 ring-jam-deep/30',
+                )}
+              >
+                <Thumb row={r} url={r.video_path ? previews?.get(r.video_path) : undefined} />
+                {/* No title line. A title is optional and filled in later on the
+                    report page, so the card would mostly render a placeholder —
+                    the thumbnail plus project and age identify a recording well
+                    enough to click it. */}
+                <div className="space-y-1.5 px-0.5 pb-0.5">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="mono truncate text-muted-foreground">{r.project ?? '—'}</span>
+                    {/* Rendered on the server and again here a moment later, so
+                        "just now" can disagree with itself for one tick. */}
+                    <span className="mono shrink-0 text-muted-foreground" suppressHydrationWarning>
+                      {ago(r.created_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <Signal errors={r.error_count ?? 0} failed={r.failed_count ?? 0} />
+                  </div>
+                </div>
+              </Link>
+
+              <label
+                // Out of the way until you want it: hidden on a resting card,
+                // shown on hover and whenever it holds focus, so it is still
+                // reachable by keyboard.
+                className={cn(
+                  'absolute left-4 top-4 z-10 grid size-6 cursor-pointer place-items-center rounded-md border bg-background/85 backdrop-blur transition-opacity',
+                  !on && 'opacity-0 focus-within:opacity-100 group-hover:opacity-100',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => toggle(r.id)}
+                  aria-label={`Select the recording from ${r.project ?? 'an unknown project'}`}
+                  className="size-3.5 accent-jam-deep"
+                />
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

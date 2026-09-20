@@ -12,7 +12,7 @@ const src = readFileSync(`${__dirname}/extension/auth.js`, 'utf8');
 // cookie, and an extension fetch applies that Set-Cookie, so a "harmless" GET
 // of the dashboard can sign the user out. Read the cookie, nothing else.
 const load = (chrome) => new Function('chrome', 'fetch',
-  `${src}\nreturn { fjSession, DASH_ORIGINS };`,
+  `${src}\nreturn { fjSession, fjSessionState, DASH_ORIGINS };`,
 )(chrome, () => { throw new Error('auth.js must not make network requests'); });
 
 const NAME = 'sb-odrrzeqctgkrsyposkun-auth-token';
@@ -99,6 +99,35 @@ const stub = (jar) => ({
   assert.equal(await load(stub({})).fjSession(), null);
   jar = { [PROD]: [{ name: `${NAME}.0`, value: 'base64-bm90IGpzb24' }] };
   assert.equal(await load(stub(jar)).fjSession(), null);
+
+  // ── stale is not signed out ───────────────────────────────────────────────
+  // The reported bug: an hour after the last dashboard visit the popup told a
+  // signed-in user their session had expired. The access token had aged out;
+  // the refresh_token beside it was fine. Only the dashboard may spend it, so
+  // the extension has to say "needs a refresh", not "log in again".
+  const state = async (jar) => (await load(stub(jar)).fjSessionState()).state;
+
+  assert.equal(await state({ [PROD]: [at(30)] }), 'live');
+  assert.equal(await state({}), 'none', 'no cookie anywhere is the only signed-out case');
+  assert.equal(await state({ [PROD]: [at(-5)] }), 'stale', 'aged-out access token, good refresh token');
+  assert.equal(await state({ [PROD]: [at(0.5)] }), 'stale', 'inside the 60s of slack is stale, not dead');
+  // caught mid-write by @supabase/ssr: a cookie exists, so this is not "signed out"
+  assert.equal(
+    await state({ [PROD]: [{ name: `${NAME}.0`, value: 'base64-bm90IGpzb24' }] }),
+    'stale',
+    'an unparseable cookie is a session being rewritten, not an absent one',
+  );
+  // one origin stale, the other live — live still wins, order notwithstanding
+  assert.equal(await state({ [PROD]: [at(-5)], [DEV]: [at(30)] }), 'live');
+
+  // `origin` says WHERE to go to renew it. worker.js loads that dashboard in a
+  // background tab, so pointing at prod for a session living on the dev server
+  // would open a tab that refreshes nothing.
+  const full = async (jar) => load(stub(jar)).fjSessionState();
+  assert.equal((await full({ [DEV]: [at(-5)] })).origin, DEV, 'renew where the cookie is');
+  assert.equal((await full({ [PROD]: [at(-5)], [DEV]: [at(-5)] })).origin, PROD, 'first stale origin wins');
+  assert.equal((await full({ [PROD]: [at(30)] })).origin, PROD, 'live reports its origin too');
+  assert.equal((await full({})).origin, null, 'nothing to renew');
 
   console.log('session gate ok');
 })();

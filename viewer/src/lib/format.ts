@@ -102,3 +102,64 @@ export function reindent(src: string): string {
   }
   return out;
 }
+
+/**
+ * The selected request as a `curl` command, for pasting into a shell.
+ *
+ * Every argument is single-quoted, because a captured URL or header value is
+ * whatever the page sent — a space, a `;` or a `$(…)` in one of them would
+ * otherwise be shell syntax rather than data. A single quote is the only
+ * character that can end such a string, hence the one replacement.
+ *
+ * Headers arrive already redacted: `redact.js` runs before capture, so an
+ * Authorization value here is a placeholder, not a credential.
+ */
+export function toCurl(e: {
+  url: string;
+  method?: string;
+  reqHeaders?: Record<string, string> | null;
+  reqBody?: string | null;
+}) {
+  const q = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const parts = [`curl ${q(e.url)}`];
+  if (e.method && e.method !== 'GET') parts.push(`-X ${e.method}`);
+  for (const [k, v] of Object.entries(e.reqHeaders ?? {})) parts.push(`-H ${q(`${k}: ${v}`)}`);
+  if (e.reqBody) parts.push(`--data-raw ${q(e.reqBody)}`);
+  return parts.join(' \\\n  ');
+}
+
+/**
+ * A user agent string reduced to the two facts anyone actually reads off it:
+ * which browser, and which OS. The full string stays available as a title —
+ * this is a label, not a replacement for the evidence.
+ *
+ * Order is the whole trick. Every Chromium browser still says `Chrome`, and
+ * Chrome still says `Safari`, so the most specific token has to be tested
+ * first: Edge before Opera before Chrome before Safari. Anything unrecognised
+ * returns null for that half rather than a wrong guess.
+ */
+export function uaSummary(ua?: string | null) {
+  if (!ua) return null;
+  const v = (re: RegExp) => re.exec(ua)?.[1]?.split('.')[0] ?? '';
+  const named = (name: string, re: RegExp) => `${name} ${v(re)}`.trim();
+
+  const browser =
+    /Edg[A-Z]?\//.test(ua) ? named('Edge', /Edg[A-Z]?\/(\d+)/)
+    : /OPR\//.test(ua) ? named('Opera', /OPR\/(\d+)/)
+    : /Chrome\//.test(ua) ? named('Chrome', /Chrome\/(\d+)/)
+    : /Firefox\//.test(ua) ? named('Firefox', /Firefox\/(\d+)/)
+    : /Safari\//.test(ua) ? named('Safari', /Version\/(\d+)/)
+    : null;
+
+  // iPadOS reports itself as a Mac in desktop mode, which is why iPhone/iPad
+  // is tested before Mac OS X.
+  const os =
+    /(iPhone|iPad|iPod)/.test(ua) ? 'iOS'
+    : /Android/.test(ua) ? named('Android', /Android (\d+)/)
+    : /Mac OS X/.test(ua) ? 'macOS'
+    : /Windows/.test(ua) ? 'Windows'
+    : /(Linux|X11|CrOS)/.test(ua) ? 'Linux'
+    : null;
+
+  return { browser, os, apple: /(Mac OS X|iPhone|iPad|iPod)/.test(ua) };
+}

@@ -58,11 +58,16 @@
 
     .card{width:340px;padding:15px;cursor:grab}
     .card h4{margin:0 0 10px;font-size:13.5px;font-weight:600}
-    textarea{width:100%;height:64px;resize:none;background:#0F0E12;border:1px solid rgba(255,255,255,.12);
+    /* Two fields now — a title and a write-up, both optional. Same skin, so
+       the card reads as one form rather than two controls that met by
+       accident. */
+    textarea,input{width:100%;background:#0F0E12;border:1px solid rgba(255,255,255,.12);
              border-radius:10px;color:#F5F2F6;padding:10px;font:inherit;font-size:12.5px;letter-spacing:0;
              user-select:text;cursor:auto}
-    textarea::placeholder{color:#6F6875}
-    textarea:focus{outline:none;border-color:rgba(255,255,255,.3)}
+    input{font-weight:600}
+    textarea{height:64px;resize:none;margin-top:7px}
+    ::placeholder{color:#6F6875}
+    :is(textarea,input):focus{outline:none;border-color:rgba(255,255,255,.3)}
     .facts{display:flex;flex-wrap:wrap;gap:9px;margin:11px 0 13px;font-family:ui-monospace,monospace;
            font-size:10.5px;color:#9C95A2}
     .row{display:flex;gap:8px}
@@ -208,21 +213,30 @@
   const compose = (m) => {
     stopTicker();
     const media = m.kind === 'shot' ? '✓ screenshot' : `✓ ${fmt(m.dur || 0)} video`;
-    ui.innerHTML = `<div class="card"><h4>What went wrong?</h4>
-      <textarea id="t" placeholder="Export button spins forever on the render page…"></textarea>
+    // Both fields are optional and neither is a comment: the title and the
+    // description are the report's own, editable later on the dashboard. The
+    // comment thread only ever grows there. See schema-comments.sql.
+    ui.innerHTML = `<div class="card"><h4>Save this recording</h4>
+      <input id="ti" placeholder="Title (optional)">
+      <textarea id="t" placeholder="What happened? Optional — you can write this later."></textarea>
       <div class="facts"><span>${media}</span><span>✓ ${m.logs} logs</span>
         <span>✓ ${m.net} requests</span><span>✓ redacted</span></div>
-      <div class="row"><button class="btn" id="go" style="flex:1">Send report</button>
+      <div class="row"><button class="btn" id="go" style="flex:1">Save recording</button>
         <button class="btn ghost" id="no">Discard</button></div></div>`;
+    const name = root.getElementById('ti');
     const box = root.getElementById('t');
-    box.focus();
+    name.focus();
     const go = async () => {
       note('', 'Uploading…');
-      send({ t: 'send', title: box.value.trim() || 'Untitled report', env: await flush() });
+      // Empty stays empty. `title` is NOT NULL in the database, so the blank is
+      // '' rather than null, and the dashboard shows its placeholder.
+      send({ t: 'send', title: name.value.trim(), desc: box.value.trim(), env: await flush() });
     };
     root.getElementById('go').onclick = go;
     root.getElementById('no').onclick = () => send({ t: 'discard' });
-    box.onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) go(); };
+    const chord = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) go(); };
+    name.onkeydown = chord;
+    box.onkeydown = chord;
   };
 
   const onMsg = (m) => {

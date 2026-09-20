@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 // inbox listing the same rows. Two screens for one job. The recordings are the
 // product, so they are the home page — tiles, trend and by-project bars are
 // deleted, not hidden. See PLAN.md.
-const COLS = 'id,title,project,created_at,video_path,error_count,failed_count';
+const COLS = 'id,project,created_at,video_path,error_count,failed_count';
 const FILTER_KEYS = ['project', 'failing', 'q', 'range'] as const;
 
 type Search = Awaited<PageProps<'/'>['searchParams']>;
@@ -94,7 +94,14 @@ async function search(sp: Search): Promise<ListRow[]> {
   if (project) query = query.eq('project', project);
   // PostgREST `or` on two generated int columns — cheap because they are stored.
   if (one(sp, 'failing')) query = query.or('error_count.gt.0,failed_count.gt.0');
-  if (q) query = query.ilike('title', `%${q}%`);
+  // Title and description both, because a title is optional now and plenty of
+  // recordings will only ever have the write-up. `or` takes a comma-separated
+  // filter list, so those characters are stripped rather than escaped — they
+  // are worth nothing in a search box and a stray one breaks the whole filter.
+  if (q) {
+    const safe = q.replace(/[,()"\\]/g, ' ').trim();
+    if (safe) query = query.or(`title.ilike.%${safe}%,description.ilike.%${safe}%`);
+  }
   if (range && /^\d+$/.test(range)) {
     query = query.gte('created_at', new Date(Date.now() - Number(range) * 864e5).toISOString());
   }

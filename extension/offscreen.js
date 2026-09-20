@@ -46,7 +46,7 @@ async function handle(msg, sender) {
     case 'start':   return start(msg.streamId, msg.tabId);
     case 'stop':    return stop();
     case 'discard': return discard();
-    case 'send':    return upload(msg.title, msg.env);
+    case 'send':    return upload(msg.title, msg.desc, msg.env);
     case 'tab-gone': {
       buffers.delete(msg.tabId);
       if (rec?.tabId === msg.tabId) await discard();
@@ -124,7 +124,7 @@ async function discard() {
 
 const retry = async (fn) => { try { return await fn(); } catch { return fn(); } };
 
-async function upload(title, env) {
+async function upload(title, desc, env) {
   if (!rec) return;
   const { tabId, t0 } = rec;
   rec = null;
@@ -138,7 +138,7 @@ async function upload(title, env) {
 
     // Reports are owned rows; there is no anonymous filing any more.
     const session = await chrome.runtime.sendMessage({ to: 'bg', t: 'session' });
-    if (!session) throw new Error('Session expired — log in from the ReKod popup, then send again');
+    if (!session) throw new Error('Session needs a refresh — open the dashboard once, then send again');
     const uid = session.user.id;
 
     // <uid>/<yyyy>/<mm>/ — the first segment is what the storage policy checks.
@@ -161,7 +161,11 @@ async function upload(title, env) {
         method: 'POST',
         headers: { ...auth, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
         body: storable({
-          id, owner: uid, title, t0, env: env || {},
+          // title is NOT NULL and both compose fields are optional, so a blank
+          // title is '' and a blank write-up is null. `comments` is left out
+          // entirely: the thread is a dashboard thing and the column defaults
+          // to '[]'.
+          id, owner: uid, title: title || '', description: desc || null, t0, env: env || {},
           video_path: media ? path : null,
           page_url: env?.url ?? null,
           project: env?.host ?? null,

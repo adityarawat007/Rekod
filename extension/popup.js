@@ -11,14 +11,46 @@ const fail = (msg) => {
   $('err').textContent = msg;
 };
 
-function render(session) {
+// Two ways to have no live token, and they need different words and different
+// destinations. `stale` is the common one by a mile: Supabase access tokens
+// last an hour, only the dashboard may refresh one, and this extension makes no
+// network request of its own — so an hour after the last dashboard visit a
+// signed-in user got an "expired, log in again" card. /login then bounced them
+// straight back to /, which refreshed the cookie, which made the card look like
+// a lie. It was: nothing had expired that a page load did not fix.
+const GATE = {
+  stale: {
+    title: 'Your session needs a refresh',
+    note: 'You are still signed in. Only the dashboard can renew the token — open it once and come back.',
+    cta: 'Open dashboard',
+    path: '/',
+  },
+  none: {
+    title: 'You are not signed in',
+    note: 'Sign in on the dashboard to start recording.',
+    cta: 'Log in',
+    path: '/login',
+  },
+};
+let gatePath = '/login';
+
+function render({ state, session }) {
   $('err').hidden = true;
-  const on = !!session;
+  $('busy').hidden = true;
+  const on = state === 'live';
   show($('gate'), !on);
   show($('capture'), on);
   show($('hotkey'), on);
   show($('who'), on);
-  if (on) $('me').textContent = session.user?.email ?? 'signed in';
+  if (on) {
+    $('me').textContent = session.user?.email ?? 'signed in';
+    return;
+  }
+  const g = GATE[state];
+  $('gate-title').textContent = g.title;
+  $('gate-note').textContent = g.note;
+  $('gate-cta').textContent = g.cta;
+  gatePath = g.path;
 }
 
 const go = async (t, btn) => {
@@ -39,7 +71,14 @@ const openDash = (path) => {
   window.close();
 };
 
-$('login').onclick = () => openDash('/login');
+$('login').onclick = () => openDash(gatePath);
 $('dash').onclick = () => openDash('/');   // the grid IS the list; /reports is gone
 
-fjSession().then(render);
+// Ask the worker, not the cookie: it is the one with chrome.tabs, so it can
+// renew a stale session by loading the dashboard in a background tab. Only if
+// that comes back empty do we read the cookie ourselves, to find out which of
+// the two gate cards to show.
+(async () => {
+  const session = await chrome.runtime.sendMessage({ to: 'bg', t: 'session' }).catch(() => null);
+  render(session ? { state: 'live', session } : await fjSessionState());
+})();

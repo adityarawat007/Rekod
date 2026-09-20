@@ -2,7 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
-import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct, reindent } from './src/lib/format.ts';
+import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed, isScreenshot } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 
@@ -117,5 +117,43 @@ assert.strictEqual(safeNext('/reports/abc'), '/reports/abc');
 assert.strictEqual(safeNext('https://evil.example'), '/', 'absolute URL is refused');
 assert.strictEqual(safeNext('//evil.example'), '/', 'protocol-relative is refused');
 assert.strictEqual(safeNext('/\\evil.example'), '/', 'backslash form is refused');
+
+// ── Copy cURL: captured strings are data, never shell syntax ──────────────
+assert.strictEqual(
+  toCurl({ url: 'https://api.flam/ok' }),
+  "curl 'https://api.flam/ok'",
+  'a plain GET needs no -X',
+);
+assert.strictEqual(
+  toCurl({
+    url: 'https://api.flam/v2/render?q=a b',
+    method: 'POST',
+    reqHeaders: { 'content-type': 'application/json' },
+    reqBody: '{"a":1}',
+  }),
+  "curl 'https://api.flam/v2/render?q=a b' \\\n  -X POST \\\n  -H 'content-type: application/json' \\\n  --data-raw '{\"a\":1}'",
+);
+// the reason the quoting exists: a captured value must not become a command
+const hostile = toCurl({ url: "https://x.test/a'$(id)'b", reqBody: "it's; rm -rf /" });
+assert.strictEqual(
+  hostile,
+  "curl 'https://x.test/a'\\''$(id)'\\''b' \\\n  --data-raw 'it'\\''s; rm -rf /'",
+  "every ' closes and reopens the quote, so nothing escapes it",
+);
+
+// ── UA summary: the specific token wins, or it says nothing ──────────────
+const CHROME_MAC =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+assert.deepStrictEqual(uaSummary(CHROME_MAC), { browser: 'Chrome 141', os: 'macOS', apple: true });
+// Chrome's UA also contains "Safari/537.36"; Edge's contains both.
+assert.strictEqual(uaSummary(CHROME_MAC + ' Edg/141.0.0.0')?.browser, 'Edge 141');
+assert.strictEqual(
+  uaSummary('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.2 Safari/605.1.15')?.browser,
+  'Safari 18',
+  'Safari version comes from Version/, not Safari/',
+);
+assert.strictEqual(uaSummary('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/131.0')?.os, 'Windows');
+assert.deepStrictEqual(uaSummary(''), null, 'no UA is no claim');
+assert.deepStrictEqual(uaSummary('something entirely unknown'), { browser: null, os: null, apple: false });
 
 console.log('viewer logic ok');

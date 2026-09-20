@@ -51,6 +51,62 @@ async function ensureWidget(tabId) {
   } catch {}   // restricted pages reject injection; the callers already refuse those
 }
 
+// ── renewing a stale session ────────────────────────────────────────────────
+// Only the dashboard may spend the refresh token, and it only spends it when a
+// page of it loads. So renewing means MAKING it load — in a background tab.
+//
+// A tab, emphatically not a fetch. proxy.ts answers a refresh-token error by
+// deleting every sb-* cookie; an extension-initiated fetch would apply that
+// Set-Cookie without the user having navigated anywhere, which is why the old
+// fetch-based poke was reverted (see the header of auth.js). A real navigation
+// is the case that deletion exists for: if the refresh token really is spent,
+// clearing the cookie and landing on /login is the correct outcome, and the
+// popup then says "not signed in" because that is now true.
+const REFRESH_MS = 8000;   // ponytail: a dashboard that has not painted in 8s will not
+
+/** Resolves when the tab finishes loading, or when REFRESH_MS is up. */
+function tabLoaded(tabId) {
+  return new Promise((res) => {
+    const done = () => {
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpd);
+      res();
+    };
+    const onUpd = (id, info) => { if (id === tabId && info.status === 'complete') done(); };
+    const timer = setTimeout(done, REFRESH_MS);
+    chrome.tabs.onUpdated.addListener(onUpd);
+  });
+}
+
+// One renewal at a time. The popup and an in-flight upload can both ask at
+// once, and two tabs would be two refreshes of one token — the exact race the
+// whole no-refresh rule exists to avoid.
+let renewing = null;
+function fjRenew(origin) {
+  return (renewing ??= (async () => {
+    let tab;
+    try {
+      tab = await chrome.tabs.create({ url: origin, active: false });
+      await tabLoaded(tab.id);
+      return await fjSession();
+    } catch {
+      return null;
+    } finally {
+      if (tab?.id) chrome.tabs.remove(tab.id).catch(() => {});
+      renewing = null;
+    }
+  })());
+}
+
+/** A live session, renewing once through the dashboard if the cookie is stale.
+ *  `none` is not renewable — there is no refresh token to spend. */
+async function fjLiveSession() {
+  const { state, session, origin } = await fjSessionState();
+  if (state === 'live') return session;
+  if (state === 'none') return null;
+  return fjRenew(origin);
+}
+
 chrome.runtime.onStartup.addListener(ensureOffscreen);
 chrome.runtime.onInstalled.addListener(() => { ensureOffscreen(); reinject(); });
 
@@ -65,7 +121,7 @@ async function route(msg, sender) {
   // chrome.tabs nor chrome.cookies. Answered before ensureOffscreen — it is the
   // offscreen doc asking.
   if (msg.t === 'ui') { toTab(msg.tabId, msg.state); return { ok: true }; }
-  if (msg.t === 'session') return fjSession();
+  if (msg.t === 'session') return fjLiveSession();
 
   await ensureOffscreen();
   const tabId = sender.tab?.id;

@@ -59,12 +59,26 @@ export type Env = {
 
 export type ReportRow = {
   id: string;
+  /** Both of the extension's compose inputs are optional, so this is often ''.
+   *  NOT null — see schema-comments.sql for why the column stays NOT NULL. */
   title: string;
+  description: string | null;
   page_url: string | null;
   project: string | null;
   video_path: string | null;
   t0: number;
   created_at: string;
+};
+
+/** One entry in a report's thread. Written by the dashboard only: the
+ *  extension's second input is the `description`, not the first comment.
+ *  `by` is the author's email — it is visible to anyone holding a share link. */
+export type Comment = {
+  id: string;
+  body: string;
+  /** ISO 8601, set by the browser that posted it. */
+  at: string;
+  by: string | null;
 };
 
 /** Written by the dashboard's share button, never by the extension — the
@@ -78,15 +92,17 @@ export type Report = ReportRow & {
   logs: Entry[] | null;
   network: NetEntry[] | null;
   env: Env | null;
+  /** Defaults to '[]' in the database; null only if a select left it out. */
+  comments: Comment[] | null;
 } & ShareFields;
 
 /** Exactly what `public.shared_report(uuid)` returns — a narrower row than
  *  `Report`, on purpose. No `owner` and no `share_token`.
- *  Keep this in step with the function's column list in `schema-share.sql`. */
+ *  Keep this in step with the function's column list in `schema-comments.sql`. */
 export type SharedReport = Pick<
   Report,
-  'id' | 'title' | 'page_url' | 'project' | 'video_path' | 'share_url'
-  | 't0' | 'logs' | 'network' | 'env' | 'created_at'
+  'id' | 'title' | 'description' | 'comments' | 'page_url' | 'project'
+  | 'video_path' | 'share_url' | 't0' | 'logs' | 'network' | 'env' | 'created_at'
 >;
 
 // Generic in the input so narrowing survives whatever the caller is holding:

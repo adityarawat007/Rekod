@@ -21,8 +21,8 @@ export function ReportGridSkeleton({ cards = 6 }: { cards?: number }) {
       {Array.from({ length: cards }, (_, i) => (
         <li key={i} className="space-y-2.5 rounded-lg border p-2.5">
           <Skeleton className="aspect-video w-full rounded-md" />
+          {/* Two lines, not three: the card lost its title. */}
           <div className="space-y-1.5 px-0.5 pb-0.5">
-            <Skeleton className="h-4 w-[70%]" />
             <Skeleton className="h-3 w-32" />
             <Skeleton className="h-3 w-24" />
           </div>
@@ -32,16 +32,18 @@ export function ReportGridSkeleton({ cards = 6 }: { cards?: number }) {
   );
 }
 
+/** Two columns, the same heights the real thing takes: the log pane fills the
+ *  viewport on xl and is a fixed slab below it. */
 export function ReportViewSkeleton() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <Skeleton className="aspect-video w-full" />
+    <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-2 xl:overflow-hidden">
       <div className="space-y-3">
-        <Skeleton className="h-9 w-full" />
-        {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-6 w-full" />
-        ))}
+        <Skeleton className="aspect-video w-full rounded-lg" />
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-8 w-[60%]" />
+        <Skeleton className="h-4 w-[40%]" />
       </div>
+      <Skeleton className="h-[70svh] w-full rounded-lg xl:h-full" />
     </div>
   );
 }

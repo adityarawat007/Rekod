@@ -61,10 +61,8 @@ async function fjRawAt(origin) {
   return parts.length ? parts.join('') : null;
 }
 
-/** The session in one origin's cookie jar, expired or not, or null. */
-async function fjCookieAt(origin) {
-  let raw = await fjRawAt(origin);
-  if (!raw) return null;
+/** One cookie value parsed into a session, or null if it is not one. */
+function fjParse(raw) {
   try { raw = decodeURIComponent(raw); } catch {}
   try {
     if (raw.startsWith('base64-')) raw = fromBase64Url(raw.slice(7));
@@ -75,16 +73,50 @@ async function fjCookieAt(origin) {
   }
 }
 
+/** The session in one origin's cookie jar, expired or not, or null. */
+async function fjCookieAt(origin) {
+  const raw = await fjRawAt(origin);
+  return raw ? fjParse(raw) : null;
+}
+
 // 60s of slack: a token that expires mid-upload fails the insert, not the fetch.
 const fjLive = (s) => s.expires_at * 1000 > Date.now() + 60_000;
 
-/** The dashboard's live session, or null if absent or expired everywhere.
+/** Why there is no live session, which is NOT one state but two:
+ *
+ *    live  — a token good for at least another minute.
+ *    stale — a cookie is there and its access token has aged out. Supabase
+ *            access tokens last an hour by default; the refresh_token sitting
+ *            beside it in the same cookie is good for weeks. The user is signed
+ *            in. This extension simply may not refresh (see the header), and
+ *            the dashboard only refreshes when a page of it is loaded — so an
+ *            hour after the last dashboard visit this is what you get.
+ *    none  — no cookie at any dashboard origin. Actually signed out.
+ *
+ *  A cookie that is present but unparseable counts as stale, not none: that is
+ *  @supabase/ssr caught mid-write, and "signed out" is the wrong thing to say
+ *  about a session that will read fine a second later.
+ *
+ *  Collapsing the two is what made the popup announce an expired session to
+ *  somebody who was signed in, with a Log in button that bounced straight back.
+ *
  *  Needs chrome.cookies: worker.js and popup.html only. The offscreen document
  *  asks the worker for it ({ to: 'bg', t: 'session' }). */
-async function fjSession() {
+async function fjSessionState() {
+  let stale = null;
   for (const origin of DASH_ORIGINS) {
-    const s = await fjCookieAt(origin);
-    if (s && fjLive(s)) return s;
+    const raw = await fjRawAt(origin);
+    if (!raw) continue;
+    const s = fjParse(raw);
+    if (s && fjLive(s)) return { state: 'live', session: s, origin };
+    // Which origin, not just whether: renewing means loading THAT dashboard.
+    // Refreshing prod does nothing for a session that lives on the dev server.
+    stale ??= origin;
   }
-  return null;
+  return { state: stale ? 'stale' : 'none', session: null, origin: stale };
+}
+
+/** The live session or null. Every uploader wants exactly this. */
+async function fjSession() {
+  return (await fjSessionState()).session;
 }

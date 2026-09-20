@@ -148,6 +148,7 @@ because a bigger number sounds more generous.
 | Response bodies | 100 KB, JSON/text only | Stops a media response being held in memory twice. Binary is unreadable in a report anyway. **Amended 29 Aug 2026:** the cap is now enforced by the read itself, not by slicing afterwards. `content-length` is absent on every chunked response, so the old gate passed and `.text()` read the whole stream — on `text/event-stream` it never returned, and the page's own `fetch()` never resolved. There is a 2s deadline on our copy for the same reason. |
 | Screenshot | ~200 KB PNG | ~~The default action, not the fallback.~~ **Amended 29 Aug 2026:** the button is out of the popup — recording only, while the record→share loop is the thing being proven. The capture path is parked, not deleted (`worker.js` still routes `shot`, the viewer still renders existing screenshot reports), so it is one `<button>` to bring back. |
 | Upload retry | once, then fail loudly | 13 MB doesn't need resumable uploads. Keep the blob in memory so the reporter can resend instead of re-recording. |
+| JWT expiry | 86,400s (24h) | Supabase's default is 3,600s and its max is 604,800s. An access token is a signed JWT that **cannot be revoked** — `proxy.ts` verifies it locally with `getClaims()` and never asks the auth server, and Postgres reads `auth.uid()` straight out of it — so the expiry *is* the revocation window. One hour meant a signed-in user met the expired card most days, for a tool that records screens and network payloads; a week means a leaked token reads every report for a week. A day covers a weekend and keeps the blast radius to a day. Set in the Supabase console, not in code: nothing reads a hard-coded lifetime, `fjLive()` reads `expires_at` off the token. |
 | Retention | 90 days, nightly cron | Supabase has no S3 lifecycle rules, so it's a `pg_cron` job. Date-prefixed paths make the sweep one list + remove. |
 
 Where the size goes, same three minutes: 1440×900 · 15fps · 1 Mbps VP9 →
@@ -209,6 +210,23 @@ The sidebar is now what it says it is: every recording, then projects.
 - **A server-side god key in the dashboard.** `viewer.js` read with
   `service_role` because it had no login. The Next.js app has one, so it uses
   the anon key and lets RLS do the work — including for signed video URLs.
+
+**Amended 20 Sep 2026 — the extension may renew, through a tab.** The rule was
+"the extension makes no network request of its own", which is still true of
+`fetch`. But it was being read as "the extension may never cause a refresh", and
+the cost landed on the user: an access token lasts an hour, only the dashboard
+spends the refresh token, and it only spends it when a page loads — so an hour
+after the last dashboard visit the popup told a signed-in user their session had
+expired. It had not; the refresh token beside it was good for weeks.
+
+Two fixes, both shipped. `fjSessionState()` separates `stale` (a cookie exists,
+its access token aged out) from `none` (no cookie), because the first is not
+signed out and the popup must not say it is. And `fjRenew()` in `worker.js`
+loads the stale origin in a background tab, waits for it, re-reads the cookie
+and closes it. A tab, not a fetch: `proxy.ts` deletes every `sb-*` cookie on a
+refresh-token error, and applying that `Set-Cookie` to an extension-initiated
+fetch is what got the old poke reverted — whereas a real navigation is exactly
+the case that deletion is for. The JWT expiry above does the rest.
 
 **Deferred, with a trigger**
 
@@ -285,6 +303,107 @@ so a junk token costs nothing and never reaches the `uuid` parameter as a 22P02.
 **`CLAUDE.md` was amended in the same commit**, as required — its invariant
 said "there is no sharing", which would have taught the next reader to delete
 this.
+
+## Notes and comments — 20 Sep 2026
+
+A recording now carries a **title**, a **description** and a **comment
+thread**. The extension asks for the first two when you stop recording, both
+optional; the thread only grows on the dashboard. `schema-comments.sql` adds
+two columns and re-creates `shared_report()` around them.
+
+**Comments are a jsonb array on the row, not a table.** A thread belongs to one
+report, is read whenever that report is read, and has exactly one writer. A
+table would buy a join, a second policy set and a second grant, and would still
+need its own path onto the share page. The array rides inside the existing RPC,
+so the anonymous surface is still one function.
+
+**Read-only for recipients.** A share link shows the write-up and the thread
+and offers no way to post. Anonymous writes would need their own definer
+function, a display name from an unverified visitor, and a spam story — none of
+which anyone has asked for. The cost of the shape chosen instead: `by` holds
+the owner's email, so every share link carries it forever. Chosen with that
+stated; the fix, if it ever matters, is writing a display name into `by` at
+post time, which needs no migration.
+
+**The report page is two columns that own the viewport** (below `xl` they
+stack and the page scrolls as one). Left: the player, the transport, then the
+title, the description, who recorded it and the thread — all scrolling
+together. Right: the console/network pane, full height, scrolling on its own.
+`ReportView` renders whatever the page hands it as `children` under the
+transport, which is how one component serves both the editable owner's page and
+the read-only share page. The player and the transport are `shrink-0`: without
+it a long thread squeezes the video instead of scrolling the column, because
+flex children shrink before they overflow.
+
+**The header is a bar, and `Info` is the first tab.** Page, project, recorded
+at, length, browser, OS, GPU, viewport and build are one list in the log pane —
+`Device` folded into it, and the strip above the player is gone. `uaSummary()`
+turns the raw UA into "Chrome 141 / macOS" for the label and keeps the full
+string on hover, which is the part anyone actually pastes into a bug.
+
+**The card lost its title.** With both compose inputs optional, most cards
+would render a placeholder, so the grid is thumbnail + project + age and the
+title is a thing you add later on the report page. Search reads `title` and
+`description` now, or an untitled recording would be unfindable.
+
+**What was skipped:** editing a posted comment (delete and re-post covers the
+typo), replies (needs a second account to reply to), timestamped comments
+anchored to the playhead (Jam does this; nothing in the timeline needs it yet),
+and unread/notification state (one account, no one to notify).
+
+**Known ceiling:** a post rewrites the whole array from the browser, so two
+tabs posting in the same second lose one comment. One account, one tab. The
+upgrade is an `add_comment(uuid, text)` definer function doing a server-side
+`comments || …` — the same shape an anonymous-write version would need anyway.
+
+## Shared by default, and the log pane grows up — 20 Sep 2026
+
+**Every report is shareable the moment it is filed.** `share_token` has a
+default now, so the Share control mints nothing: it copies. `share_url` is
+still signed lazily on that first copy, because the database cannot sign a
+storage URL and the recipient certainly cannot. Revoke is gone with the
+create-on-demand flow it belonged to — the posture is stated at the top of
+`schema-share-default.sql`, and `update reports set share_token = null` is
+still the lever if a link has to die.
+
+**Two shapes of link.** `?view=media` renders the same share page without the
+log pane, for when the recording is the point and the network table is noise.
+A query parameter rather than a route, so a recipient who trims it gets the
+full view instead of a 404.
+
+**The log pane is a DevTools panel.** A titled container with a counter, `Info`
+leading the tabs, and — the real change — the network detail opens *over* the
+request table instead of beside it. Beside it, the table lost every column but
+the URL to make room; under it, an inline drop-down shoved every row down the
+page. Over it, the table keeps its columns and its scroll position, and the
+split is a draggable separator (keyboard-resizable too), so nothing collapses.
+It docks right by default and switches to the bottom from the panel's own
+toolbar — the browser's own choice, for the browser's own reason: a wide pane
+wants the detail beside the list, a short one wants it under. The side is
+remembered in `localStorage`, guarded, so blocked storage just starts it on the
+right.
+
+**Pre-roll lost its chrome.** The toggle, the `REC` tick and the hatched rows
+are gone; the buffer itself is untouched and pre-record rows still ship and
+still render. The `−` on their timestamps stays: without it, `−0:12` and `0:12`
+are the same string.
+
+## Delete — 20 Sep 2026
+
+One recording from its own page, or several at once from the grid: hover a
+card, tick it, and a sticky toolbar offers the delete. The row and the media
+both go, object first — `schema-delete-media.sql` adds the storage policy that
+was missing, which is why deleting anything before today would have left the
+`.webm` behind, unreachable and still billed for.
+
+**No trash and no undo.** A soft-delete column means every query in the app
+grows a `where deleted_at is null` and the grid starts hiding rows for reasons
+the reader cannot see. The confirm is the safety net; add a trash the day
+someone actually deletes something they wanted.
+
+**The checkbox is a sibling of the card link, not a child.** An `<a>` may not
+contain another control — nested, every click of it navigated instead of
+selecting.
 
 ## The one real risk
 

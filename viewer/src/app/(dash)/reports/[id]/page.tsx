@@ -3,7 +3,10 @@ import { notFound } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase/server';
 import { ReportHeader } from '@/components/report-header';
 import { ReportView } from '@/components/report-view';
+import { Comments, ReportNotes } from '@/components/report-notes';
+import { navData } from '@/components/sidebar-nav';
 import { isScreenshot, timeline, type Report } from '@/lib/types';
+import { ago } from '@/lib/format';
 
 /** generateMetadata and the page both want the row. cache() keyed on the id —
  *  a primitive, so it actually hits — makes that one query, not two. */
@@ -16,7 +19,8 @@ const getReport = cache(async (id: string) => {
 export async function generateMetadata(props: PageProps<'/reports/[id]'>) {
   const { id } = await props.params;
   const report = await getReport(id);
-  return { title: report?.title ?? 'Report' };
+  // A title is optional now, and '' is not a page title.
+  return { title: report?.title || 'Report' };
 }
 
 export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
@@ -39,17 +43,32 @@ export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
     }
   }
 
+  // navData() is cache()d and the layout already ran it, so the signed-in
+  // email costs nothing here.
+  const { email } = await navData();
+
   return (
-    <>
+    // The page owns the viewport on a wide screen: the header is a bar, the
+    // two columns below it split what is left and scroll separately.
+    <div className="flex flex-col xl:h-svh xl:overflow-hidden">
       <ReportHeader report={report} />
-      <div className="p-6 md:p-8">
+      <div className="flex min-h-0 flex-1 flex-col p-6 md:p-8">
         <ReportView
           entries={timeline(report)}
           t0={report.t0}
           env={report.env ?? {}}
           media={media}
-        />
+          info={{ project: report.project, pageUrl: report.page_url, createdAt: report.created_at }}
+        >
+          {/* Under the player, in the scrolling column — the reference layout:
+              title, description, who made it, then the thread. */}
+          <ReportNotes id={report.id} title={report.title} description={report.description} />
+          <p className="border-t pt-3 text-xs text-muted-foreground">
+            <span className="mono">{email ?? 'you'}</span> recorded this · {ago(report.created_at)}
+          </p>
+          <Comments id={report.id} comments={report.comments ?? []} author={email} />
+        </ReportView>
       </div>
-    </>
+    </div>
   );
 }

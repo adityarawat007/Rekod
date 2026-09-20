@@ -41,6 +41,11 @@ title, project, send. Video is capped at 3 minutes.
    `security definer` function anonymous visitors may call.
 5. Run `schema-drop-status.sql` — drops triage `status`. There is one account
    and share links are read-only, so nobody was ever reading it but its author.
+6. Set **Authentication → Sessions → access token (JWT) expiry** to `86400`.
+   The default 3,600 meant the extension popup showed a stale-session card most
+   days. The reasoning, and why not the 604,800 maximum, is in `PLAN.md`'s
+   limits table. Only newly issued tokens get the new lifetime, so load the
+   dashboard once afterwards.
 
 Nothing in this repo needs the `service_role` key any more. The extension and
 the dashboard both use the publishable key plus a real user session, and let RLS
