@@ -1,4 +1,4 @@
-# FlamJam — build plan
+# ReKod — build plan
 
 Drafted 22 Aug 2026. Original as a design doc:
 https://claude.ai/code/artifact/35695f6f-cfa6-4ea8-b148-dca6508da56d
@@ -30,7 +30,7 @@ and plumbing, which is why one person can ship it in a fortnight.
 | 03 Viewer + sync | report page, video + log panel, `t0` arithmetic, scrubber markers | **Done.** `viewer.js` shipped the interim (zero deps, :5173) and was retired 29 Aug once `viewer/` (:3100) replaced it |
 | 04 Widget polish | three states, hotkey, screenshot mode, live counters, empty states | **Done.** Reworked from the floating/draggable pill to popup buttons + on-page pill after visibility bugs |
 | 05 Redaction pass | denylist, token patterns, visible "redacted" confirmation | **Done.** `redact.js`, `✓ redacted` in the composer, `test-redact.js`. Plus the 22P05 NUL / lone-surrogate fix |
-| 06 Inbox, then dogfood | list view with filters, then five people use it for a week | **Filters done** in `viewer/` — search, status, project, range, Has failures, plus status triage. **Dogfood week blocked by decision**: single-user means there is nothing to dogfood together until sharing returns — now designed, see *Share links* |
+| 06 Inbox, then dogfood | list view with filters, then five people use it for a week | **Filters done** in `viewer/` — search, project, range, Has errors. Triage status was built and then deleted, 18 Sep 2026 (`schema-drop-status.sql`) — see below. **Dogfood week blocked by decision**: single-user means there is nothing to dogfood together until sharing returns — now designed, see *Share links* |
 
 Shipped outside the plan: the Jam-style dashboard (console/network tabs,
 pretty-printed coloured JSON, request/response panes), the
@@ -70,8 +70,8 @@ only once that loop is boring.
   readable step list.
 - **Annotate & comment** — arrows on the screenshot, comment threads on the
   report so triage happens in place.
-- **Inbox & search** — filter by reporter, project, status, error text.
-  Full-text search across console output.
+- **Inbox & search** — filter by project and error text. Full-text search
+  across console output.
 - **Linear · Jira · Slack** — one click files the ticket with the report
   embedded.
 - **Source-mapped stacks** — resolve minified traces against uploaded maps.
@@ -95,8 +95,8 @@ surface needs a tour, it's wrong.
 2. **Report viewer** — video left, evidence right, one shared timeline.
    Coloured markers on the scrubber show where errors, warnings and failed
    requests landed.
-3. **Home grid** — deliberately boring. Cards with a video frame, three status
-   chips, filters that match how we actually triage. It is the only list; see
+3. **Home grid** — deliberately boring. Cards with a video frame, a failure
+   signal, filters that match how we actually search. It is the only list; see
    the 29 Aug amendment below.
 
 **Amended 28 Aug 2026.** The plan said "no dashboard, no charts, no metrics
@@ -155,6 +155,26 @@ Where the size goes, same three minutes: 1440×900 · 15fps · 1 Mbps VP9 →
 sharper because nothing is downscaled twice · same with AV1 → ~8–9 MB.
 
 ## Decisions
+
+**Amended 18 Sep 2026 — triage status is deleted.** `status text not null
+default 'new' check (status in ('new','triaging','fixed'))` shipped in
+`schema.sql` and survived three migrations. It never earned its place: a status
+is a message to another person, and there is no other person. Single-user
+removed the team, and a share link is read-only — a recipient cannot retriage
+anything, which is why `public.shared_report` never returned the column in the
+first place. So it was one author marking their own bugs for themselves.
+`schema-drop-status.sql` drops the column (which drops its grant with it) and
+restates `update (share_token, share_url)`; `status-chip.tsx` and
+`status-select.tsx` are gone, as is the sidebar's Status group and the filter.
+The sidebar's failure shortcut went with it. The filter survives — `?failing=1`
+is `error_count > 0 OR failed_count > 0`, read off the generated columns rather
+than anything a person typed — but it lives only in the filter bar now, where
+the other four filters are. It was relabelled on the way: the sidebar said
+`Has 500s` and the filter bar said `Has failures` for the same control, and
+neither named a query that matches console errors and any 4xx, 5xx or thrown
+request. It reads `Has errors`.
+
+The sidebar is now what it says it is: every recording, then projects.
 
 **Skipped on purpose**
 
@@ -281,7 +301,17 @@ personal inbox into a shared link.
 
 ## Open questions
 
-- **Name.** FlamJam is a placeholder — it works, but it's derivative.
+- ~~**Name.** FlamJam is a placeholder — it works, but it's derivative.~~
+  **Answered 18 Sep 2026 — the product is ReKod.** Renamed everywhere it is
+  read: the manifest, the popup, the widget, the dashboard wordmark, the page
+  titles and these docs. Two strings deliberately still say `flamjam`, because
+  they are an address rather than a name — `https://flamjam.vercel.app` in
+  `extension/auth.js` and its `host_permissions` twin. Renaming those is a
+  redeploy, and they must change together or the popup stops finding the
+  session cookie. The `flamjam-retention` cron name in `schema.sql` also
+  stands: it is a comment inside an applied migration, and those are not
+  edited. The repo folder is still `flamjam/` — a directory rename is a git
+  operation, not a code change.
 - **Retention.** 90 days proposed. Videos accumulate fast; old ones are never
   read.
 - **Scope of install.** All of engineering, or design and QA too? Argues for

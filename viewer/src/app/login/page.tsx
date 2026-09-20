@@ -1,14 +1,14 @@
 import { Suspense } from 'react';
 import { SignIn } from './sign-in';
 
-export const metadata = { title: 'Sign in · FlamJam' };
+export const metadata = { title: 'Sign in · ReKod' };
 
 export default function LoginPage() {
   return (
     <main className="grid min-h-dvh place-items-center bg-background p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-2.5">
-          <span className="font-heading text-2xl font-extrabold tracking-tight">FlamJam</span>
+          <span className="font-heading text-2xl font-extrabold tracking-tight">ReKod</span>
         </div>
         <h1 className="font-heading text-3xl font-extrabold leading-none">
           Stop saying

@@ -1,4 +1,4 @@
-# FlamJam
+# ReKod
 
 A Chrome extension (MV3) that records a tab with the last 5 minutes of console
 and network already captured, and a Next.js dashboard that plays it back on one
@@ -89,9 +89,13 @@ SQL is applied by hand in the Supabase console; the app never runs DDL. Order
 matters and all three are re-runnable:
 
 `schema.sql` → `schema-dashboard.sql` → `schema-single-user.sql` →
-`schema-share.sql`
+`schema-share.sql` → `schema-drop-status.sql`
 
-The third supersedes parts of the first two; the fourth only adds. Adding a migration means a new
+The third supersedes parts of the first two; the fourth only adds; the fifth
+only removes. **There is no triage status.** Reports are not handed to anyone —
+single-user killed the team and a share link is read-only — so "new / triaging /
+fixed" was a state only its own author ever read. The column, its grant, the
+chip, the select and the filter are deleted, not hidden. Adding a migration means a new
 file, never editing an applied one.
 
 ## Checks

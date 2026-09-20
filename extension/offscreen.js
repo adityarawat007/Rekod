@@ -138,7 +138,7 @@ async function upload(title, env) {
 
     // Reports are owned rows; there is no anonymous filing any more.
     const session = await chrome.runtime.sendMessage({ to: 'bg', t: 'session' });
-    if (!session) throw new Error('Session expired — log in from the FlamJam popup, then send again');
+    if (!session) throw new Error('Session expired — log in from the ReKod popup, then send again');
     const uid = session.user.id;
 
     // <uid>/<yyyy>/<mm>/ — the first segment is what the storage policy checks.
@@ -165,7 +165,6 @@ async function upload(title, env) {
           video_path: media ? path : null,
           page_url: env?.url ?? null,
           project: env?.host ?? null,
-          status: 'new',
           logs: entries.filter((e) => e.kind === 'console' || e.kind === 'event'),
           network: entries.filter((e) => e.kind === 'net'),
         }),

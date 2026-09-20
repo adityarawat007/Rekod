@@ -2,7 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
-import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct } from './src/lib/format.ts';
+import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct, reindent } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed, isScreenshot } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 
@@ -43,6 +43,18 @@ assert.strictEqual(trackPct(9, 0, 5), 100, 'clamped, not 180%');
 assert.strictEqual(trackPct(-9, 0, 5), 0, 'and not negative');
 assert.strictEqual(trackPct(1, 5, 5), 0, 'an empty span is 0, never NaN');
 assert.ok(!Number.isNaN(trackPct(1, 5, 1)), 'an inverted span is not NaN either');
+
+// ── truncated bodies: still readable, still byte-faithful ────────────────
+// the reported bug: capture.js cuts at 4 KB, so JSON.parse fails and the viewer
+// printed one unbroken line.
+assert.strictEqual(reindent('{"a":1,"b":[2,3]}'), '{\n  "a": 1,\n  "b": [\n    2,\n    3\n  ]\n}');
+assert.strictEqual(reindent('{"a":{"b":1'), '{\n  "a": {\n    "b": 1', 'a cut payload indents as far as it got');
+// braces and commas inside a string must not move the indent, escapes included
+assert.strictEqual(reindent('{"a":"x,y{z"}'), '{\n  "a": "x,y{z"\n}');
+assert.strictEqual(reindent('{"a":"he said \\"hi\\", ok"}'), '{\n  "a": "he said \\"hi\\", ok"\n}');
+// nothing outside whitespace is invented or lost
+const raw = '{"u":"https://x.test/a?b=1","n":-2.5e3,"t":true}';
+assert.strictEqual(reindent(raw).replace(/\s+/g, ''), raw.replace(/\s+/g, ''));
 
 // ── pre-roll: the sign is information, not decoration ──────────────────────
 assert.strictEqual(offset(T0 - 4000, T0), -4);

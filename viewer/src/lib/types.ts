@@ -2,8 +2,6 @@
 // read here. Change one side and you change both — that is why the dashboard
 // lives in the extension's repo.
 
-export type Status = 'new' | 'triaging' | 'fixed';
-
 export type ConsoleEntry = {
   kind: 'console';
   lvl: 'log' | 'info' | 'warn' | 'error' | 'debug';
@@ -33,10 +31,16 @@ export type NetEntry = {
   resHeaders?: Record<string, string> | null;
   body?: string | null;
   passive?: boolean;
+  size?: number;
+  error?: string;
   // websocket-only
   ws?: number;
   ev?: 'open' | 'frame' | 'close' | 'error';
   dir?: 'in' | 'out';
+  data?: string;
+  code?: number;
+  reason?: string;
+  protocols?: string | string[] | null;
   t: number;
   seq: number;
 };
@@ -60,7 +64,6 @@ export type ReportRow = {
   project: string | null;
   video_path: string | null;
   t0: number;
-  status: Status;
   created_at: string;
 };
 
@@ -78,7 +81,7 @@ export type Report = ReportRow & {
 } & ShareFields;
 
 /** Exactly what `public.shared_report(uuid)` returns — a narrower row than
- *  `Report`, on purpose. No `owner`, no `share_token`, no triage `status`.
+ *  `Report`, on purpose. No `owner` and no `share_token`.
  *  Keep this in step with the function's column list in `schema-share.sql`. */
 export type SharedReport = Pick<
   Report,

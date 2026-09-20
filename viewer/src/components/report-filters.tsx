@@ -17,17 +17,9 @@ import { Button } from '@/components/ui/button';
 const ANY = '__any';
 
 // One list per select. It is passed to Base UI's `items` so the trigger renders
-// the LABEL — without it `Select.Value` prints the raw value, which is why the
-// status filter read "__any" — and the same list builds the options, so a label
-// is never written twice.
+// the LABEL — without it `Select.Value` prints the raw value — and the same
+// list builds the options, so a label is never written twice.
 type Option = { value: string; label: string };
-
-const STATUSES: readonly Option[] = [
-  { value: ANY, label: 'Any status' },
-  { value: 'new', label: 'New' },
-  { value: 'triaging', label: 'Triaging' },
-  { value: 'fixed', label: 'Fixed' },
-];
 
 const RANGES: readonly Option[] = [
   { value: '7', label: 'Last 7 days' },
@@ -89,7 +81,7 @@ export function ReportFilters({ projects }: { projects: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const active = ['status', 'project', 'failing', 'q', 'range'].filter((k) =>
+  const active = ['project', 'failing', 'q', 'range'].filter((k) =>
     params.get(k),
   ).length;
 
@@ -112,14 +104,6 @@ export function ReportFilters({ projects }: { projects: string[] }) {
       </div>
 
       <Filter
-        items={STATUSES}
-        value={params.get('status') ?? ANY}
-        onChange={(v) => set({ status: v })}
-        label="Status"
-        className="w-[130px]"
-      />
-
-      <Filter
         items={projectOptions}
         value={params.get('project') ?? ANY}
         onChange={(v) => set({ project: v })}
@@ -140,7 +124,7 @@ export function ReportFilters({ projects }: { projects: string[] }) {
         className="h-9 cursor-pointer px-3"
         render={<button onClick={() => set({ failing: params.get('failing') ? null : '1' })} />}
       >
-        Has failures
+        Has errors
       </Badge>
 
       {active > 0 && (

@@ -68,3 +68,37 @@ export function httpUrl(u: string | null | undefined): string | null {
  */
 export const trackPct = (s: number, lo: number, hi: number) =>
   hi > lo ? Math.min(100, Math.max(0, ((s - lo) / (hi - lo)) * 100)) : 0;
+
+/**
+ * Re-indents JSON-ish text that `JSON.parse` rejected — which in practice means
+ * a body `capture.js` cut at its 4 KB ceiling, since redaction re-serializes
+ * compact. Minified JSON renders as one unbroken wall of characters otherwise.
+ *
+ * A pure character walk: it never reorders, drops or re-encodes a byte outside
+ * whitespace between tokens, so a truncated payload still reads as what was
+ * actually sent. String literals are stepped over, escapes included, so a brace
+ * inside a value cannot shift the indent.
+ */
+export function reindent(src: string): string {
+  let out = '';
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  const nl = () => '\n' + '  '.repeat(depth);
+  for (const c of src) {
+    if (inStr) {
+      out += c;
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; out += c; continue; }
+    else if (c === '{' || c === '[') { depth++; out += c + nl(); }
+    else if (c === '}' || c === ']') { depth = Math.max(0, depth - 1); out += nl() + c; }
+    else if (c === ',') out += c + nl();
+    else if (c === ':') out += ': ';
+    else if (!/\s/.test(c)) out += c;   // the source's own whitespace is redundant now
+  }
+  return out;
+}

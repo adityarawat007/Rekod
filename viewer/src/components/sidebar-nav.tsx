@@ -11,22 +11,17 @@ export const navData = cache(async () => {
   // second round trip to the auth server for a string we already hold.
   const [{ data: claims }, { data: rows }] = await Promise.all([
     supabase.auth.getClaims(),
-    supabase.from('reports').select('project,status'),
+    supabase.from('reports').select('project'),
   ]);
 
   const all = rows ?? [];
   const projects = new Set<string>();
-  let open = 0;
-  // One pass, not three: js-combine-iterations.
-  for (const r of all) {
-    if (r.project) projects.add(r.project);
-    if (r.status === 'new') open += 1;
-  }
+  for (const r of all) if (r.project) projects.add(r.project);
 
   return {
     email: (claims?.claims.email as string | undefined) ?? null,
     projects: [...projects].sort(),
-    counts: { all: all.length, new: open },
+    counts: { all: all.length },
   };
 });
 

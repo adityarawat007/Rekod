@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { JsonView } from '@/components/json-view';
 import { offset, stamp, ms, shortUrl, clock, trackPct } from '@/lib/format';
-import { isConsole, isError, isNet, isWarn, netFailed, type Entry, type Env, type TimelineEntry } from '@/lib/types';
+import { isConsole, isError, isNet, isWarn, netFailed, type Entry, type Env, type NetEntry, type TimelineEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -67,15 +67,27 @@ export function ReportView({ entries, t0, env, media }: Props) {
     void v.play();
   };
 
-  const { consoleRows, netRows, events, span } = useMemo(() => {
+  const { consoleRows, netRows, wsFrames, events, span } = useMemo(() => {
     const cons = entries.filter((e) => isConsole(e) || e.kind === 'event');
     const nets = entries.filter(isNet);
     const lo = Math.min(0, ...entries.map((e) => offset(e.t, t0)));
     const hi = Math.max(1, dur, ...entries.map((e) => offset(e.t, t0)));
+    // Frames and the close are detail on the connection row, not rows of their
+    // own — a chatty socket would bury everything else. They were being
+    // filtered out and then never rendered anywhere, which is indistinguishable
+    // from not capturing websockets at all.
+    const frames = new Map<number, typeof nets>();
+    for (const e of nets) {
+      if (e.rtype !== 'ws' || e.ev === 'open' || e.ws == null) continue;
+      const a = frames.get(e.ws);
+      if (a) a.push(e);
+      else frames.set(e.ws, [e]);
+    }
     return {
       consoleRows: cons,
-      // websocket frames and closes are detail on the connection row, not rows
-      netRows: nets.filter((e) => e.rtype !== 'ws' || e.ev === 'open'),
+      // a socket that never connected has no 'open', so its 'error' is the row
+      netRows: nets.filter((e) => e.rtype !== 'ws' || e.ev === 'open' || e.ev === 'error'),
+      wsFrames: frames,
       events: entries.filter((e) => e.kind === 'event'),
       span: { lo, hi },
     };
@@ -288,10 +300,16 @@ export function ReportView({ entries, t0, env, media }: Props) {
                 {open === e.uid && (
                   <div className="space-y-3 border-t bg-muted/20 px-3 py-3">
                     <p className="mono break-all text-[11px] text-muted-foreground">{e.url}</p>
-                    <Detail label="Request headers"><JsonView text={JSON.stringify(e.reqHeaders ?? {})} /></Detail>
-                    <Detail label="Request body"><JsonView text={e.reqBody} /></Detail>
-                    <Detail label="Response headers"><JsonView text={JSON.stringify(e.resHeaders ?? {})} /></Detail>
-                    <Detail label="Response body"><JsonView text={e.body} /></Detail>
+                    {e.rtype === 'ws' ? (
+                      <WsFrames frames={wsFrames.get(e.ws ?? -1)} off={off} />
+                    ) : (
+                      <>
+                        <Detail label="Request headers"><JsonView text={JSON.stringify(e.reqHeaders ?? {})} /></Detail>
+                        <Detail label="Request body"><JsonView text={e.reqBody} /></Detail>
+                        <Detail label="Response headers"><JsonView text={JSON.stringify(e.resHeaders ?? {})} /></Detail>
+                        <Detail label="Response body"><JsonView text={e.body} /></Detail>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -333,6 +351,46 @@ export function ReportView({ entries, t0, env, media }: Props) {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/** A websocket's traffic, under its connection row. ↑ sent, ↓ received. Binary
+ *  frames arrive from capture.js already described rather than encoded. */
+function WsFrames({
+  frames,
+  off,
+}: {
+  frames?: (TimelineEntry & NetEntry)[];
+  off: (e: Entry) => number;
+}) {
+  if (!frames?.length) {
+    return <p className="text-[11px] text-muted-foreground">No frames after the handshake.</p>;
+  }
+  return (
+    <Detail label={`Frames (${frames.filter((f) => f.ev === 'frame').length})`}>
+      <ul className="divide-y rounded border bg-background">
+        {frames.map((f) => (
+          <li key={f.uid} className="flex gap-2 px-2 py-1 text-[11px]">
+            <span className="mono shrink-0 text-muted-foreground">{stamp(off(f))}</span>
+            <span
+              className={cn(
+                'mono w-3 shrink-0',
+                f.ev === 'error' ? 'text-crit' : f.dir === 'out' ? 'text-good' : 'text-muted-foreground',
+              )}
+            >
+              {f.ev === 'frame' ? (f.dir === 'out' ? '\u2191' : '\u2193') : f.ev === 'close' ? '\u00d7' : '!'}
+            </span>
+            <span className="mono min-w-0 flex-1 break-all">
+              {f.ev === 'frame'
+                ? f.data
+                : f.ev === 'close'
+                  ? `closed ${f.code ?? ''} ${f.reason ?? ''}`.trim()
+                  : 'connection error'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Detail>
   );
 }
 

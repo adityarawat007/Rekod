@@ -1,4 +1,4 @@
-# FlamJam
+# ReKod
 
 Personal bug reporter. A Chrome extension records a tab —
 video or screenshot — with the last 5 minutes of console + network already
@@ -39,6 +39,8 @@ title, project, send. Video is capped at 3 minutes.
    `owner = auth.uid()`, and no more anonymous filing.
 4. Run `schema-share.sql` — share links: `share_token` plus the one
    `security definer` function anonymous visitors may call.
+5. Run `schema-drop-status.sql` — drops triage `status`. There is one account
+   and share links are read-only, so nobody was ever reading it but its author.
 
 Nothing in this repo needs the `service_role` key any more. The extension and
 the dashboard both use the publishable key plus a real user session, and let RLS
@@ -61,11 +63,12 @@ the rows you filed. That is the whole access model.
 | `extension/widget.js` | ISOLATED world | Shadow-DOM widget; UI plus the MAIN↔offscreen bridge. Stateless by design. |
 | `extension/popup.js` / `popup.html` | popup | One button — record this tab — or the expired card that sends you to the dashboard to log in. The widget does the rest. |
 | `extension/auth.js` | worker + popup | Reads the dashboard's `sb-*-auth-token` cookie via `chrome.cookies`. The extension never signs in and never refreshes; nothing is stored on its side. |
-| `viewer/` | next.js | **The dashboard.** Sidebar, one grid of recordings with video previews, filters, report viewer, triage, share links. Anon key + RLS, no god key. |
+| `viewer/` | next.js | **The dashboard.** Sidebar, one grid of recordings with video previews, filters, report viewer, share links. Anon key + RLS, no god key. |
 | `schema-single-user.sql` | — | Owner column, owner-scoped policies. Run after the other two. |
 | `schema.sql` | — | Tables, bucket, RLS. Run once. |
 | `schema-dashboard.sql` | — | Generated counts + domain-locked RLS. Run once, before `viewer/`. |
 | `schema-share.sql` | — | `share_token` + `shared_report(uuid)`, the only thing `anon` may call. Run after the other three. |
+| `schema-drop-status.sql` | — | Drops triage `status`. Run last. |
 
 ## Redaction
 

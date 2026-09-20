@@ -13,7 +13,7 @@ const body = Instrument_Sans({ variable: '--font-body', subsets: ['latin'] });
 const data = JetBrains_Mono({ variable: '--font-data', subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FlamJam',
+  title: 'ReKod',
   description: 'Your own bug reports, captured from the browser.',
 };
 

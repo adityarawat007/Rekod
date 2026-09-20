@@ -30,7 +30,7 @@ export async function generateMetadata(props: PageProps<'/s/[token]'>) {
   const report = await getShared(token);
   if (!report) return { title: 'Link not found', robots: { index: false } };
 
-  const title = `${report.title} · FlamJam`;
+  const title = `${report.title} · ReKod`;
   return {
     title,
     description: `Bug report from ${report.project ?? 'an unknown project'}, captured with console and network log.`,
@@ -98,7 +98,7 @@ export default async function SharedReportPage(props: PageProps<'/s/[token]'>) {
       <footer className="border-t px-6 py-5 text-sm text-muted-foreground md:px-8">
         Captured with{' '}
         <Link href="/" className="font-heading font-extrabold text-foreground hover:underline">
-          FlamJam
+          ReKod
         </Link>{' '}
         — the console and network log were redacted in the browser before upload.
       </footer>

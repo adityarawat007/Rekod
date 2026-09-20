@@ -1,14 +1,12 @@
 import Link from 'next/link';
 import { AlertTriangle, Camera, Video } from 'lucide-react';
-import { StatusChip } from '@/components/status-chip';
 import { ago } from '@/lib/format';
-import { isScreenshot, type Status } from '@/lib/types';
+import { isScreenshot } from '@/lib/types';
 
 export type ListRow = {
   id: string;
   title: string;
   project: string | null;
-  status: Status;
   created_at: string;
   video_path: string | null;
   error_count: number | null;
@@ -111,7 +109,6 @@ export function ReportList({
               </div>
               <div className="flex items-center justify-between gap-2 text-xs">
                 <Signal errors={r.error_count ?? 0} failed={r.failed_count ?? 0} />
-                <StatusChip status={r.status} />
               </div>
             </div>
           </Link>

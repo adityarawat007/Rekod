@@ -12,8 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 // inbox listing the same rows. Two screens for one job. The recordings are the
 // product, so they are the home page — tiles, trend and by-project bars are
 // deleted, not hidden. See PLAN.md.
-const COLS = 'id,title,project,status,created_at,video_path,error_count,failed_count';
-const FILTER_KEYS = ['status', 'project', 'failing', 'q', 'range'] as const;
+const COLS = 'id,title,project,created_at,video_path,error_count,failed_count';
+const FILTER_KEYS = ['project', 'failing', 'q', 'range'] as const;
 
 type Search = Awaited<PageProps<'/'>['searchParams']>;
 const one = (sp: Search, k: string) =>
@@ -88,11 +88,9 @@ async function search(sp: Search): Promise<ListRow[]> {
     .limit(60);
 
   const project = one(sp, 'project');
-  const status = one(sp, 'status');
   const q = one(sp, 'q');
   const range = one(sp, 'range');
 
-  if (status) query = query.eq('status', status);
   if (project) query = query.eq('project', project);
   // PostgREST `or` on two generated int columns — cheap because they are stored.
   if (one(sp, 'failing')) query = query.or('error_count.gt.0,failed_count.gt.0');

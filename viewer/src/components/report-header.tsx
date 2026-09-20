@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { StatusSelect } from '@/components/status-select';
 import { ShareButton } from '@/components/share-button';
 import type { Report } from '@/lib/types';
 import { httpUrl } from '@/lib/format';
@@ -44,7 +43,6 @@ export function ReportHeader({ report }: { report: Report }) {
             videoPath={report.video_path}
             shareToken={report.share_token}
           />
-          <StatusSelect id={report.id} status={report.status} />
         </div>
       </div>
     </div>

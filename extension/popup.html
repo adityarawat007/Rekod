@@ -1,41 +1,51 @@
-<!doctype html><meta charset="utf-8"><title>FlamJam</title>
+<!doctype html><meta charset="utf-8"><title>ReKod</title>
 <style>
-  :root{--jam:#FF2D55;--zest:#FFC400;--bg:#1C1624;--s2:#241C2E;--line:#463A56;--ink:#F4EFF7;--ink3:#8B7E97}
+  /* Our own surface, so it wears the dashboard's light palette — Paper, Ink,
+     Jam — rather than the near-black the on-page bar needs to stand apart from
+     whatever site it lands on. Same type stack as the bar: platform grotesque
+     for UI, platform mono with tabular figures for anything machine-written. */
+  :root{--paper:#FFFBF5;--card:#FFFFFF;--jam:#FF2D55;--ink:#1A1420;--ink3:#7C7189;
+        --line:#E6DFE9;--crit:#E5001E;--grape:#5B21F0}
   *{box-sizing:border-box}
   [hidden]{display:none!important}   /* author display:grid below outranks the UA sheet */
-  body{margin:0;width:248px;background:var(--bg);color:var(--ink);font:13px/1.45 system-ui,sans-serif}
-  header{display:flex;align-items:center;gap:8px;padding:14px 14px 10px}
-  .brand{display:inline-flex;align-items:center;gap:7px;background:var(--jam);color:#fff;border-radius:100px;
-         padding:4px 10px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-  .brand i{width:5px;height:5px;border-radius:50%;background:var(--zest)}
-  .opts{display:grid;gap:8px;padding:0 14px 14px}
-  button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--s2);
+  body{margin:0;width:252px;background:var(--paper);color:var(--ink);letter-spacing:-.01em;
+       -webkit-font-smoothing:antialiased;
+       font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Inter,Roboto,system-ui,sans-serif}
+  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+  header{display:flex;align-items:center;gap:7px;padding:15px 15px 11px}
+  /* The mark is the thing the product does: a record light, then the name. */
+  .brand{display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:700;letter-spacing:-.025em}
+  .brand i{width:7px;height:7px;border-radius:50%;background:var(--jam)}
+  .opts{display:grid;gap:8px;padding:0 15px 14px}
+  button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--card);
          border:1px solid var(--line);border-radius:10px;padding:11px 12px;color:var(--ink);
-         font:600 13px system-ui;cursor:pointer}
-  button:hover{border-color:var(--jam)}
-  button:focus-visible{outline:2px solid #A98BFF;outline-offset:2px}
+         font:600 13px inherit;letter-spacing:-.01em;cursor:pointer;
+         transition:border-color .12s,box-shadow .12s}
+  button:hover{border-color:var(--jam);box-shadow:0 1px 6px -2px rgba(255,45,85,.35)}
+  button:focus-visible{outline:2px solid var(--grape);outline-offset:2px}
   button small{display:block;font-weight:400;font-size:11px;color:var(--ink3);margin-top:1px}
   svg{flex:0 0 auto;color:var(--jam)}
-  .hint{padding:0 14px 13px;font-size:10.5px;color:var(--ink3);font-family:ui-monospace,monospace}
-  .err{padding:0 14px 13px;font-size:11px;color:#FF5C6E}
+  .hint{padding:0 15px 13px;font-size:10.5px;color:var(--ink3);
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .err{padding:0 15px 13px;font-size:11px;color:var(--crit)}
   button.primary{justify-content:center;background:var(--jam);border-color:var(--jam);color:#fff}
+  button.primary:hover{background:#D40E36;border-color:#D40E36}
   .gate{display:grid;justify-items:center;text-align:center;gap:4px;padding:6px 18px 18px}
-  .gate img{border-radius:50%;background:var(--s2);padding:8px;margin-bottom:8px}
-  .gate h1{margin:0;font-size:15px;font-weight:700}
+  .gate img{border-radius:50%;background:var(--card);border:1px solid var(--line);padding:8px;margin-bottom:8px}
+  .gate h1{margin:0;font-size:15px;font-weight:700;letter-spacing:-.02em}
   .gate p{margin:0 0 12px;font-size:12px;color:var(--ink3)}
   .gate button{justify-content:center}
-  .who{display:flex;align-items:center;gap:6px;padding:0 14px 12px;font-size:11px;color:var(--ink3)}
-  .who span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-            font-family:ui-monospace,monospace}
+  .who{display:flex;align-items:center;gap:6px;padding:0 15px 13px;font-size:11px;color:var(--ink3)}
+  .who span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .who button{width:auto;padding:3px 8px;font-size:11px;background:none;border:none;color:var(--ink3);
-              text-decoration:underline;cursor:pointer}
-  .who button:hover{color:var(--ink)}
+              text-decoration:underline;cursor:pointer;box-shadow:none}
+  .who button:hover{color:var(--ink);box-shadow:none}
 </style>
-<header><span class="brand"><i></i> FlamJam</span></header>
+<header><span class="brand"><i></i>ReKod</span></header>
 <div class="gate" id="gate" hidden>
   <img src="icons/128.png" alt="" width="56" height="56">
   <h1>Your session has expired</h1>
-  <p>Please log in to use FlamJam</p>
+  <p>Log in on the dashboard to keep recording</p>
   <button class="primary" id="login">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7">
       <path d="M6.5 2.5h5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-5"/><path d="M8.5 8h-7m4.5-3L9.5 8 6 11"/></svg>
@@ -51,7 +61,7 @@
   </button>
 </div>
 <div class="hint" id="hotkey" hidden>⌥⇧J records straight away</div>
-<div class="who" id="who" hidden><span id="me"></span><button type="button" id="dash">Dashboard</button></div>
+<div class="who" id="who" hidden><span class="mono" id="me"></span><button type="button" id="dash">Dashboard</button></div>
 <div class="err" id="err" hidden></div>
 <script src="auth.js"></script>
 <script src="popup.js"></script>

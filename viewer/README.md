@@ -1,4 +1,4 @@
-# FlamJam viewer
+# ReKod viewer
 
 The report dashboard, and the only one — the zero-dependency `viewer.js` it
 replaced was retired on 29 Aug 2026. Build step 03 of
@@ -38,6 +38,12 @@ The migrations need the Supabase console — the app cannot run DDL for you.
   `/s/<token>` works for someone with no account while `anon` keeps no grant on
   `reports` and storage RLS stays as it is.
 
+- [`../schema-drop-status.sql`](../schema-drop-status.sql) — drops triage
+  `status`. One account plus read-only share links means no one could ever
+  receive a report to retriage; `public.shared_report` never returned the
+  column. Dropping it drops its grant too, so the migration restates
+  `update (share_token, share_url)`.
+
 **2. Set the URLs.** Authentication → URL Configuration → **Site URL**
 `http://localhost:3100`, and add `http://localhost:3100/**` to the redirect
 allowlist. Email confirmation links need it.
@@ -55,10 +61,10 @@ npm test          # pure-logic checks: timeline merge, pre-roll signs, day bucke
 npm run typecheck
 ```
 
-**4. Sign the extension in.** Sign up at `/login`, then open the FlamJam popup
+**4. Sign the extension in.** Sign up at `/login`, then open the ReKod popup
 and sign in with the same address. Until you do, the popup shows the sign-in
 form instead of the capture buttons, and the ⌥⇧J hotkey fails at send with
-"Sign in from the FlamJam popup".
+"Sign in from the ReKod popup".
 
 ## Access model
 
@@ -96,7 +102,7 @@ and one button. The extension popup cannot host a redirect, so it will need
 
 | Path | What |
 |---|---|
-| `src/app/(dash)/page.tsx` | **The only list.** Grid of recordings — search, status, project, range, Has failures |
+| `src/app/(dash)/page.tsx` | **The only list.** Grid of recordings — search, project, range, Has errors |
 | `src/app/(dash)/reports/[id]/page.tsx` | One report — signs the media URL, renders the viewer |
 | `src/app/s/[token]/page.tsx` | Public share page. No session; reads through `shared_report(uuid)` |
 | `src/components/report-view.tsx` | Video + shared timeline + Console/Network/Steps/Device |

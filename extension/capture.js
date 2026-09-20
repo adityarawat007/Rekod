@@ -1,7 +1,12 @@
 // MAIN world, document_start. Patches the page's own console/fetch/XHR, keeps a
 // rolling buffer, and hands it over when the widget asks. Never uploads anything.
 (() => {
-  if (window.__fjCapture) return;   // re-injected into a tab that already has us
+  // This one really does have to bail. Unlike widget.js — which is only UI and
+  // can be swapped — everything below wraps console, fetch, XHR and WebSocket
+  // IN PLACE. A second copy would wrap the first, so every log would be
+  // recorded twice and every request logged twice. There is no un-patch, so a
+  // changed capture.js needs a PAGE reload, not just an extension reload.
+  if (window.__fjCapture) return;
   window.__fjCapture = 1;
 
   const WINDOW_MS = 300_000;   // must exceed the 3-min video cap
@@ -10,8 +15,11 @@
 
   const buf = [];
   let seq = 0;
+  // `t` is spread over, so a caller that already knows when the thing happened
+  // can say so. The fetch patch needs that: it writes its entry after the
+  // response has been handed back, which can be up to READ_MS later.
   const push = (e) => {
-    buf.push({ ...e, t: Date.now(), seq: ++seq });
+    buf.push({ t: Date.now(), ...e, seq: ++seq });
     const cut = Date.now() - WINDOW_MS;
     while (buf.length && (buf[0].t < cut || buf.length > MAX)) buf.shift();
   };
@@ -85,6 +93,13 @@
     return out.slice(0, cap);
   };
 
+  // The per-entry ceiling in the report; BODY_CAP bounds what we read off the
+  // wire, this bounds what we keep. Saying so in the payload matters: a silent
+  // cut lands mid-structure, so the viewer's JSON.parse fails and it falls back
+  // to printing one unbroken minified line.
+  const CUT = 4000;
+  const cut = (s) => (s == null ? null : s.length > CUT ? s.slice(0, CUT) + '\u2026[cut at 4 KB]' : s);
+
   const hdrs = (h) => {
     const o = {};
     try { h?.forEach((v, k) => { o[k] = v; }); } catch {}
@@ -104,7 +119,7 @@
 
   const origFetch = window.fetch;
   window.fetch = async function (input, init) {
-    const t = performance.now();
+    const t = performance.now(), at = Date.now();
     let req;
     // Constructing a Request from a Request DISTURBS the original: the spec
     // marks the source body used, and handing it to fetch afterwards throws
@@ -116,28 +131,41 @@
     // The fallback still uses the originals: if construction threw, nothing was
     // consumed (a streaming body with no `duplex` lands here).
     try { req = new Request(input, init); } catch { return origFetch.call(this, input, init); }
-    let reqBody = null;
-    if (!/^(GET|HEAD)$/i.test(req.method)) {
-      // clone(), so reading the body leaves req itself intact to be sent.
-      try { reqBody = fjRedactBody(await cappedText(req.clone(), BODY_CAP)); } catch {}
-    }
+
+    // Our two body copies are read ALONGSIDE the request, never in front of it.
+    // Awaiting them here charged the page up to READ_MS per call — twice on a
+    // POST — so an app that boots on a handful of streaming responses sat in
+    // its own loading state for seconds it never spent on the network. The cost
+    // of moving them off the path is that the entry is written late, hence the
+    // explicit `t: at` and the duration measured the moment the response lands.
+    // clone(), so reading the body leaves req itself intact to be sent.
+    const reqBody = /^(GET|HEAD)$/i.test(req.method) ? null
+      : cappedText(req.clone(), BODY_CAP).then(fjRedactBody).catch(() => null);
     const reqHeaders = hdrs(req.headers);
     try {
       const res = await origFetch.call(this, req);
-      let body = null;
-      if (readable(res)) { try { body = fjRedactBody(await cappedText(res.clone(), BODY_CAP)); } catch {} }
+      const dur = Math.round(performance.now() - t);
       const ct = res.headers.get('content-type') || '';
-      push({
-        kind: 'net', method: req.method, url: fjRedactUrl(req.url), status: res.status,
-        ms: Math.round(performance.now() - t), rtype: rtype(ct, req.url),
-        reqHeaders, reqBody: reqBody?.slice(0, 4000) ?? null,
-        resHeaders: hdrs(res.headers), body: body?.slice(0, 4000) ?? null,
-      });
+      // clone() has to happen now, while the body is still undisturbed; the
+      // reading of it does not.
+      const copy = readable(res) ? res.clone() : null;
+      (async () => {
+        let body = null;
+        if (copy) { try { body = fjRedactBody(await cappedText(copy, BODY_CAP)); } catch {} }
+        push({
+          kind: 'net', t: at, method: req.method, url: fjRedactUrl(req.url), status: res.status,
+          ms: dur, rtype: rtype(ct, req.url),
+          reqHeaders, reqBody: cut(await reqBody),
+          resHeaders: hdrs(res.headers), body: cut(body),
+        });
+      })().catch(() => {});   // never surface our own bookkeeping as a page error
       return res;
     } catch (err) {
-      push({ kind: 'net', method: req.method, url: fjRedactUrl(req.url), status: 0,
-             ms: Math.round(performance.now() - t), rtype: 'fetch',
-             reqHeaders, reqBody, error: String(err) });
+      const dur = Math.round(performance.now() - t);
+      Promise.resolve(reqBody).then((b) => push({
+        kind: 'net', t: at, method: req.method, url: fjRedactUrl(req.url), status: 0,
+        ms: dur, rtype: 'fetch', reqHeaders, reqBody: b ?? null, error: String(err),
+      })).catch(() => {});
       throw err;
     }
   };
@@ -174,7 +202,7 @@
         push({ kind: 'net', method: meta.m, url: fjRedactUrl(meta.u), status: this.status,
                ms: Math.round(performance.now() - meta.t), rtype: rtype(ct, meta.u),
                reqHeaders: fjRedactHeaders(meta.h || {}), reqBody: meta.b ?? null,
-               resHeaders: fjRedactHeaders(res), body: body?.slice(0, 4000) ?? null });
+               resHeaders: fjRedactHeaders(res), body: cut(body) });
       });
     }
     return XS.apply(this, a);
@@ -195,7 +223,13 @@
         const emit = (ev, extra) => push({ kind: 'net', rtype: 'ws', method: 'WS', url, ws: id, ev, ...extra });
         // Discrete immutable entries, never a row mutated after the fact — the log
         // relay ships each entry once and can't resend an edited one.
-        emit('open', { status: null, ms: 0, protocols: args[1] ?? null });
+        // On the real open event, not at construction. A socket that never
+        // connected used to log an open it never had, and `status: null`
+        // rendered as ERR on every healthy connection — 101 is the handshake's
+        // actual status. A socket that fails has its 'error' row instead.
+        ws.addEventListener('open', () => emit('open', {
+          status: 101, ms: Math.round(performance.now() - t), protocols: args[1] ?? null,
+        }));
         const frame = (dir, d) => {
           if (frames > WS_FRAME_CAP) return;
           if (++frames > WS_FRAME_CAP) return emit('frame', { dir, data: `[frame log capped at ${WS_FRAME_CAP}]` });
@@ -278,10 +312,18 @@
   };
 
   // --- handover --------------------------------------------------------
-  addEventListener('message', (ev) => {
-    if (ev.source !== window || ev.data?.__flamjam !== 'collect') return;
-    const after = ev.data.after || 0;
+  // A CustomEvent on window, not postMessage. The DOM is shared across worlds
+  // either way, but a `message` event is delivered to every listener on the
+  // page — and this fires every 2s, so MetaMask's stream demuxer logged
+  // "ObjectMultiplex - orphaned data" and an EventEmitter leak warning on every
+  // page the extension touched. Nothing listens for a bare event it does not
+  // know the name of.
+  addEventListener('__fjCollect', (ev) => {
+    const after = +ev.detail || 0;
     // Pull with a cursor: whenever the widget attaches, the boot-time backlog is still here.
-    postMessage({ __flamjam: 'data', entries: buf.filter((e) => e.seq > after), env: env() }, '*');
+    // detail is a string: object payloads do not survive the world boundary.
+    dispatchEvent(new CustomEvent('__fjData', {
+      detail: JSON.stringify({ entries: buf.filter((e) => e.seq > after), env: env() }),
+    }));
   });
 })();

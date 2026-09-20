@@ -35,6 +35,22 @@ async function reinject() {
   }
 }
 
+// reinject() above only runs on onInstalled, and a manual reload of an unpacked
+// extension does not reliably fire it — so a tab could be left holding a content
+// script whose extension context had been invalidated. Its onMessage listener is
+// dead, which is why 'rec' went nowhere and the pill appeared only after a page
+// reload, when the manifest injected a fresh widget that asked 'hello' instead
+// of waiting to be told. Push a live widget in before there is any state to push
+// to it. widget.js retires whatever copy is already running, so this is
+// idempotent and safe to call on every capture.
+async function ensureWidget(tabId) {
+  // capture.js is deliberately NOT re-injected: its patches cannot be applied
+  // twice. Only the UI is replaceable.
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', files: ['widget.js'] });
+  } catch {}   // restricted pages reject injection; the callers already refuse those
+}
+
 chrome.runtime.onStartup.addListener(ensureOffscreen);
 chrome.runtime.onInstalled.addListener(() => { ensureOffscreen(); reinject(); });
 
@@ -74,6 +90,7 @@ async function startVideo(tab) {
   if (/^(chrome|edge|about|devtools):/.test(tab.url || '')) throw new Error("Chrome's own pages can't be captured");
   // tabCapture needs activeTab, which the popup click or the command gesture grants.
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+  await ensureWidget(tab.id);
   await ask({ t: 'start', streamId, tabId: tab.id });
   return { ok: true };
 }
@@ -81,6 +98,7 @@ async function startVideo(tab) {
 async function startShot(tab) {
   if (!tab?.id) throw new Error('No active tab');
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  await ensureWidget(tab.id);
   await ask({ t: 'shot', dataUrl, tabId: tab.id });
   return { ok: true };
 }

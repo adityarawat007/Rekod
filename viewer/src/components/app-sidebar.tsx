@@ -24,10 +24,9 @@ import {
 export type NavData = {
   email: string | null;
   projects: string[];
-  counts: { all: number; new: number };
+  counts: { all: number };
 };
 
-const STATUSES = ['new', 'triaging', 'fixed'] as const;
 
 /** Shown while the nav query streams in. Same shape as the real thing, so the
  *  sidebar does not jump when it arrives. */
@@ -62,35 +61,6 @@ export function AppSidebarNav({ email, projects, counts }: NavData) {
                   <span>All recordings</span>
                 </SidebarMenuButton>
                 {counts.all > 0 && <SidebarMenuBadge>{counts.all}</SidebarMenuBadge>}
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Status</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {STATUSES.map((s) => (
-                <SidebarMenuItem key={s}>
-                  <SidebarMenuButton
-                    isActive={onList && q('status') === s}
-                    render={<Link href={`/?status=${s}`} />}
-                  >
-                    <span className="capitalize">{s}</span>
-                  </SidebarMenuButton>
-                  {s === 'new' && counts.new > 0 && (
-                    <SidebarMenuBadge>{counts.new}</SidebarMenuBadge>
-                  )}
-                </SidebarMenuItem>
-              ))}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={onList && !!q('failing')}
-                  render={<Link href="/?failing=1" />}
-                >
-                  <span>Has 500s</span>
-                </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>

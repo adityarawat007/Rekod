@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* FlamJam palette — see ../../PLAN.md § Design system.
+/* ReKod palette — see ../../PLAN.md § Design system.
    Chart steps are validated per mode against that mode's card surface, not
    flipped: light passes on #FFFFFF, dark is re-stepped for L 0.48–0.67 on
    #1C1624. Zest is deliberately absent from the chart ramp — at L 0.85 it
@@ -100,13 +100,16 @@
   --chart-4: #F07800;
   --chart-5: #7C7189;
 
-  --sidebar: #F7F3F8;
+  /* Plain white, and neutral greys with it: the mauve surface was carrying a
+     mauve hover and a mauve border, so recolouring only the surface would have
+     left the tint showing on every hovered nav item. */
+  --sidebar: #FFFFFF;
   --sidebar-foreground: #1A1420;
   --sidebar-primary: #FF2D55;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EFE7F2;
+  --sidebar-accent: #F2F2F3;
   --sidebar-accent-foreground: #1A1420;
-  --sidebar-border: #E6DFE9;
+  --sidebar-border: #E4E4E7;
   --sidebar-ring: #5B21F0;
 }
 
