@@ -187,9 +187,16 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
     // the height rules are all xl:-prefixed.
     <div className={cn('grid min-h-0 flex-1 gap-6 xl:overflow-hidden', showLog && 'xl:grid-cols-2')}>
       {/* ── evidence: the capture, and the writing about it ───────────── */}
+      {/* `-mx-2 px-2` is not decoration: `overflow-y-auto` clips the horizontal
+          axis too, and the title and description fields deliberately bleed 8px
+          outside the content box so their hover and focus states sit around
+          the text rather than beside it. Without the room, the focus ring is
+          sliced off at the column's edge. The padding puts the room inside the
+          scroll box; the negative margin takes it back out of the layout, so
+          nothing moves. */}
       <div
         className={cn(
-          'flex min-w-0 flex-col gap-3 xl:min-h-0 xl:overflow-y-auto',
+          '-mx-2 flex min-w-0 flex-col gap-3 px-2 xl:min-h-0 xl:overflow-y-auto',
           !showLog && 'mx-auto w-full max-w-3xl',
         )}
       >
