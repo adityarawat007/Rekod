@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ReKod",
   "version": "0.2.0",
-  "description": "Internal bug reporter for the Flam team.",
+  "description": "Records a tab with the last 5 minutes of console and network already captured.",
   "permissions": [
     "tabCapture",
     "activeTab",
@@ -13,7 +13,7 @@
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
-    "https://flamjam.vercel.app/*",
+    "https://rekody.vercel.app/*",
     "http://localhost/*"
   ],
   "background": {

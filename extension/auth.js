@@ -18,7 +18,7 @@ const SUPABASE_ANON = 'sb_publishable_h344Jny4uvxnKnepiOhAjw_UgU9vgSc';
 // extension keeps working while you develop without editing this line twice a
 // day. Both need a matching entry in host_permissions or chrome.cookies returns
 // nothing for that origin.
-const DASH_ORIGINS = ['https://flamjam.vercel.app', 'http://localhost:3100'];
+const DASH_ORIGINS = ['https://rekody.vercel.app', 'http://localhost:3100'];
 const DASH = DASH_ORIGINS[0];   // where the Login button sends you
 
 // @supabase/ssr writes sb-<project-ref>-auth-token, split into .0/.1/… when the

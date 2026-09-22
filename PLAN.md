@@ -4,7 +4,7 @@ Drafted 22 Aug 2026. Original as a design doc:
 https://claude.ai/code/artifact/35695f6f-cfa6-4ea8-b148-dca6508da56d
 Status column updated 29 Aug 2026.
 
-One-shortcut bug reporter for the Flam team. Hit `Alt+Shift+J`, describe the
+One-shortcut bug reporter. Hit `Alt+Shift+J`, describe the
 bug, and the engineer gets video, console, every network call, and the device
 profile — already correlated on one timeline.
 
@@ -423,11 +423,13 @@ personal inbox into a shared link.
 - ~~**Name.** FlamJam is a placeholder — it works, but it's derivative.~~
   **Answered 18 Sep 2026 — the product is ReKod.** Renamed everywhere it is
   read: the manifest, the popup, the widget, the dashboard wordmark, the page
-  titles and these docs. Two strings deliberately still say `flamjam`, because
-  they are an address rather than a name — `https://flamjam.vercel.app` in
-  `extension/auth.js` and its `host_permissions` twin. Renaming those is a
-  redeploy, and they must change together or the popup stops finding the
-  session cookie. The `flamjam-retention` cron name in `schema.sql` also
+  titles and these docs. **Amended 21 Sep 2026 — the two addresses went too**,
+  ahead of open-sourcing, where a name that reads as derivative of another
+  product is the whole trademark exposure. `https://rekody.vercel.app` now
+  appears in `extension/auth.js` and its `host_permissions` twin; they changed
+  together, because apart the popup stops finding the session cookie, and the
+  Vercel project must be renamed to match or auth breaks against a domain that
+  does not exist. The `flamjam-retention` cron name in `schema.sql` still
   stands: it is a comment inside an applied migration, and those are not
   edited. The repo folder is still `flamjam/` — a directory rename is a git
   operation, not a code change.
