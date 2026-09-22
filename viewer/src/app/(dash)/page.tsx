@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 // inbox listing the same rows. Two screens for one job. The recordings are the
 // product, so they are the home page — tiles, trend and by-project bars are
 // deleted, not hidden. See PLAN.md.
-const COLS = 'id,project,created_at,video_path,error_count,failed_count';
+const COLS = 'id,title,project,created_at,video_path,error_count,failed_count';
 const FILTER_KEYS = ['project', 'failing', 'q', 'range'] as const;
 
 type Search = Awaited<PageProps<'/'>['searchParams']>;

@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 
 export type ListRow = {
   id: string;
+  title: string | null;
   project: string | null;
   created_at: string;
   video_path: string | null;
@@ -165,11 +166,13 @@ export function ReportList({
                 )}
               >
                 <Thumb row={r} url={r.video_path ? previews?.get(r.video_path) : undefined} />
-                {/* No title line. A title is optional and filled in later on the
-                    report page, so the card would mostly render a placeholder —
-                    the thumbnail plus project and age identify a recording well
-                    enough to click it. */}
                 <div className="space-y-1.5 px-0.5 pb-0.5">
+                  {/* Only when there is one. A title is optional and filled in
+                      later on the report page, so an untitled card stays as it
+                      was rather than rendering a placeholder. */}
+                  {r.title ? (
+                    <p className="truncate text-sm font-medium">{r.title}</p>
+                  ) : null}
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="mono truncate text-muted-foreground">{r.project ?? '—'}</span>
                     {/* Rendered on the server and again here a moment later, so

@@ -179,9 +179,10 @@ twice — see `(dash)/page.tsx`, where the count and the grid share one.
 
 **There is one list, and it is the home page.** `/` is the grid of recordings,
 filtered by search params; there is no separate inbox route. **The card shows
-no title** — both of the extension's compose inputs are optional, so a title is
-filled in later on the report page, where it and the description are edited in
-place — under the player, in the scrolling left column, with the log pane
+its title only when the report has one** — both of the extension's compose
+inputs are optional, so an untitled card renders no placeholder line at all. A
+title is filled in later on the report page, where it and the description are
+edited in place — under the player, in the scrolling left column, with the log pane
 holding the full viewport height on the right. `ReportView` takes that column's
 contents as `children`, so the owner's page passes editable fields and the
 share page passes the same thing flat and read-only. The header above it is a
