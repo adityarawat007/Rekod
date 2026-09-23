@@ -31,9 +31,15 @@
     *{box-sizing:border-box}
     #ui{user-select:none;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;
         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Inter,Roboto,system-ui,sans-serif}
-    .bar,.card{background:#17161A;color:#F5F2F6;border-radius:16px;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 12px 32px -10px rgba(0,0,0,.6),0 2px 10px -3px rgba(0,0,0,.45)}
-    .bar{display:inline-flex;align-items:center;gap:2px;padding:6px;cursor:grab}
+    .bar,.card{border-radius:16px;
+      box-shadow:0 12px 32px -10px rgba(0,0,0,.45),0 2px 10px -3px rgba(0,0,0,.3)}
+    /* The pill stays near-black: it sits ON somebody else's page and has to read
+       as an instrument against any background, light or dark, which is exactly
+       what a Paper-coloured pill would not do. The card is a form, not chrome,
+       so it wears the dashboard's light palette — same as popup.html. */
+    .bar{background:#17161A;color:#F5F2F6;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),
+      0 12px 32px -10px rgba(0,0,0,.6),0 2px 10px -3px rgba(0,0,0,.45);
+      display:inline-flex;align-items:center;gap:2px;padding:6px;cursor:grab}
     .bar:active{cursor:grabbing}
     .bar.msg{gap:9px;padding:10px 15px 10px 12px;font-size:13px;font-weight:500}
 
@@ -56,26 +62,31 @@
     .dot{width:8px;height:8px;border-radius:50%;background:#FF2D55;flex:0 0 auto}
     .dot.ok{background:#00A862}.dot.bad{background:#FF5C6E}
 
-    .card{width:340px;padding:15px;cursor:grab}
+    .card{width:340px;padding:15px;cursor:grab;background:#FFFBF5;color:#1A1420;
+          border:1px solid #E6DFE9}
     .card h4{margin:0 0 10px;font-size:13.5px;font-weight:600}
     /* Two fields now — a title and a write-up, both optional. Same skin, so
        the card reads as one form rather than two controls that met by
        accident. */
-    textarea,input{width:100%;background:#0F0E12;border:1px solid rgba(255,255,255,.12);
-             border-radius:10px;color:#F5F2F6;padding:10px;font:inherit;font-size:12.5px;letter-spacing:0;
+    textarea,input{width:100%;background:#FFFFFF;border:1px solid #E6DFE9;
+             border-radius:10px;color:#1A1420;padding:10px;font:inherit;font-size:12.5px;letter-spacing:0;
              user-select:text;cursor:auto}
     input{font-weight:600}
     textarea{height:64px;resize:none;margin-top:7px}
-    ::placeholder{color:#6F6875}
-    :is(textarea,input):focus{outline:none;border-color:rgba(255,255,255,.3)}
+    /* 400, not the input's 600: a bold placeholder on Paper reads as a value
+       somebody already typed. #7C7189 is the popup's muted ink — 4.6:1. */
+    ::placeholder{color:#7C7189;font-weight:400}
+    :is(textarea,input):focus{outline:none;border-color:#FF2D55}
     .facts{display:flex;flex-wrap:wrap;gap:9px;margin:11px 0 13px;font-family:ui-monospace,monospace;
-           font-size:10.5px;color:#9C95A2}
+           font-size:10.5px;color:#7C7189}
     .row{display:flex;gap:8px}
     .btn{border:0;border-radius:10px;padding:9px 14px;font:inherit;font-size:12.5px;font-weight:600;
          background:#FF2D55;color:#fff;cursor:pointer}
-    .btn.ghost{background:rgba(255,255,255,.07);color:#CFC9D4}
-    .btn.ghost:hover{background:rgba(255,255,255,.12);color:#F5F2F6}
-    :is(.btn,.ico,.stop):focus-visible{outline:2px solid #A98BFF;outline-offset:2px}
+    .btn:hover{background:#D40E36}
+    .btn.ghost{background:#F0EBF2;color:#4A4152}
+    .btn.ghost:hover{background:#E4DDE7;color:#1A1420}
+    :is(.ico,.stop):focus-visible{outline:2px solid #A98BFF;outline-offset:2px}
+    .btn:focus-visible{outline:2px solid #5B21F0;outline-offset:2px}   /* on Paper, not on Ink */
 
     /* The selection overlay. The picture was already taken when this appears —
        it dims the live page, it is never in the capture. Before the first drag
@@ -314,7 +325,7 @@
     // a mic that was asked for and refused is the one capture failure nothing
     // else shows — the video looks fine and is silent where a voice should be.
     const audio = m.mic === 'on' ? '<span>✓ mic</span>'
-      : m.mic === 'denied' ? '<span style="color:#FFC400">⚠ no mic — permission refused</span>' : '';
+      : m.mic === 'denied' ? '<span style="color:#B37800">⚠ no mic — permission refused</span>' : '';
     // Both fields are optional and neither is a comment: the title and the
     // description are the report's own, editable later on the dashboard. The
     // comment thread only ever grows there. See schema-comments.sql.

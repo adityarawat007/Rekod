@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase/server';
 import { ReportView } from '@/components/report-view';
+import { Brand } from '@/components/brand';
 import { Comments } from '@/components/report-notes';
 import { isScreenshot, timeline, type SharedReport } from '@/lib/types';
 
@@ -58,9 +59,10 @@ export default async function SharedReportPage(props: PageProps<'/s/[token]'>) {
     // Same two-column shape as the owner's page — see (dash)/reports/[id].
     <main className="flex flex-col xl:h-svh xl:overflow-hidden">
       <header className="flex shrink-0 items-center justify-between gap-4 border-b px-6 py-3 md:px-8">
-        <Link href="/" className="font-heading text-sm font-extrabold hover:underline">
-          ReKod
-        </Link>
+        {/* The same mark the dashboard wears. A recipient may never have seen
+            this product before — a wordmark in bold text was the one place it
+            introduced itself without showing its face. */}
+        <Brand />
         <span className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
           Shared report · read only
         </span>

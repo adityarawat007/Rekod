@@ -294,6 +294,17 @@ ES256, so `getClaims()` verifies locally against a module-cached JWKS. Same
 guarantee — a forged or expired token fails verification. Applies to
 `navData()` too, and to anything else that runs per request.
 
+**The dashboard is light only, for now.** `ThemeProvider` passes
+`forcedTheme="light"`; the `.dark` block in `globals.css` and
+`theme-toggle.tsx` are both still there and both inert, and `<ThemeToggle />`
+is commented out in `app-sidebar.tsx` rather than deleted. Dark comes back by
+dropping the prop and uncommenting that one line — the dark palette was
+validated rather than eyeballed (see `PLAN.md`), so re-deriving it is the
+expensive part, not re-enabling it. The extension's composer card is light for
+the same reason; **the on-page pill and the crop tip stay near-black on
+purpose** — they sit on somebody else's page and have to read as an instrument
+against any background.
+
 `components/ui/` is shadcn (`base-nova` style, Base UI underneath, so the slot
 prop is `render`, not `asChild`). Compose those primitives — do not hand-roll a
 nav or a raw `<button>`. `hooks/use-mobile.ts` is edited from shadcn's version;

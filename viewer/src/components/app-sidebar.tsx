@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Inbox, LogOut } from 'lucide-react';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { Brand } from '@/components/brand';
 import { Button } from '@/components/ui/button';
 import {
@@ -89,7 +88,10 @@ export function AppSidebarNav({ email, projects, counts }: NavData) {
       </SidebarContent>
 
       <SidebarFooter>
-        <ThemeToggle />
+        {/* Light only for now — ThemeProvider forces it, so a toggle here would
+            be three buttons that do nothing. Uncomment with the `forcedTheme`
+            prop in theme-provider.tsx. */}
+        {/* <ThemeToggle /> */}
         <div className="flex items-center gap-2 rounded-md border bg-card/50 p-2">
           <p className="min-w-0 flex-1 truncate text-xs font-medium">{email ?? 'signed in'}</p>
           <form action="/auth/signout" method="post">
