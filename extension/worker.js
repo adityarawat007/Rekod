@@ -21,7 +21,10 @@ async function ensureOffscreen() {
 }
 
 const ask = (msg) => chrome.runtime.sendMessage({ ...msg, to: 'off' });
-const toTab = (tabId, msg) => chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+// frameId 0: every frame runs widget.js now, and the UI belongs to exactly one
+// of them. Without this, a page with twelve iframes wakes twelve listeners to
+// ignore the same message.
+const toTab = (tabId, msg) => chrome.tabs.sendMessage(tabId, msg, { frameId: 0 }).catch(() => {});
 const activeTab = async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 
 // Reloading the extension kills content scripts in open tabs without re-injecting them,

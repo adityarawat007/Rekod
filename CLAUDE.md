@@ -180,6 +180,23 @@ ReKod / ReKods. The code, the database and these notes still say report: the
 table is `reports`, the route is `/reports/[id]`, and renaming those buys
 nothing. Keep the two apart; do not rename the column.
 
+**Capture runs in every frame; the UI runs in one.** `all_frames` +
+`match_about_blank` are on both content scripts, because the socket that matters
+is usually opened by a widget in an iframe and each frame has its own
+`window.WebSocket` to patch. What that costs is guarded in two places:
+`widget.js` renders nothing unless `window.top === window` (subframes only
+relay logs, which is the half only an ISOLATED-world script can do), and
+`worker.js` addresses tab messages to `{ frameId: 0 }`. Remove either and an
+iframe-heavy page grows one pill per frame.
+
+**WebRTC data channels are logged as sockets**, `rtype: 'ws'` with `method:
+'RTC'` — the same shape in a report, so no new type and no viewer branch. The
+SDP and the ICE candidates are deliberately never captured: they carry the
+machine's local and public IP addresses, and a share link is a public URL. The
+ICE server list is captured by reading `.urls` and nothing else, because
+`username` and `credential` sit beside it and `credential` is **not** in
+`redact.js`'s key denylist.
+
 **The capture contract is mirrored, not shared.** `viewer/src/lib/types.ts`
 describes exactly what `extension/capture.js` writes. Change one side and you
 must change the other by hand.

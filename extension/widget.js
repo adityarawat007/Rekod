@@ -10,6 +10,13 @@
   if (window.__fjWidget) dispatchEvent(new CustomEvent('__fjRetire'));
   window.__fjWidget = 1;
 
+  // Every frame runs this file now (`all_frames` in the manifest), because the
+  // MAIN-world capture in a subframe has no way to reach the worker on its own
+  // — chrome.runtime lives here. What a subframe must NOT do is draw: one pill
+  // per iframe, each with its own ticker and its own compose card, is what
+  // `all_frames` costs if the UI is not held to the top frame.
+  const TOP = window.top === window;
+
   const CAP_WARN = 150_000;
   const CENTERED = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:2147483647';
 
@@ -124,8 +131,10 @@
     const y = Math.min(Math.max(0, pos.y), Math.max(0, innerHeight - r.height));
     host.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:2147483647`;
   };
-  chrome.storage.local.get('fjPos').then(({ fjPos }) => { if (fjPos) { pos = fjPos; place(); } });
-  addEventListener('resize', place);
+  if (TOP) {
+    chrome.storage.local.get('fjPos').then(({ fjPos }) => { if (fjPos) { pos = fjPos; place(); } });
+    addEventListener('resize', place);
+  }
 
   // documentElement, not body. A React app hydrating over server HTML treats an
   // extra child of <body> as a mismatch (error #418) and removes it, which is
@@ -134,7 +143,7 @@
   // resolves against the viewport either way. It also means we can mount at
   // document_start instead of waiting for a body to exist.
   const mount = () => {
-    if (host.isConnected) return;
+    if (!TOP || host.isConnected) return;   // subframes relay, they do not render
     document.documentElement.appendChild(host);
     place();                        // a remount would otherwise snap back to centre
   };
@@ -201,7 +210,7 @@
     // The listener has to go too. Left attached, a retired instance still
     // answers every state message and re-mounts the host it just removed, so
     // two copies would race to render the same pill.
-    chrome.runtime.onMessage.removeListener(onMsg);
+    if (TOP) chrome.runtime.onMessage.removeListener(onMsg);
   }, { once: true });
 
   // ── views ────────────────────────────────────────────────────────────
@@ -364,12 +373,17 @@
     if (m.s === 'sent')    { note('ok', 'Sent ✓'); setTimeout(idle, 2500); }
     if (m.s === 'failed')  { note('bad', m.err || 'Upload failed'); console.warn('[rekod]', m.err); setTimeout(idle, 6000); }
   };
-  chrome.runtime.onMessage.addListener(onMsg);
+  // Both of these are the UI's, so both are the top frame's. worker.js also
+  // addresses state at frameId 0, so a subframe would never hear one anyway —
+  // this is the half that stops it ASKING.
+  if (TOP) {
+    chrome.runtime.onMessage.addListener(onMsg);
 
-  // A navigation mid-capture lands here: ask what is already in flight and
-  // render it, whatever it is. Answering only 'rec' is what used to put a
-  // recording bar over a capture that was really waiting to be written up.
-  chrome.runtime.sendMessage({ to: 'bg', t: 'hello' })
-    .then((r) => { mount(); r?.s && r.s !== 'idle' ? onMsg({ ...r, t: 'state' }) : idle(); })
-    .catch(() => {});
+    // A navigation mid-capture lands here: ask what is already in flight and
+    // render it, whatever it is. Answering only 'rec' is what used to put a
+    // recording bar over a capture that was really waiting to be written up.
+    chrome.runtime.sendMessage({ to: 'bg', t: 'hello' })
+      .then((r) => { mount(); r?.s && r.s !== 'idle' ? onMsg({ ...r, t: 'state' }) : idle(); })
+      .catch(() => {});
+  }
 })();

@@ -33,7 +33,9 @@ export type NetEntry = {
   passive?: boolean;
   size?: number;
   error?: string;
-  // websocket-only
+  // Framed streams only — a WebSocket, or an RTCDataChannel, which the
+  // extension logs as one (`method: 'RTC'`, url `rtc:peer-N #label`). They are
+  // the same shape in a report: open, frames with a direction, close.
   ws?: number;
   ev?: 'open' | 'frame' | 'close' | 'error';
   dir?: 'in' | 'out';

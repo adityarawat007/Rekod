@@ -133,6 +133,80 @@ function boot({ audio = true, mic = 'ok', supports = () => true, chrome: chromeS
 
 const state = (sent, s) => sent.map((m) => m.state).find((x) => x?.s === s);
 
+// ── capture.js, in a page ───────────────────────────────────────────────────
+/** Enough of an EventTarget for the stream patches to hook onto. */
+class FakeTarget {
+  constructor() { this.on = {}; }
+  addEventListener(t, h) { (this.on[t] ??= []).push(h); }
+  emit(t, e) { (this.on[t] ?? []).forEach((h) => h(e ?? {})); }
+}
+class FakeSocket extends FakeTarget {
+  constructor(url, protocols) { super(); this.url = url; this.protocols = protocols; }
+  send() {}
+}
+class FakeChannel extends FakeTarget {
+  constructor(label) { super(); this.label = label; this.sent = []; }
+  send(d) { this.sent.push(d); }
+}
+class FakePeer extends FakeTarget {
+  constructor(cfg) { super(); this.cfg = cfg; this.connectionState = 'new'; }
+  createDataChannel(label) { return new FakeChannel(label); }
+}
+
+/**
+ * capture.js in the MAIN world, with just enough browser to load.
+ *
+ * The buffer is read back the way the widget reads it — a `__fjCollect` event
+ * in, a `__fjData` event out — so the handover is exercised too. `WebSocket`
+ * and `RTCPeerConnection` hang off the stub `window`, because that is where
+ * capture.js reads and replaces them.
+ */
+function page() {
+  const heard = {};                    // type -> [{ h, capture }], in registration order
+  const win = { WebSocket: FakeSocket, RTCPeerConnection: FakePeer };
+  let out = null;
+  const env = {
+    window: win,
+    addEventListener: (t, h, capture) => { (heard[t] ??= []).push({ h, capture: !!capture }); },
+    dispatchEvent: (e) => { if (e.type === '__fjData') out = JSON.parse(e.detail); },
+    CustomEvent: class { constructor(type, o) { this.type = type; Object.assign(this, o); } },
+    console: { log() {}, info() {}, warn() {}, error() {}, debug() {} },
+    fetch: () => {},
+    XMLHttpRequest: function XHR() {},
+    PerformanceObserver: function PO() { this.observe = () => {}; },
+    performance: { now: () => 0 },
+    location: { href: 'https://app.test/page', hostname: 'app.test' },
+    document: { hidden: false, createElement: () => ({ getContext: () => null }), querySelector: () => null },
+    navigator: { userAgent: 'node' },
+    history: { pushState() {}, replaceState() {} },
+    innerWidth: 800, innerHeight: 600, devicePixelRatio: 2,
+  };
+  new Function(...Object.keys(env),
+    `${readFileSync(`${__dirname}/extension/redact.js`, 'utf8')}\n`
+    + `${readFileSync(`${__dirname}/extension/capture.js`, 'utf8')}\nreturn 0;`)(...Object.values(env));
+
+  const drain = () => {
+    heard.__fjCollect.forEach((l) => l.h({ detail: '0' }));
+    return out.entries;
+  };
+  return {
+    win,
+    /**
+     * Dispatch the way the browser does, which is the point of this harness:
+     * an event fired AT an element reaches a window listener only on the
+     * capture phase, while one targeted at the window reaches every listener.
+     * Get that backwards and a resource error looks captured when it is not.
+     */
+    fire: (type, ev) => (heard[type] ?? [])
+      .filter((l) => l.capture || !ev?.target || ev.target === win)
+      .forEach((l) => l.h(ev)),
+    /** Console rows only: capture.js writes a 'nav' event row at load. */
+    rows: () => drain().filter((e) => e.kind === 'console'),
+    net: () => drain().filter((e) => e.kind === 'net'),
+  };
+}
+
+
 /**
  * worker.js and offscreen.js wired to each other over one stubbed
  * chrome.runtime, because the thing most likely to break between them is the
@@ -146,6 +220,7 @@ const DASH = 'https://dash.test';
 function wired({ url = 'https://app.example/page', fjMic = false, session = null, ...opts } = {}) {
   const ui = [];                       // what the widget in the tab would receive
   const opened = [];                   // tabs the worker was asked to open
+  const sentTo = [];                   // the options every tab message carried
   let off = null, bg = null;
   const chromeStub = {
     runtime: {
@@ -157,7 +232,7 @@ function wired({ url = 'https://app.example/page', fjMic = false, session = null
     },
     tabs: {
       query: async () => [{ id: 3, url, windowId: 1 }],
-      sendMessage: async (id, m) => { ui.push(m); },
+      sendMessage: async (id, m, opts) => { ui.push(m); sentTo.push(opts); },
       captureVisibleTab: async () => 'data:image/png;base64,x',
       create: async (o) => { opened.push(o); return { id: 99 }; },
       remove: async () => {},
@@ -179,7 +254,7 @@ function wired({ url = 'https://app.example/page', fjMic = false, session = null
     async () => session,
     async () => ({ state: session ? 'live' : 'none', session, origin: DASH }),
   );
-  return { ...off, ui, opened, route: (m) => bg.route(m, {}) };
+  return { ...off, ui, opened, sentTo, route: (m) => bg.route(m, {}) };
 }
 
 (async () => {
@@ -365,6 +440,8 @@ function wired({ url = 'https://app.example/page', fjMic = false, session = null
     await o.route({ to: 'bg', t: 'record' });
     assert.deepEqual(o.calls[1], { audio: true }, 'the worker passed the stored mic setting through');
     assert.ok(o.ui.some((m) => m.s === 'rec'), 'and the widget was told to show the bar');
+    // every frame runs widget.js now; the UI belongs to exactly one of them
+    assert.deepEqual(o.sentTo.at(-1), { frameId: 0 }, 'state goes to the top frame only');
     await o.route({ to: 'bg', t: 'discard' });
   }
   {
@@ -427,6 +504,116 @@ function wired({ url = 'https://app.example/page', fjMic = false, session = null
     await o.route({ to: 'bg', t: 'send', title: '', desc: null, env: {} });
     assert.ok(o.ui.some((m) => m.s === 'failed'), 'it says so');
     assert.equal(o.opened.length, 0, 'and opens nothing');
+  }
+
+  // ── capture.js: what the BROWSER says, not what the page said ─────────────
+  // Neither of these goes through console.*, so no patch of it can see them.
+  // They have DOM events instead, and that is the only reason they are here.
+  {
+    const p = page();
+    p.fire('securitypolicyviolation', {
+      disposition: 'enforce',
+      violatedDirective: 'font-src',
+      blockedURI: 'https://fonts.gstatic.com/s/x.woff2?token=hunter2',
+    });
+    p.fire('securitypolicyviolation', { disposition: 'report', violatedDirective: 'style-src', blockedURI: '' });
+    const [csp, report] = p.rows();
+    assert.equal(csp.lvl, 'error');
+    assert.match(csp.msg, /CSP blocked: font-src/);
+    // URL-encoded because it went through `new URL()` — redacted either way
+    assert.match(csp.msg, /token=%5Bredacted%5D/, 'the blocked URL is redacted like any other');
+    assert.equal(report.lvl, 'warn', 'report-only is a warning: nothing was blocked');
+    assert.match(report.msg, /\(inline\)/, 'an inline violation has no URL to name');
+  }
+  {
+    // a resource that failed to load fires AT the element and does not bubble,
+    // which is why the listener for it is on the capture phase
+    const p = page();
+    p.fire('error', { target: { tagName: 'IMG', src: 'https://cdn.test/a.png' } });
+    const [row] = p.rows();
+    assert.equal(row.lvl, 'error');
+    assert.match(row.msg, /Failed to load img: https:\/\/cdn\.test\/a\.png/);
+  }
+  {
+    // the same capture-phase listener sees window-targeted script errors too,
+    // and the older listener already has those — one row, not two
+    const p = page();
+    p.fire('error', { target: p.win, message: 'boom', error: { stack: 'at x' } });
+    assert.equal(p.rows().length, 1, 'a script error is logged once');
+  }
+
+  // ── streams: sockets and data channels ────────────────────────────────────
+  {
+    const p = page();
+    const ws = new p.win.WebSocket('wss://live.test/feed?token=hunter2', ['v1']);
+    ws.emit('open');
+    ws.send('ping');
+    ws.emit('message', { data: 'pong' });
+    ws.emit('message', { data: { byteLength: 42 } });
+    ws.emit('close', { wasClean: true, code: 1000, reason: 'bye' });
+
+    const [open, out, i1, i2, close] = p.net();
+    assert.equal(open.ev, 'open');
+    assert.equal(open.status, 101, '101 is the handshake, not a null that renders as ERR');
+    assert.match(open.url, /token=%5Bredacted%5D/, 'a token in a socket URL is still a token');
+    assert.equal(out.dir, 'out');
+    assert.equal(out.data, 'ping');
+    assert.equal(i1.dir, 'in');
+    assert.equal(i2.data, '[42 bytes binary]', 'binary frames are sized, never carried');
+    assert.equal(close.ev, 'close');
+    assert.equal(close.code, 1000);
+  }
+  {
+    // the cap is per stream, and it says so rather than going quiet
+    const p = page();
+    const ws = new p.win.WebSocket('wss://chatty.test');
+    for (let i = 0; i < 260; i++) ws.send(`f${i}`);
+    const frames = p.net().filter((e) => e.ev === 'frame');
+    assert.equal(frames.length, 201, '200 frames, then one row saying it stopped');
+    assert.match(frames.at(-1).data, /capped at 200/);
+  }
+  {
+    // WebRTC: a data channel is logged as the framed stream it is
+    const p = page();
+    const pc = new p.win.RTCPeerConnection({
+      iceServers: [{ urls: 'turn:turn.test:3478', username: 'u', credential: 's3cr3t' }],
+    });
+    pc.connectionState = 'connected';
+    pc.emit('connectionstatechange');
+
+    const ch = pc.createDataChannel('sync');
+    ch.emit('open');
+    ch.send('hello');
+    ch.emit('message', { data: 'hi' });
+    // one the other peer opened
+    const remote = new FakeChannel('telemetry');
+    pc.emit('datachannel', { channel: remote });
+    remote.emit('message', { data: 'tick' });
+
+    const rows = p.net();
+    const peer = rows[0];
+    assert.equal(peer.method, 'RTC', 'RTC in the method column, so it reads as itself');
+    assert.equal(peer.rtype, 'ws', 'and as a framed stream, so it renders like one');
+    assert.match(peer.url, /turn:turn\.test:3478/, 'the ICE server is worth knowing');
+    assert.ok(!JSON.stringify(rows).includes('s3cr3t'),
+      'the TURN credential is NOT — `credential` is not in the key denylist, so it is never read');
+
+    assert.ok(rows.some((e) => e.url.endsWith('#sync') && e.dir === 'out' && e.data === 'hello'));
+    assert.ok(rows.some((e) => e.url.endsWith('#sync') && e.dir === 'in' && e.data === 'hi'));
+    assert.ok(rows.some((e) => e.url.endsWith('#telemetry') && e.data === 'tick'),
+      'a channel the far end opened arrives as an event and is wired the same');
+
+    pc.connectionState = 'failed';
+    pc.emit('connectionstatechange');
+    assert.equal(p.net().at(-1).ev, 'error', 'a failed peer is a failed row');
+  }
+  {
+    // ch.send is patched on the instance and must still deliver
+    const p = page();
+    const pc = new p.win.RTCPeerConnection();
+    const ch = pc.createDataChannel('x');
+    ch.send('payload');
+    assert.deepEqual(ch.sent, ['payload'], 'the frame log never swallows the frame');
   }
 
   console.log('capture ok');

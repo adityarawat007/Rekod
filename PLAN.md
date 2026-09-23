@@ -499,6 +499,48 @@ cannot play, a scrubber with nothing to scrub and a duration of `—:—` were o
 every screenshot report, under a still image. The log pane is untouched: it is
 still the timeline, it just has nothing to drive.
 
+## Frames, sockets and data channels — 23 Sep 2026
+
+The complaint that started it: WebSockets often do not appear in a report, and
+they do not appear in Jam's either. Three of the nine reasons were ours to fix
+and two of them are now fixed.
+
+**Every frame is instrumented.** `all_frames` + `match_about_blank` on both
+content scripts. The seam is a monkey patch of `window.WebSocket`, and a
+`window` is per frame — so a socket opened by a widget in an iframe was never
+in reach. This is the whole fix for the common case, and it is one manifest
+line plus two guards it forces: `widget.js` draws only when
+`window.top === window` (a subframe relays logs and nothing else, because
+reaching `chrome.runtime` is the one thing a MAIN-world script cannot do for
+itself), and `worker.js` sends tab messages to `{ frameId: 0 }`. Without those,
+`all_frames` buys one pill, one ticker and one compose card per iframe.
+
+**WebRTC data channels are captured**, as `rtype: 'ws'` with `RTC` in the
+method column: framed, bidirectional, invisible to every other seam — a socket
+in everything a report cares about, so it borrows the socket's rendering rather
+than earning a type, a viewer branch and a change to the mirrored contract.
+Peer state maps onto the three a socket has (`connected` → open, `failed` →
+error, `closed`/`disconnected` → close), and channels the far end opens arrive
+as a `datachannel` event and are wired identically.
+
+**What is deliberately not captured from WebRTC: the SDP and the ICE
+candidates.** They carry the machine's local and public IP addresses, and every
+report is one copied link away from being public. The ICE server list is read
+as `.urls` and nothing else — `username` and `credential` sit in the same
+object and `credential` is not in `redact.js`'s key denylist, so the safe move
+is not to touch it rather than to trust a regex. `test-capture.js` asserts a
+TURN password never reaches the buffer.
+
+**Still not captured, and why.** Sockets opened inside a worker (its own global,
+no injection possible — the wall Jam hits too); anything opened before the patch,
+which after an extension reload means every socket in every open tab until a
+page reload; frames past 200 per stream, which says so rather than going quiet;
+binary frames, kept as a byte count; `EventSource`, WebTransport and socket.io's
+polling fallback, each of which needs its own seam; and a pristine `WebSocket`
+pulled from a fresh iframe realm, which defeats any monkey patch by
+construction. The complete answer is still `chrome.debugger`, still skipped for
+the reason in *Skipped on purpose*.
+
 ## The one real risk
 
 This tool records colleagues' screens and their API traffic. A single capture

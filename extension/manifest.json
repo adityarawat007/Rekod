@@ -37,7 +37,9 @@
       "js": [
         "redact.js",
         "capture.js"
-      ]
+      ],
+      "all_frames": true,
+      "match_about_blank": true
     },
     {
       "matches": [
@@ -47,7 +49,9 @@
       "world": "ISOLATED",
       "js": [
         "widget.js"
-      ]
+      ],
+      "all_frames": true,
+      "match_about_blank": true
     }
   ],
   "action": {

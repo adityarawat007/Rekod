@@ -240,13 +240,27 @@
   // is the only seam. A Proxy keeps statics, prototype and instanceof intact.
   const WS_FRAME_CAP = 200;   // ponytail: a chatty socket would evict everything else
   let wsN = 0;
+
+  /** One frame counter and one formatter, shared by WebSockets and data
+   *  channels — both are framed streams and a report reads them the same way. */
+  const framer = (emit) => {
+    let n = 0;
+    return (dir, d) => {
+      if (n > WS_FRAME_CAP) return;
+      if (++n > WS_FRAME_CAP) return emit('frame', { dir, data: `[frame log capped at ${WS_FRAME_CAP}]` });
+      emit('frame', {
+        dir,
+        data: typeof d === 'string' ? fjScrub(pre(d)).slice(0, 1000)
+            : `[${d?.byteLength ?? d?.size ?? '?'} bytes binary]`,
+      });
+    };
+  };
   const OWS = window.WebSocket;
   if (OWS) {
     window.WebSocket = new Proxy(OWS, {
       construct(T, args) {
         const ws = new T(...args);
         const id = ++wsN, url = fjRedactUrl(String(args[0])), t = performance.now();
-        let frames = 0;
         const emit = (ev, extra) => push({ kind: 'net', rtype: 'ws', method: 'WS', url, ws: id, ev, ...extra });
         // Discrete immutable entries, never a row mutated after the fact — the log
         // relay ships each entry once and can't resend an edited one.
@@ -257,15 +271,7 @@
         ws.addEventListener('open', () => emit('open', {
           status: 101, ms: Math.round(performance.now() - t), protocols: args[1] ?? null,
         }));
-        const frame = (dir, d) => {
-          if (frames > WS_FRAME_CAP) return;
-          if (++frames > WS_FRAME_CAP) return emit('frame', { dir, data: `[frame log capped at ${WS_FRAME_CAP}]` });
-          emit('frame', {
-            dir,
-            data: typeof d === 'string' ? fjScrub(pre(d)).slice(0, 1000)
-                : `[${d?.byteLength ?? d?.size ?? '?'} bytes binary]`,
-          });
-        };
+        const frame = framer(emit);
         ws.addEventListener('message', (e) => frame('in', e.data));
         ws.addEventListener('error', () => emit('error', { status: 0, ms: Math.round(performance.now() - t) }));
         ws.addEventListener('close', (e) => emit('close', {
@@ -275,6 +281,66 @@
         const send = ws.send.bind(ws);
         ws.send = (d) => { frame('out', d); return send(d); };
         return ws;
+      },
+    });
+  }
+
+  // --- webrtc -------------------------------------------------------------
+  // A data channel is a WebSocket as far as a bug report is concerned: framed,
+  // bidirectional, and invisible to every other seam here. So it is logged as
+  // one — `rtype: 'ws'`, with RTC in the method column — rather than earning a
+  // new type, a viewer branch and a change to the mirrored contract.
+  //
+  // Deliberately NOT logged: the SDP and the ICE candidates. Both carry the
+  // machine's local and public IP addresses, and a bug report that anyone can
+  // be sent a link to is the last place those belong. The connection states say
+  // what they would have said.
+  const ORTC = window.RTCPeerConnection;
+  if (ORTC) {
+    window.RTCPeerConnection = new Proxy(ORTC, {
+      construct(T, args) {
+        const pc = new T(...args);
+        const id = ++wsN, t = performance.now();
+        // Only `.urls` is read. An ICE server also carries `username` and
+        // `credential` for TURN, and neither is in redact.js's key denylist —
+        // not reading them is safer than trusting a regex to catch them.
+        const servers = (args[0]?.iceServers || [])
+          .flatMap((s) => (Array.isArray(s?.urls) ? s.urls : [s?.urls]))
+          .filter(Boolean)
+          .map((u) => fjScrub(String(u)))
+          .join(' ');
+        const url = `rtc:peer-${id}${servers ? ` ${servers}` : ''}`;
+        const emit = (ev, extra) => push({ kind: 'net', rtype: 'ws', method: 'RTC', url, ws: id, ev, ...extra });
+        const since = () => Math.round(performance.now() - t);
+
+        // The same three states a socket has, under different names.
+        pc.addEventListener('connectionstatechange', () => {
+          const st = pc.connectionState;
+          if (st === 'connected') emit('open', { status: 101, ms: since() });
+          else if (st === 'failed') emit('error', { status: 0, ms: since(), reason: 'connection failed' });
+          else if (st === 'closed') emit('close', { status: null, ms: since(), reason: 'closed' });
+          else if (st === 'disconnected') emit('close', { status: 0, ms: since(), reason: 'disconnected' });
+        });
+
+        const wire = (ch) => {
+          const label = ch?.label || '(unnamed)';
+          const chEmit = (ev, extra) =>
+            push({ kind: 'net', rtype: 'ws', method: 'RTC', url: `${url} #${fjScrub(label)}`, ws: id, ev, ...extra });
+          const frame = framer(chEmit);
+          ch.addEventListener('open', () => chEmit('open', { status: 101, ms: since() }));
+          ch.addEventListener('message', (e) => frame('in', e.data));
+          ch.addEventListener('error', () => chEmit('error', { status: 0, ms: since() }));
+          ch.addEventListener('close', () => chEmit('close', { status: null, ms: since() }));
+          const send = ch.send.bind(ch);
+          ch.send = (d) => { frame('out', d); return send(d); };
+          return ch;
+        };
+
+        // Ours, and theirs: a channel opened by the other peer arrives as an event.
+        const create = pc.createDataChannel?.bind(pc);
+        if (create) pc.createDataChannel = (...a) => wire(create(...a));
+        pc.addEventListener('datachannel', (e) => wire(e.channel));
+        return pc;
       },
     });
   }
