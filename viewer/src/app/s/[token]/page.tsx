@@ -29,7 +29,7 @@ export async function generateMetadata(props: PageProps<'/s/[token]'>) {
   const report = await getShared(token);
   if (!report) return { title: 'Link not found', robots: { index: false } };
 
-  const title = `${report.title || 'Recording'} · ReKod`;
+  const title = `${report.title || 'Untitled ReKod'} · ReKod`;
   return {
     title,
     description: `Bug report from ${report.project ?? 'an unknown project'}, captured with console and network log.`,
@@ -78,7 +78,7 @@ export default async function SharedReportPage(props: PageProps<'/s/[token]'>) {
           {/* The same column the owner writes in, rendered flat: `anon` has no
               write grant and gets no function that posts. */}
           <h1 className="font-heading text-2xl font-extrabold leading-tight">
-            {report.title || 'Untitled recording'}
+            {report.title || 'Untitled ReKod'}
           </h1>
           {report.description ? (
             <p className="max-w-prose whitespace-pre-wrap text-sm text-muted-foreground">

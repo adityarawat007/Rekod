@@ -21,21 +21,21 @@ assert.strictEqual(h.Cookie, '[redacted]');
 assert.strictEqual(h['Content-Type'], 'application/json');
 
 // url query params
-assert.ok(fjRedactUrl('https://api.flam/v1/x?token=abc123&page=2').includes('token=%5Bredacted%5D'));
-assert.ok(fjRedactUrl('https://api.flam/v1/x?token=abc123&page=2').includes('page=2'));
+assert.ok(fjRedactUrl('https://api.example/v1/x?token=abc123&page=2').includes('token=%5Bredacted%5D'));
+assert.ok(fjRedactUrl('https://api.example/v1/x?token=abc123&page=2').includes('page=2'));
 
 // json bodies: caught by key even when the value looks harmless
 assert.ok(!fjRedactBody('{"session":"abc","id":7}').includes('abc'));
 assert.ok(fjRedactBody('{"session":"abc","id":7}').includes('7'));
 
 // emails masked, domain kept
-assert.strictEqual(fjScrub('user aditya@flamapp.com not found'), 'user [email]@flamapp.com not found');
+assert.strictEqual(fjScrub('user user@example.com not found'), 'user [email]@example.com not found');
 
 // --- the important negative cases: do not eat real debug info ---
 assert.strictEqual(fjScrub('GET /v2/render/job_8813 failed with 500'), 'GET /v2/render/job_8813 failed with 500');
 assert.strictEqual(fjRedact({ userId: 42, status: 'queued' }).userId, 42);
 assert.strictEqual(fjRedact({ tokenCount: 128 }).tokenCount, 128); // 'tokenCount' != 'token'
-assert.ok(fjRedactUrl('https://api.flam/v1/render?page=2').endsWith('?page=2'));
+assert.ok(fjRedactUrl('https://api.example/v1/render?page=2').endsWith('?page=2'));
 
 // --- storability: Postgres rejects NUL and lone surrogates in text/jsonb (22P05) ---
 assert.strictEqual(fjScrub('ab\u0000cd'), 'abcd');

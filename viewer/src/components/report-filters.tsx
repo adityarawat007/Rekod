@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -81,9 +80,7 @@ export function ReportFilters({ projects }: { projects: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  const active = ['project', 'failing', 'q', 'range'].filter((k) =>
-    params.get(k),
-  ).length;
+  const active = ['project', 'q', 'range'].filter((k) => params.get(k)).length;
 
   const projectOptions: readonly Option[] = [
     { value: ANY, label: 'Any project' },
@@ -118,14 +115,6 @@ export function ReportFilters({ projects }: { projects: string[] }) {
         label="Date range"
         className="w-[140px]"
       />
-
-      <Badge
-        variant={params.get('failing') ? 'default' : 'outline'}
-        className="h-9 cursor-pointer px-3"
-        render={<button onClick={() => set({ failing: params.get('failing') ? null : '1' })} />}
-      >
-        Has errors
-      </Badge>
 
       {active > 0 && (
         <Button variant="ghost" size="sm" onClick={() => router.replace('/')}>

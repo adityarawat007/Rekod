@@ -76,6 +76,20 @@
     .btn.ghost{background:rgba(255,255,255,.07);color:#CFC9D4}
     .btn.ghost:hover{background:rgba(255,255,255,.12);color:#F5F2F6}
     :is(.btn,.ico,.stop):focus-visible{outline:2px solid #A98BFF;outline-offset:2px}
+
+    /* The selection overlay. The picture was already taken when this appears —
+       it dims the live page, it is never in the capture. Before the first drag
+       the shade itself is the dim; once dragging starts the shade goes clear
+       and the selection's 9999px box-shadow does the dimming instead, which is
+       how the hole in the middle stays a real hole. */
+    .shade{position:absolute;inset:0;cursor:crosshair;touch-action:none;background:rgba(10,8,14,.42)}
+    .shade.live{background:transparent}
+    .sel{display:none;position:absolute;border:2px solid #FF2D55;
+         box-shadow:0 0 0 9999px rgba(10,8,14,.42)}
+    .tip{position:absolute;top:14px;left:50%;transform:translateX(-50%);white-space:nowrap;
+         background:#17161A;color:#F5F2F6;border-radius:12px;padding:9px 14px;font-size:12.5px;
+         font-weight:500;box-shadow:0 12px 32px -10px rgba(0,0,0,.6)}
+    .tip b{font-weight:600;color:#FF8FA3}
   </style><div id="ui"></div>`;
   const ui = root.getElementById('ui');
 
@@ -90,7 +104,9 @@
 
   // ── position ─────────────────────────────────────────────────────────
   let pos = null;
+  let cropping = false;          // the overlay owns the whole viewport while true
   const place = () => {
+    if (cropping) return;
     if (!pos) { host.style.cssText = CENTERED; return; }
     const r = host.getBoundingClientRect();
     const x = Math.min(Math.max(0, pos.x), Math.max(0, innerWidth - r.width));
@@ -116,6 +132,7 @@
   // hands you an unstyleable ghost image. Listener sits on the shadow root because
   // a closed root retargets events to the host, hiding which button was pressed.
   root.addEventListener('pointerdown', (e) => {
+    if (cropping) return;        // that drag draws a selection, it does not move the bar
     if (e.button !== 0 || e.target.closest('button, textarea, input')) return;
     const r = host.getBoundingClientRect();
     const dx = e.clientX - r.left, dy = e.clientY - r.top;
@@ -169,7 +186,7 @@
   // A newer copy of this file has just been injected over us. Same teardown as
   // the dead-runtime path, so two pills never share a page.
   addEventListener('__fjRetire', () => {
-    clearInterval(beat); stopTicker(); host.remove();
+    clearInterval(beat); stopTicker(); cropping = false; host.remove();
     // The listener has to go too. Left attached, a retired instance still
     // answers every state message and re-mounts the host it just removed, so
     // two copies would race to render the same pill.
@@ -196,8 +213,8 @@
               aria-label="Stop recording and write it up"></button>
       <span class="t" id="tm">00:00</span>
       <span class="sep"></span>
-      <button class="ico" id="c" title="Discard this recording"
-              aria-label="Discard this recording">${X}</button></div>`;
+      <button class="ico" id="c" title="Discard this ReKod"
+              aria-label="Discard this ReKod">${X}</button></div>`;
     const tm = root.getElementById('tm');
     root.getElementById('s').onclick = () => send({ t: 'stop' });
     root.getElementById('c').onclick = () => send({ t: 'discard' });
@@ -210,18 +227,103 @@
     ticker = setInterval(tick, 1000);
   };
 
+  /**
+   * Pick the area. The screenshot has already been taken — this is a dimmed
+   * sheet over the live page, and what comes back is a rectangle in CSS pixels
+   * plus the viewport width, which is what `cropShot` scales by.
+   *
+   * A click with no drag means the whole visible tab: that is the common case
+   * and it costs nothing to keep it on the same gesture.
+   */
+  const crop = () => {
+    // The sheet is pushed to the tab AND handed back to a fresh widget that
+    // asks 'hello', so it can arrive twice in a row. One sheet.
+    if (cropping) return;
+    stopTicker();
+    cropping = true;
+    // No transform here: a transformed ancestor becomes the containing block
+    // for fixed children, and the sheet would stop covering the viewport.
+    host.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
+    ui.innerHTML = `<div class="shade" id="sh"><div class="sel" id="sel"></div>
+      <div class="tip">Drag to select · click for the whole tab · <b>Esc</b> cancels</div></div>`;
+    const sh = root.getElementById('sh');
+    const sel = root.getElementById('sel');
+    let sx = 0, sy = 0, box = null;
+
+    const done = (rect) => {
+      cropping = false;
+      removeEventListener('keydown', key, true);
+      place();
+      note('', 'Cropping…');
+      send({ t: 'crop', rect, vw: innerWidth });   // null rect = the whole tab
+    };
+    // Capture phase: a page that swallows keydown must not swallow the escape
+    // out of a mode it did not put anyone in.
+    const key = (e) => {
+      if (!cropping || e.key !== 'Escape') return;   // inert once the sheet is gone
+      cropping = false;
+      removeEventListener('keydown', key, true);
+      place();
+      send({ t: 'discard' });
+    };
+    addEventListener('keydown', key, true);
+    // The picture is of THIS page. Navigate away and the sheet would be a
+    // selection over something else entirely, so leaving cancels the shot.
+    // ponytail: a sendMessage from pagehide usually lands. If it does not, the
+    // capture stays parked until the next Escape or Discard — the ceiling is a
+    // refused "Finish the capture in progress first", not a lost recording.
+    addEventListener('pagehide', () => cropping && send({ t: 'discard' }), { once: true });
+
+    // The capture is of the viewport as it was. Let the page scroll under the
+    // sheet and the preview stops matching the picture, so the selection lands
+    // somewhere else entirely.
+    sh.onwheel = (e) => e.preventDefault();
+    sh.onpointerdown = (e) => {
+      if (e.button !== 0) return;       // a right-click is a context menu, not a drag
+      sx = e.clientX; sy = e.clientY;
+      box = { x: sx, y: sy, w: 0, h: 0 };
+      sh.classList.add('live');
+      sel.style.display = 'block';
+      sh.setPointerCapture(e.pointerId);
+    };
+    sh.onpointermove = (e) => {
+      if (!box) return;
+      box = {
+        x: Math.min(sx, e.clientX), y: Math.min(sy, e.clientY),
+        w: Math.abs(e.clientX - sx), h: Math.abs(e.clientY - sy),
+      };
+      sel.style.left = `${box.x}px`; sel.style.top = `${box.y}px`;
+      sel.style.width = `${box.w}px`; sel.style.height = `${box.h}px`;
+    };
+    sh.onpointerup = () => {
+      const r = box;
+      box = null;
+      // Under 8px either way is a click, or a twitch on one — either way the
+      // person meant the whole tab, not a 3-pixel PNG.
+      done(r && r.w > 8 && r.h > 8 ? r : null);
+    };
+  };
+
   const compose = (m) => {
     stopTicker();
-    const media = m.kind === 'shot' ? '✓ screenshot' : `✓ ${fmt(m.dur || 0)} video`;
+    const media = m.kind === 'shot'
+      ? `✓ screenshot${m.dims ? ` ${m.dims}` : ''}`
+      : `✓ ${fmt(m.dur || 0)} video`;
+    // `m.mic` only ever arrives while AUDIO is on in offscreen.js, which it is
+    // not: recordings are silent, so there is nothing to announce. Kept because
+    // a mic that was asked for and refused is the one capture failure nothing
+    // else shows — the video looks fine and is silent where a voice should be.
+    const audio = m.mic === 'on' ? '<span>✓ mic</span>'
+      : m.mic === 'denied' ? '<span style="color:#FFC400">⚠ no mic — permission refused</span>' : '';
     // Both fields are optional and neither is a comment: the title and the
     // description are the report's own, editable later on the dashboard. The
     // comment thread only ever grows there. See schema-comments.sql.
-    ui.innerHTML = `<div class="card"><h4>Save this recording</h4>
+    ui.innerHTML = `<div class="card"><h4>Save this ReKod</h4>
       <input id="ti" placeholder="Title (optional)">
       <textarea id="t" placeholder="What happened? Optional — you can write this later."></textarea>
-      <div class="facts"><span>${media}</span><span>✓ ${m.logs} logs</span>
+      <div class="facts"><span>${media}</span>${audio}<span>✓ ${m.logs} logs</span>
         <span>✓ ${m.net} requests</span><span>✓ redacted</span></div>
-      <div class="row"><button class="btn" id="go" style="flex:1">Save recording</button>
+      <div class="row"><button class="btn" id="go" style="flex:1">Save ReKod</button>
         <button class="btn ghost" id="no">Discard</button></div></div>`;
     const name = root.getElementById('ti');
     const box = root.getElementById('t');
@@ -242,6 +344,8 @@
   const onMsg = (m) => {
     if (m.t !== 'state') return;
     mount();
+    if (m.s !== 'crop') { cropping = false; place(); }   // any other state ends the sheet
+    if (m.s === 'crop')      crop();
     if (m.s === 'rec')       recording(m.t0);
     if (m.s === 'compose')   compose(m);
     if (m.s === 'idle')      idle();
@@ -251,8 +355,10 @@
   };
   chrome.runtime.onMessage.addListener(onMsg);
 
-  // A navigation mid-recording lands here: ask what is already in flight.
+  // A navigation mid-capture lands here: ask what is already in flight and
+  // render it, whatever it is. Answering only 'rec' is what used to put a
+  // recording bar over a capture that was really waiting to be written up.
   chrome.runtime.sendMessage({ to: 'bg', t: 'hello' })
-    .then((r) => { mount(); r?.s === 'rec' ? recording(r.t0) : idle(); })
+    .then((r) => { mount(); r?.s && r.s !== 'idle' ? onMsg({ ...r, t: 'state' }) : idle(); })
     .catch(() => {});
 })();

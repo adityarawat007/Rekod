@@ -122,7 +122,7 @@ export function ShareButton({ id, videoPath, shareToken, shareUrl }: Props) {
           }
         />
         <PopoverContent align="end" className="w-80">
-          <PopoverTitle>Share this recording</PopoverTitle>
+          <PopoverTitle>Share this ReKod</PopoverTitle>
           <PopoverDescription>
             Anyone with the link can open it without an account. The console and network log were
             redacted in the browser at capture.

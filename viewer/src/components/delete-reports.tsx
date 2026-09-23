@@ -62,13 +62,13 @@ export function DeleteReportButton({ report }: { report: Deletable }) {
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="outline" aria-label="Delete this recording">
+          <Button variant="outline" aria-label="Delete this ReKod">
             <Trash2 />
           </Button>
         }
       />
       <PopoverContent align="end" className="w-72">
-        <PopoverTitle>Delete this recording?</PopoverTitle>
+        <PopoverTitle>Delete this ReKod?</PopoverTitle>
         <PopoverDescription>
           The video, the console and network log and the comments all go. Any share link for it
           stops working. This cannot be undone.

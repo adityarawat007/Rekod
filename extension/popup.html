@@ -24,6 +24,14 @@
   button:hover{border-color:var(--jam);box-shadow:0 1px 6px -2px rgba(255,45,85,.35)}
   button:focus-visible{outline:2px solid var(--grape);outline-offset:2px}
   button small{display:block;font-weight:400;font-size:11px;color:var(--ink3);margin-top:1px}
+  /* The mic switch wears the same skin as the buttons above it: it belongs to
+     the recording, not to a settings screen this popup does not have. */
+  .toggle{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);
+          border-radius:10px;padding:11px 12px;font:600 13px inherit;letter-spacing:-.01em;cursor:pointer}
+  .toggle span{flex:1}
+  .toggle small{display:block;font-weight:400;font-size:11px;color:var(--ink3);margin-top:1px}
+  .toggle input{flex:0 0 auto;width:16px;height:16px;margin:0;accent-color:var(--jam);cursor:pointer}
+  .toggle:has(input:focus-visible){outline:2px solid var(--grape);outline-offset:2px}
   svg{flex:0 0 auto;color:var(--jam)}
   .hint{padding:0 15px 13px;font-size:10.5px;color:var(--ink3);
         font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -59,6 +67,22 @@
       <rect x="1.5" y="3" width="9.5" height="10" rx="2"/><path d="M11 7.2l3.5-2.2v6L11 8.8z"/></svg>
     <span>Record this tab<small>Up to 3 minutes</small></span>
   </button>
+  <button id="shot">
+    <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M1.5 5.5a1 1 0 0 1 1-1h1.8l1-1.7h4.4l1 1.7h1.8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1z"/>
+      <circle cx="8" cy="8.3" r="2.4"/></svg>
+    <span>Screenshot this tab<small>Drag to pick the area</small></span>
+  </button>
+  <!-- The mic switch, off with the rest of the sound (AUDIO in offscreen.js).
+       Uncomment this and the block in popup.js together — popup.js reads #mic
+       at load, so one without the other is a popup that does not paint.
+  <label class="toggle">
+    <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+      <rect x="5.7" y="1.5" width="4.6" height="8" rx="2.3"/><path d="M3.2 7.4a4.8 4.8 0 0 0 9.6 0M8 12.2v2.3"/></svg>
+    <span>Record my microphone<small id="mic-note">Off — tab audio only</small></span>
+    <input type="checkbox" id="mic">
+  </label>
+  -->
 </div>
 <div class="hint" id="hotkey" hidden>⌥⇧J records straight away</div>
 <div class="who" id="who" hidden><span class="mono" id="me"></span><button type="button" id="dash">Dashboard</button></div>

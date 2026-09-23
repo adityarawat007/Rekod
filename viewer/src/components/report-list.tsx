@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Camera, Loader2, Trash2, Video, X } from 'lucide-react';
+import { Camera, Loader2, Trash2, Video, X } from 'lucide-react';
 import { ago } from '@/lib/format';
 import { isScreenshot } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -16,23 +16,13 @@ export type ListRow = {
   project: string | null;
   created_at: string;
   video_path: string | null;
-  error_count: number | null;
-  failed_count: number | null;
 };
 
-function Signal({ errors, failed }: { errors: number; failed: number }) {
-  if (!errors && !failed) return <span className="text-muted-foreground">clean</span>;
-  return (
-    <span className="inline-flex items-center gap-1.5 text-crit">
-      <AlertTriangle className="size-3.5" aria-hidden />
-      <span className="mono">
-        {errors > 0 && `${errors} err`}
-        {errors > 0 && failed > 0 && ' · '}
-        {failed > 0 && `${failed} failed`}
-      </span>
-    </span>
-  );
-}
+// ponytail: the card counted errors and failed requests here. A count with no
+// context is a verdict on a recording nobody has watched — every report has a
+// red number on it, and the ones that matter are not the ones with the biggest.
+// The counts still live in the log pane of the report itself, where they are
+// next to what they are counting.
 
 /**
  * The thumbnail.
@@ -140,7 +130,7 @@ export function ReportList({
           </Button>
           <Button size="sm" variant="destructive" className="ml-auto" onClick={remove} disabled={busy}>
             {busy ? <Loader2 className="animate-spin" /> : <Trash2 />}
-            Delete {sel.size === 1 ? 'recording' : 'recordings'}
+            Delete {sel.size === 1 ? 'ReKod' : 'ReKods'}
           </Button>
           {err ? (
             <p role="alert" className="w-full text-xs text-destructive">
@@ -181,9 +171,6 @@ export function ReportList({
                       {ago(r.created_at)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <Signal errors={r.error_count ?? 0} failed={r.failed_count ?? 0} />
-                  </div>
                 </div>
               </Link>
 
@@ -200,7 +187,7 @@ export function ReportList({
                   type="checkbox"
                   checked={on}
                   onChange={() => toggle(r.id)}
-                  aria-label={`Select the recording from ${r.project ?? 'an unknown project'}`}
+                  aria-label={`Select the ReKod from ${r.project ?? 'an unknown project'}`}
                   className="size-3.5 accent-jam-deep"
                 />
               </label>

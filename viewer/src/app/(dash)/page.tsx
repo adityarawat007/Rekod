@@ -12,8 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 // inbox listing the same rows. Two screens for one job. The recordings are the
 // product, so they are the home page — tiles, trend and by-project bars are
 // deleted, not hidden. See PLAN.md.
-const COLS = 'id,title,project,created_at,video_path,error_count,failed_count';
-const FILTER_KEYS = ['project', 'failing', 'q', 'range'] as const;
+const COLS = 'id,title,project,created_at,video_path';
+const FILTER_KEYS = ['project', 'q', 'range'] as const;
 
 type Search = Awaited<PageProps<'/'>['searchParams']>;
 const one = (sp: Search, k: string) =>
@@ -34,7 +34,7 @@ export default async function Home(props: PageProps<'/'>) {
   return (
     <>
       <PageHeader
-        title="Your recordings"
+        title="Your ReKods"
         sub={
           <Suspense key={key} fallback={<Skeleton className="h-4 w-24" />}>
             <ResultCount rows={rows} filtered={filtered} />
@@ -62,7 +62,7 @@ async function Filters() {
 
 async function ResultCount({ rows, filtered }: { rows: Promise<ListRow[]>; filtered: boolean }) {
   const n = (await rows).length;
-  return `${n} recording${n === 1 ? '' : 's'}${filtered ? ' matching' : ''}`;
+  return `${n} ReKod${n === 1 ? '' : 's'}${filtered ? ' matching' : ''}`;
 }
 
 async function Grid({ rows, filtered }: { rows: Promise<ListRow[]>; filtered: boolean }) {
@@ -71,7 +71,7 @@ async function Grid({ rows, filtered }: { rows: Promise<ListRow[]>; filtered: bo
     <ReportList
       rows={list}
       previews={await previewUrls(list)}
-      empty={filtered ? 'No recordings match these filters.' : undefined}
+      empty={filtered ? 'No ReKods match these filters.' : undefined}
     />
   );
 }
@@ -92,8 +92,6 @@ async function search(sp: Search): Promise<ListRow[]> {
   const range = one(sp, 'range');
 
   if (project) query = query.eq('project', project);
-  // PostgREST `or` on two generated int columns — cheap because they are stored.
-  if (one(sp, 'failing')) query = query.or('error_count.gt.0,failed_count.gt.0');
   // Title and description both, because a title is optional now and plenty of
   // recordings will only ever have the write-up. `or` takes a comma-separated
   // filter list, so those characters are stripped rather than escaped — they

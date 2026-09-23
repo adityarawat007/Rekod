@@ -56,8 +56,8 @@ create policy "team can watch video" on storage.objects
 
 -- Once Google SSO lands, tighten both `using (true)` clauses to the domain.
 -- The subselect matters: unwrapped, auth.jwt() is re-evaluated for every row scanned.
---   using ((select auth.jwt()) ->> 'email' like '%@flamapp.com')
+--   using ((select auth.jwt()) ->> 'email' like '%@example.com')
 
 -- Retention: 90 days. Objects need a companion sweep; date-prefixed paths make it a list + remove.
--- select cron.schedule('flamjam-retention', '0 3 * * *',
+-- select cron.schedule('rekod-retention', '0 3 * * *',
 --   $$delete from reports where created_at < now() - interval '90 days'$$);

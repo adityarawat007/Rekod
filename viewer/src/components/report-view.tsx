@@ -6,7 +6,6 @@ import {
   Minimize, Monitor, Pause, Play, Ruler, Search, Tag, Timer,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -55,7 +54,10 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
   const [ready, setReady] = useState(false);
   const [broken, setBroken] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [levels, setLevels] = useState<Set<string>>(new Set(['error', 'warn', 'log']));
+  // Recordings are silent — sound is built and switched off in the extension
+  // (AUDIO in extension/offscreen.js). The mute below comes back with it: the
+  // transport is hand-rolled, so it is the only volume control there would be.
+  const [muted] = useState(false);
   const [query, setQuery] = useState('');
 
   // True while the duration probe below is mid-seek: currentTime is 1e101 then,
@@ -155,15 +157,13 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
     };
   }, [entries, t0, dur]);
 
-  const visibleConsole = consoleRows.filter((e) => {
-    if (query && !('msg' in e && e.msg.toLowerCase().includes(query.toLowerCase()))) return false;
-    if (e.kind === 'event') return true;
-    return isConsole(e) && levels.has(e.lvl === 'info' || e.lvl === 'debug' ? 'log' : e.lvl);
-  });
+  const visibleConsole = query
+    ? consoleRows.filter((e) => 'msg' in e && e.msg.toLowerCase().includes(query.toLowerCase()))
+    : consoleRows;
   const visibleNet = netRows;
 
-  const errN = entries.filter(isError).length;
-  const warnN = entries.filter(isWarn).length;
+  // ponytail: errors and warnings are one count — warn was never a separate decision.
+  const errN = entries.filter((e) => isError(e) || isWarn(e)).length;
   const netErrN = netRows.filter(netFailed).length;
 
   const pct = (s: number) => trackPct(s, span.lo, span.hi);
@@ -172,13 +172,6 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
   // string in practice, and either may be missing on an old report.
   const page = info.pageUrl ?? env.url;
   const ua = uaSummary(env.ua);
-
-  const toggleLevel = (l: string) =>
-    setLevels((prev) => {
-      const next = new Set(prev);
-      next.has(l) ? next.delete(l) : next.add(l);
-      return next;
-    });
 
   return (
     // Two columns that own the viewport on a wide screen: the capture and
@@ -207,7 +200,7 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
           ref={stage}
           role={full ? 'dialog' : undefined}
           aria-modal={full || undefined}
-          aria-label={full ? 'Recording' : undefined}
+          aria-label={full ? 'ReKod' : undefined}
           // Clicking the backdrop — the stage itself, never a child — closes.
           onClick={full ? (e) => e.target === stage.current && setFull(false) : undefined}
           className={cn(
@@ -245,6 +238,7 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
               ref={video}
               src={media.url}
               playsInline
+              muted={muted}
               preload="metadata"
               className="size-full object-contain"
               onTimeUpdate={(e) => {
@@ -278,7 +272,7 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
           {broken && (
             <div className="absolute inset-0 grid place-items-center gap-2 bg-background/95 p-6 text-center">
               <AlertTriangle className="mx-auto size-5 text-warn" aria-hidden />
-              <p className="text-sm font-medium">This recording would not load</p>
+              <p className="text-sm font-medium">This ReKod would not load</p>
               <p className="text-xs text-muted-foreground">
                 Media links are signed for an hour. Reload the page for a fresh one — the log below
                 is unaffected.
@@ -292,7 +286,14 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
 
         {/* One transport for one timeline. The native <video> controls scrubbed
             the recording only, while this track spans the rolling buffer too —
-            two scrubbers that disagreed about where "the start" is. */}
+            two scrubbers that disagreed about where "the start" is.
+
+            A screenshot has no playhead to move, so it gets none of this: a
+            play button that cannot play and a scrubber with nothing to scrub
+            were furniture on every screenshot report. The log below is
+            unaffected — it is still the timeline, it just has nothing to
+            drive. */}
+        {media?.kind === 'video' && (
         <div className="shrink-0 rounded-lg border p-3">
           <div className="flex items-center gap-3">
             <Button
@@ -304,6 +305,19 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
             >
               {playing ? <Pause /> : <Play />}
             </Button>
+            {/* Mute — see the note on `muted` above; nothing records audio today.
+            {media?.kind === 'video' && (
+              <Button
+                size="icon-sm"
+                variant="outline"
+                onClick={() => setMuted((m) => !m)}
+                aria-label={muted ? 'Unmute' : 'Mute'}
+                title={muted ? 'Unmute' : 'Mute'}
+                aria-pressed={muted}
+              >
+                {muted ? <VolumeX /> : <Volume2 />}
+              </Button>
+            )} */}
             <span className="mono shrink-0 text-xs tabular-nums">{clock(now)}</span>
 
             <div className="relative h-8 flex-1">
@@ -332,7 +346,7 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
               {entries
                 .filter((e) => e.kind !== 'event')
                 .map((e) => {
-                  const sev = isError(e) ? 'bg-crit' : isWarn(e) ? 'bg-warn' : isNet(e) ? 'bg-chart-2' : null;
+                  const sev = isError(e) || isWarn(e) ? 'bg-crit' : isNet(e) ? 'bg-chart-2' : null;
                   if (!sev) return null;
                   return (
                     <button
@@ -365,14 +379,12 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
               <span className="flex items-center gap-1.5">
                 <i className="size-2 rounded-full bg-crit" aria-hidden /> {errN} errors
               </span>
-              <span className="flex items-center gap-1.5">
-                <i className="size-2 rounded-full bg-warn" aria-hidden /> {warnN} warnings
-              </span>
             </span>
             {/* The viewport used to sit here as well. It is in Info now, with
                 the rest of the machine. */}
           </div>
         </div>
+        )}
         </div>
 
         {children}
@@ -441,18 +453,6 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
                 aria-label="Filter console messages"
                 className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
               />
-              <div className="flex shrink-0 gap-1.5">
-                {(['error', 'warn', 'log'] as const).map((l) => (
-                  <Badge
-                    key={l}
-                    variant={levels.has(l) ? 'default' : 'ghost'}
-                    className="cursor-pointer rounded-md capitalize"
-                    render={<button onClick={() => toggleLevel(l)} />}
-                  >
-                    {l}
-                  </Badge>
-                ))}
-              </div>
             </div>
             <ScrollArea className={PANE_H}>
               {visibleConsole.map((e) => (
@@ -478,7 +478,7 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, chil
               ))}
               {!visibleConsole.length && (
                 <p className="p-6 text-center text-sm text-muted-foreground">
-                  Nothing at these levels.
+                  No messages match.
                 </p>
               )}
             </ScrollArea>

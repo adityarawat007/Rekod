@@ -1,8 +1,9 @@
-// Two views in one popup: the expired card, or capture. Recording only —
-// the screenshot button is parked, not deleted: worker.js still routes 'shot'
-// and the viewer still renders existing screenshot reports. Which one shows is just
-// whether the dashboard has a live session — the uploader needs a real token
-// now that reports are owned rows. Signing in happens on the dashboard.
+// Two views in one popup: the expired card, or capture. Two ways to capture —
+// record the tab, or take a screenshot of it (un-parked 23 Sep 2026; the routing
+// and the viewer had never gone away). Which view shows is just whether the
+// dashboard has a live session — the uploader needs a real token now that
+// reports are owned rows. Signing in happens on the dashboard. Sound is built
+// and switched off: see AUDIO in offscreen.js and the commented block below.
 const $ = (id) => document.getElementById(id);
 const show = (el, on) => { el.hidden = !on; };
 
@@ -65,6 +66,58 @@ const go = async (t, btn) => {
 };
 
 $('rec').onclick = (e) => go('record', e.currentTarget);
+$('shot').onclick = (e) => go('shot', e.currentTarget);
+
+/* ── the microphone switch — off with the rest of the sound ─────────────────
+   Uncomment with the <label class="toggle"> block in popup.html and AUDIO in
+   offscreen.js. Tab audio needs no permission and rides along with the video;
+   the mic is a choice and a prompt. The setting lives in chrome.storage
+   because the hotkey path never opens this popup — worker.js reads it there.
+
+const mic = $('mic');
+const micNote = $('mic-note');
+const micState = async () => {
+  try { return (await navigator.permissions.query({ name: 'microphone' })).state; }
+  catch { return 'prompt'; }          // Chrome without the descriptor: assume unknown
+};
+
+const paintMic = async (on) => {
+  micNote.textContent = !on ? 'Off — tab audio only'
+    : (await micState()) === 'denied' ? 'Blocked — allow it in site settings'
+    : 'On — mixed with the tab audio';
+};
+
+mic.onchange = async () => {
+  const on = mic.checked;
+  chrome.storage.local.set({ fjMic: on });
+  // Asking for the mic is the caller's job and it can only be done from a
+  // window: the offscreen document that records has none, and this popup is
+  // closed by the prompt taking focus. Same page in a tab can prompt, so that
+  // is where a first grant happens — one file, not a second permission page.
+  if (on && (await micState()) === 'prompt') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?mic=1') });
+    window.close();
+    return;
+  }
+  paintMic(on);
+};
+
+// This same page opened in a TAB with ?mic=1 is the permission prompt, and
+// nothing else: no session check, no capture buttons. Chrome remembers the
+// grant for the extension origin, which is what the offscreen recorder uses.
+async function askMic() {
+  $('busy').textContent = 'Asking for the microphone…';
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());     // the grant is the point, not the stream
+    $('busy').textContent = 'Microphone enabled. Close this tab and record.';
+  } catch {
+    chrome.storage.local.set({ fjMic: false });
+    $('busy').textContent = '';
+    fail('Microphone blocked. Allow it for this extension, or record with tab audio only.');
+  }
+}
+─────────────────────────────────────────────────────────────────────────── */
 
 const openDash = (path) => {
   chrome.tabs.create({ url: DASH + path });
@@ -78,7 +131,9 @@ $('dash').onclick = () => openDash('/');   // the grid IS the list; /reports is 
 // renew a stale session by loading the dashboard in a background tab. Only if
 // that comes back empty do we read the cookie ourselves, to find out which of
 // the two gate cards to show.
-(async () => {
+async function boot() {
   const session = await chrome.runtime.sendMessage({ to: 'bg', t: 'session' }).catch(() => null);
   render(session ? { state: 'live', session } : await fjSessionState());
-})();
+}
+
+boot();

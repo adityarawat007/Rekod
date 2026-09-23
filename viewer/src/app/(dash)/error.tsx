@@ -20,9 +20,11 @@ export default function DashError({
     console.error(error);
   }, [error]);
 
-  // The one failure mode with a known fix: the dashboard columns are generated,
-  // so a database still on schema.sql errors on every read.
-  const needsMigration = error.message.includes('error_count');
+  // The one failure mode with a known fix: a database that has not had every
+  // migration applied is missing a column this app selects, and PostgREST says
+  // so in those words. (It used to sniff for `error_count` by name — that column
+  // is no longer read by anything, so the hint would never have fired again.)
+  const needsMigration = /does not exist|schema cache/i.test(error.message);
 
   return (
     <>
@@ -34,9 +36,9 @@ export default function DashError({
 
             {needsMigration ? (
               <p>
-                Run <span className="mono">schema-dashboard.sql</span> in the Supabase SQL editor —
-                it adds the <span className="mono">error_count</span> and{' '}
-                <span className="mono">failed_count</span> columns this page reads.
+                A column this page reads is missing. Apply the migrations in the Supabase SQL
+                editor, in the order listed in <span className="mono">CLAUDE.md</span> — starting
+                with <span className="mono">schema.sql</span>. They are all re-runnable.
               </p>
             ) : (
               <p className="text-muted-foreground">
@@ -49,7 +51,7 @@ export default function DashError({
                 <RotateCw /> Try again
               </Button>
               <Button variant="outline" render={<Link href="/" />}>
-                Back to recordings
+                Back to ReKods
               </Button>
             </div>
           </CardContent>

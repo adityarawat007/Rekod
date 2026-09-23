@@ -8,8 +8,12 @@ async function ensureOffscreen() {
   try {
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
-      reasons: ['USER_MEDIA'],
-      justification: 'Buffer logs and record the tab across page navigations.',
+      // AUDIO_PLAYBACK is declared for the day AUDIO goes back on in
+      // offscreen.js: capturing a tab's audio takes it from the speakers, so
+      // that document has to play it back out. Declaring it costs nothing while
+      // recordings are silent, and keeps turning sound on a one-line change.
+      reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
+      justification: 'Buffer logs, record the tab, and play its audio back while recording.',
     });
   } catch (e) {
     if (!/single offscreen/i.test(String(e))) throw e;
@@ -122,6 +126,14 @@ async function route(msg, sender) {
   // offscreen doc asking.
   if (msg.t === 'ui') { toTab(msg.tabId, msg.state); return { ok: true }; }
   if (msg.t === 'session') return fjLiveSession();
+  // The dashboard, in a BACKGROUND tab: the report is there when it is wanted,
+  // and whatever was being done on the page carries on. The origin is DASH,
+  // from auth.js; a caller passes a path and nothing else, so no message can
+  // name where this opens.
+  if (msg.t === 'open') {
+    chrome.tabs.create({ url: DASH + (msg.path || '/'), active: false });
+    return { ok: true };
+  }
 
   await ensureOffscreen();
   const tabId = sender.tab?.id;
@@ -134,6 +146,7 @@ async function route(msg, sender) {
     // from the content script — stamp the tab id here, where it is trustworthy
     case 'logs':
     case 'stop':
+    case 'crop':
     case 'discard':
     case 'send':   return ask({ ...msg, tabId });
 
@@ -141,21 +154,33 @@ async function route(msg, sender) {
   }
 }
 
-async function startVideo(tab) {
+const RESTRICTED = /^(chrome|edge|about|devtools):/;
+const refuse = (tab) => {
   if (!tab?.id) throw new Error('No active tab');
-  if (/^(chrome|edge|about|devtools):/.test(tab.url || '')) throw new Error("Chrome's own pages can't be captured");
+  if (RESTRICTED.test(tab.url || '')) throw new Error("Chrome's own pages can't be captured");
+};
+
+async function startVideo(tab) {
+  refuse(tab);
+  // The mic setting lives in storage, not in the message, because the hotkey
+  // path never opens the popup — one switch for both ways in. Nothing writes it
+  // while AUDIO is off in offscreen.js, which ignores the flag anyway; the read
+  // stays so the switch is the only thing that has to come back.
+  const { fjMic } = await chrome.storage.local.get('fjMic');
   // tabCapture needs activeTab, which the popup click or the command gesture grants.
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
   await ensureWidget(tab.id);
-  await ask({ t: 'start', streamId, tabId: tab.id });
+  const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: !!fjMic });
+  if (r?.err) throw new Error(r.err);
   return { ok: true };
 }
 
 async function startShot(tab) {
-  if (!tab?.id) throw new Error('No active tab');
+  refuse(tab);
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
   await ensureWidget(tab.id);
-  await ask({ t: 'shot', dataUrl, tabId: tab.id });
+  const r = await ask({ t: 'shot', dataUrl, tabId: tab.id });
+  if (r?.err) throw new Error(r.err);
   return { ok: true };
 }
 

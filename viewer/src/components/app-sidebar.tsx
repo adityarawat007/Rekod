@@ -58,7 +58,7 @@ export function AppSidebarNav({ email, projects, counts }: NavData) {
               <SidebarMenuItem>
                 <SidebarMenuButton isActive={unfiltered} render={<Link href="/" />}>
                   <Inbox />
-                  <span>All recordings</span>
+                  <span>All ReKods</span>
                 </SidebarMenuButton>
                 {counts.all > 0 && <SidebarMenuBadge>{counts.all}</SidebarMenuBadge>}
               </SidebarMenuItem>

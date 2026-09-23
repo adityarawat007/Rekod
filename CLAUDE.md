@@ -119,9 +119,66 @@ hatched rows. What remains is the clock, and `stamp()` still writes `−0:12`,
 because without the sign that row and the one twelve seconds after record read
 identically. Do not re-add the chrome.
 
+**Recordings are silent, and sound is switched off rather than absent.**
+`const AUDIO = false` at the top of `extension/offscreen.js` is the whole
+control: with it false nothing asks for audio, no graph is built, no `,opus`
+reaches the mime string, and every line behaves as it did before audio existed.
+Flipping it to true brings back tab audio plus an optional mic — the popup's
+mic switch (`<label class="toggle">` in `popup.html` and the commented block in
+`popup.js`, which must be uncommented **together**: `popup.js` reads `#mic` at
+load) and the mute in `report-view.tsx` come back with it. `test-capture.js`
+runs the audio assertions against a copy of the file with the flag flipped, so
+the dormant path stays checked; it also asserts the shipped state asks for no
+audio at all. Do not delete the flag or the test flips silently stop testing
+anything.
+
+What that dormant code knows, and why it is not obvious: capturing a tab's
+audio takes it **away from the speakers**, so the tab source is connected to
+`ctx.destination` as well as to the recording. The mic is mixed through a
+`MediaStreamDestination` and is **never** connected to `ctx.destination` —
+that is a feedback loop. The mic setting lives in `chrome.storage.local.fjMic`,
+read by `worker.js`, because the hotkey never opens the popup. And the
+permission is granted on `popup.html?mic=1` opened in a **tab**: an offscreen
+document has no window to prompt from and a popup is closed by the prompt
+taking focus. Do not add a second page for that.
+
+**A screenshot is captured first and cropped second, and that order is the
+whole design.** `captureVisibleTab` takes the entire visible tab *before* the
+widget shows its selection sheet — the other way round and the dimmed overlay
+is in the picture. The sheet is drawn over the live page, sends back a
+rectangle in CSS pixels plus `innerWidth`, and `cropShot` scales by
+`bitmap.width / vw` rather than `devicePixelRatio`, because page zoom makes
+those two disagree. A click with no drag means the whole tab. Escape and a
+`pagehide` both discard: the picture belongs to the page it was taken on.
+
+**There are two capture buttons and one `rec`.** The screenshot is back in the
+popup (23 Sep 2026, reversing the 29 Aug parking), and the second surface makes
+"two captures at once" reachable in one click. `offscreen.js` refuses it, next
+to the state it protects: `state?` answers per tab, so a recording in another
+tab reads as idle to any caller that asks first.
+
+**`state?` hands back the last state, not a name for it.** A widget is
+re-injected on every navigation and asks what is in flight; answering `rec` for
+a capture that was really waiting to be written up put a stop button over the
+composer — and stopping a screenshot composed a video with no video in it. The
+answer is whatever `toTab` last sent, but only while `rec` is set.
+
 **`extension/redact.js` is the ship gate.** It runs before `capture.js` in the
 MAIN world. Nothing leaves the tab unredacted. Changing it means running
 `node test-redact.js`.
+
+**A landed upload opens its own report in a background tab.** `offscreen.js` has no
+`chrome.tabs`, so it asks the worker — `{ to: 'bg', t: 'open', path }` — and
+only the path travels: the origin is `DASH`, from `auth.js`, so no message can
+name where a tab opens. `active: false` — nothing is torn away from whatever
+was being reported on. It fires after the insert returns, never before, because
+a tab onto a row that was never written is a 404 that reads as data loss.
+
+**In the UI the thing is called a ReKod.** Every user-facing label — the grid,
+the sidebar, the delete and share controls, the extension's composer — says
+ReKod / ReKods. The code, the database and these notes still say report: the
+table is `reports`, the route is `/reports/[id]`, and renaming those buys
+nothing. Keep the two apart; do not rename the column.
 
 **The capture contract is mirrored, not shared.** `viewer/src/lib/types.ts`
 describes exactly what `extension/capture.js` writes. Change one side and you
@@ -134,12 +191,17 @@ matters and all three are re-runnable:
 
 `schema.sql` → `schema-dashboard.sql` → `schema-single-user.sql` →
 `schema-share.sql` → `schema-drop-status.sql` → `schema-comments.sql` →
-`schema-share-default.sql` → `schema-delete-media.sql`
+`schema-share-default.sql` → `schema-delete-media.sql` →
+`schema-error-count-warn.sql`
 
 The third supersedes parts of the first two; the fourth only adds; the fifth
 only removes; the sixth adds `description` and `comments` and re-creates
 `shared_report` around them; the seventh gives `share_token` a default; the
-eighth lets an owner delete their own storage objects. **There is no triage status.** Reports are not handed to anyone —
+eighth lets an owner delete their own storage objects; the ninth folds
+`lvl = "warn"` into `error_count`, because the viewer counts a warning as an
+error and the card reads that column. **Warnings are not stored apart from
+errors** — they never were: one `logs` array, one `lvl` field, and now one
+count. There is no warn column to drop. **There is no triage status.** Reports are not handed to anyone —
 single-user killed the team and a share link is read-only — so "new / triaging /
 fixed" was a state only its own author ever read. The column, its grant, the
 chip, the select and the filter are deleted, not hidden. Adding a migration means a new
@@ -150,6 +212,7 @@ file, never editing an applied one.
 ```
 node test-redact.js              # the ship gate
 node test-auth.js                # the session gate: live / stale+poke / dead
+node test-capture.js             # silent by default, the dormant audio graph, one capture at a time
 cd viewer && npm test            # timeline merge, pre-roll signs, timeline uids
 cd viewer && npm run typecheck
 cd viewer && npm run build
@@ -159,8 +222,8 @@ cd viewer && npm run build
 `extension/auth.js` lists that origin). The two `NEXT_PUBLIC_SUPABASE_*` values
 come from `lib/supabase/env.ts`, which throws a named error when they are
 missing — never read `process.env` for them directly, or a missing var becomes a
-blank 500 from `proxy.ts` on every route, static ones included. `npm run lint` is clean — one
-warning in `report-view.tsx`, no errors. Keep it that way.
+blank 500 from `proxy.ts` on every route, static ones included. `npm run lint` is clean — no warnings, no
+errors. Keep it that way.
 
 ## The dashboard streams
 
@@ -178,7 +241,11 @@ same rows make one query. Pass a *promise* to two children rather than fetching
 twice — see `(dash)/page.tsx`, where the count and the grid share one.
 
 **There is one list, and it is the home page.** `/` is the grid of recordings,
-filtered by search params; there is no separate inbox route. **The card shows
+filtered by search params; there is no separate inbox route. **The card carries
+no error count and there is no `Has errors` filter** — both deleted 23 Sep 2026,
+which is also why the grid no longer selects `error_count` / `failed_count`. A
+count on a card nobody has opened is a verdict, and a wrong one: the counts live
+in the log pane of the report, next to the rows they count. **The card shows
 its title only when the report has one** — both of the extension's compose
 inputs are optional, so an untitled card renders no placeholder line at all. A
 title is filled in later on the report page, where it and the description are
@@ -201,7 +268,13 @@ and touching `storage.objects` from SQL would bypass the policy that makes this
 safe.
 
 A failed query `throw`s; it does not render its own error card. `error.tsx`
-owns that, including the "run schema-dashboard.sql" hint.
+owns that, including the missing-migration hint — which matches PostgREST's
+"does not exist" rather than one column name, because the column it used to
+sniff for is no longer selected by anything.
+
+**A screenshot report renders no transport.** `ReportView` hides the play
+button, the scrubber and the clock when `media.kind !== 'video'`: there is no
+playhead to move on a still image. The log pane is unchanged.
 
 **The recording has no duration until the player asks for it.** `offscreen.js`
 pipes MediaRecorder chunks straight into a Blob, so the webm carries no duration

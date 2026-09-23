@@ -21,10 +21,10 @@ export function ReportGridSkeleton({ cards = 6 }: { cards?: number }) {
       {Array.from({ length: cards }, (_, i) => (
         <li key={i} className="space-y-2.5 rounded-lg border p-2.5">
           <Skeleton className="aspect-video w-full rounded-md" />
-          {/* Two lines, not three: the card lost its title. */}
+          {/* One line: the card lost its title, then its error count. What is
+              left is the project and the age, on one row. */}
           <div className="space-y-1.5 px-0.5 pb-0.5">
             <Skeleton className="h-3 w-32" />
-            <Skeleton className="h-3 w-24" />
           </div>
         </li>
       ))}

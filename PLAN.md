@@ -30,7 +30,7 @@ and plumbing, which is why one person can ship it in a fortnight.
 | 03 Viewer + sync | report page, video + log panel, `t0` arithmetic, scrubber markers | **Done.** `viewer.js` shipped the interim (zero deps, :5173) and was retired 29 Aug once `viewer/` (:3100) replaced it |
 | 04 Widget polish | three states, hotkey, screenshot mode, live counters, empty states | **Done.** Reworked from the floating/draggable pill to popup buttons + on-page pill after visibility bugs |
 | 05 Redaction pass | denylist, token patterns, visible "redacted" confirmation | **Done.** `redact.js`, `✓ redacted` in the composer, `test-redact.js`. Plus the 22P05 NUL / lone-surrogate fix |
-| 06 Inbox, then dogfood | list view with filters, then five people use it for a week | **Filters done** in `viewer/` — search, project, range, Has errors. Triage status was built and then deleted, 18 Sep 2026 (`schema-drop-status.sql`) — see below. **Dogfood week blocked by decision**: single-user means there is nothing to dogfood together until sharing returns — now designed, see *Share links* |
+| 06 Inbox, then dogfood | list view with filters, then five people use it for a week | **Filters done** in `viewer/` — search, project, range (Has errors was built and removed, 23 Sep 2026). Triage status was built and then deleted, 18 Sep 2026 (`schema-drop-status.sql`) — see below. **Dogfood week blocked by decision**: single-user means there is nothing to dogfood together until sharing returns — now designed, see *Share links* |
 
 Shipped outside the plan: the Jam-style dashboard (console/network tabs,
 pretty-printed coloured JSON, request/response panes), the
@@ -45,7 +45,8 @@ only once that loop is boring.
 - **One-shortcut capture** — global hotkey, widget, pick screenshot or
   recording, add a sentence, send. Never more than three interactions.
 - **Screen recording** — tab or window, hard-capped at 3 minutes. AV1 where
-  supported, VP9 otherwise. Optional mic.
+  supported, VP9 otherwise. Optional mic. **Built 23 Sep 2026 and switched
+  off the same day** — one flag, `AUDIO` in `offscreen.js`; see *Sound* below.
 - **Retroactive console** — a rolling 5-minute buffer from page load, so the
   report contains errors from before anyone thought to press record.
   *The killer feature.*
@@ -93,8 +94,9 @@ surface needs a tour, it's wrong.
    composing. Live error and request counters always visible, so people learn
    the tool is watching before they ever press record.
 2. **Report viewer** — video left, evidence right, one shared timeline.
-   Coloured markers on the scrubber show where errors, warnings and failed
-   requests landed.
+   Coloured markers on the scrubber show where errors and failed requests
+   landed; a console warning counts as an error, here and in the count.
+   There is no level filter — the search box is the only console filter.
 3. **Home grid** — deliberately boring. Cards with a video frame, a failure
    signal, filters that match how we actually search. It is the only list; see
    the 29 Aug amendment below.
@@ -146,7 +148,7 @@ because a bigger number sounds more generous.
 | Video size | ~9–13 MB typical | Supabase caps uploads at 50 MB by default; the 3-min ceiling keeps every report under it with no config. |
 | Log buffer | 5 min rolling, 5,000 max | Must exceed the video cap or the report loses the errors it was opened for. Count-only overflows in seconds against a render loop. |
 | Response bodies | 100 KB, JSON/text only | Stops a media response being held in memory twice. Binary is unreadable in a report anyway. **Amended 29 Aug 2026:** the cap is now enforced by the read itself, not by slicing afterwards. `content-length` is absent on every chunked response, so the old gate passed and `.text()` read the whole stream — on `text/event-stream` it never returned, and the page's own `fetch()` never resolved. There is a 2s deadline on our copy for the same reason. |
-| Screenshot | ~200 KB PNG | ~~The default action, not the fallback.~~ **Amended 29 Aug 2026:** the button is out of the popup — recording only, while the record→share loop is the thing being proven. The capture path is parked, not deleted (`worker.js` still routes `shot`, the viewer still renders existing screenshot reports), so it is one `<button>` to bring back. |
+| Screenshot | ~200 KB PNG | ~~The default action, not the fallback.~~ ~~**Amended 29 Aug 2026:** the button is out of the popup.~~ **Un-parked 23 Sep 2026:** it was one `<button>` to bring back, and it was one `<button>`. Second in the popup, under Record — the loop it was waiting on is boring now. |
 | Upload retry | once, then fail loudly | 13 MB doesn't need resumable uploads. Keep the blob in memory so the reporter can resend instead of re-recording. |
 | JWT expiry | 86,400s (24h) | Supabase's default is 3,600s and its max is 604,800s. An access token is a signed JWT that **cannot be revoked** — `proxy.ts` verifies it locally with `getClaims()` and never asks the auth server, and Postgres reads `auth.uid()` straight out of it — so the expiry *is* the revocation window. One hour meant a signed-in user met the expired card most days, for a tool that records screens and network payloads; a week means a leaked token reads every report for a week. A day covers a weekend and keeps the blast radius to a day. Set in the Supabase console, not in code: nothing reads a hard-coded lifetime, `fjLive()` reads `expires_at` off the token. |
 | Retention | 90 days, nightly cron | Supabase has no S3 lifecycle rules, so it's a `pg_cron` job. Date-prefixed paths make the sweep one list + remove. |
@@ -167,13 +169,9 @@ first place. So it was one author marking their own bugs for themselves.
 `schema-drop-status.sql` drops the column (which drops its grant with it) and
 restates `update (share_token, share_url)`; `status-chip.tsx` and
 `status-select.tsx` are gone, as is the sidebar's Status group and the filter.
-The sidebar's failure shortcut went with it. The filter survives — `?failing=1`
-is `error_count > 0 OR failed_count > 0`, read off the generated columns rather
-than anything a person typed — but it lives only in the filter bar now, where
-the other four filters are. It was relabelled on the way: the sidebar said
-`Has 500s` and the filter bar said `Has failures` for the same control, and
-neither named a query that matches console errors and any 4xx, 5xx or thrown
-request. It reads `Has errors`.
+The sidebar's failure shortcut went with it. ~~The filter survives as `Has
+errors` in the filter bar — `?failing=1`, `error_count > 0 OR failed_count >
+0`.~~ **Gone too, 23 Sep 2026** — see the amendment below.
 
 The sidebar is now what it says it is: every recording, then projects.
 
@@ -405,6 +403,102 @@ someone actually deletes something they wanted.
 contain another control — nested, every click of it navigated instead of
 selecting.
 
+## Sound, and the screenshot comes back — 23 Sep 2026
+
+**Sound is off.** Built, wired, tested, and gated behind `const AUDIO = false`
+at the top of `offscreen.js` the same day — nobody needed it yet, and a feature
+nobody needed is not worth the mic light, the permission page or the second
+codec in the mime string. What is switched off with it: the popup's mic switch
+(commented in `popup.html` and `popup.js` — uncomment together, `popup.js` reads
+`#mic` at load), and the player's mute (commented in `report-view.tsx`). Off
+means off: nothing asks for audio, no graph is built, no `,opus`, and a
+recording is byte-for-byte what it was before this section existed.
+
+**It is a flag rather than a revert** because the cost of keeping it is one
+boolean and the cost of rebuilding it is this whole section. `test-capture.js`
+runs the audio assertions against a copy of `offscreen.js` with the flag
+flipped, so the dormant path stays honest, and asserts the shipped state asks
+for no audio at all. Delete the flag and the test quietly stops testing
+anything.
+
+The rest of this section is what the flag turns on.
+
+**Every recording carries the tab's audio.** One `getMediaStreamId` feeds
+both constraints of one `getUserMedia`, which is the whole cost — no permission,
+no prompt, no setting. The part that is not free: capturing a tab's audio takes
+it *away* from the speakers, so `offscreen.js` pipes it back
+(`createMediaStreamSource(tab).connect(ctx.destination)`) as well as into the
+recording. Without that line the person recording hears silence and reports the
+silence as the bug.
+
+**The microphone is a switch in the popup, and it is off.** Tab audio is
+evidence; a mic is a decision, so it is stored (`chrome.storage.local.fjMic`)
+rather than passed in a message — the hotkey path never opens the popup, and one
+switch has to serve both ways in. The two sources are mixed through one
+`MediaStreamDestination`: tab audio goes to the mix *and* the speakers, the mic
+goes to the mix only, because a mic wired to the speakers is a feedback loop.
+
+**The prompt is the awkward part, and it costs no new file.** An offscreen
+document cannot ask for the microphone — it has no window — and a popup is
+closed by the prompt taking focus. So `popup.html?mic=1` opened in a *tab* is
+the permission page: the same file, asking once, with the grant remembered
+against the extension's own origin where the recorder can use it. A denied mic
+never fails a recording; it comes back as `⚠ no mic` in the composer, because
+the alternative is finding out on the dashboard that three minutes of narration
+are silent.
+
+**The mime string is picked per recording.** `video/webm;codecs=av01` with an
+audio track in the stream is not a bet worth taking, and `,opus` on a stream
+with no audio track is the same bet backwards — `mimeFor(hasAudio)` names only
+what is there.
+
+**The screenshot button is back, and it picks an area.** The routing, the
+compose step and the viewer's `.png` rendering had never gone away; what is new
+is the sheet in between. Capture the whole visible tab **first**, then dim the
+live page and drag a rectangle over it — that order is not an implementation
+detail, it is the only one where our own overlay is not in the picture. The
+rectangle comes back in CSS pixels with `innerWidth` beside it and `cropShot`
+scales by `bitmap.width / vw`, not `devicePixelRatio`, which page zoom puts out
+of step. A click with no drag is the whole tab, Escape cancels, and leaving the
+page cancels too: the picture is of the page it was taken on.
+
+Two things the second capture surface flushed out. A shot taken mid-recording
+used to overwrite `rec` and lose the video — refused now, in `offscreen.js`,
+next to the one `rec` it protects, because `state?` answers per tab and a
+recording in *another* tab reads as idle there. And `state?` used to answer
+`rec` for anything in flight, so a navigation during the composer put a stop
+button over it; it hands back the last state whole now.
+
+**The player grew a mute** (commented out with the rest). The transport is hand-rolled (see the note on why
+the native `controls` are not used), so nothing else in the app could turn the
+sound off.
+
+`test-capture.js` is the check: the audio graph, a denied mic, a tab that will
+not give up its audio, and worker↔offscreen wired to each other over the real
+messages — the contract most likely to rot is `mic` spelled two ways.
+
+## The card stops judging, and a screenshot stops pretending — 23 Sep 2026
+
+**The red count is off every card, and the `Has errors` filter with it.** A
+grid where every tile carries `⚠ 6 failed` is a grid of verdicts on recordings
+nobody has opened, and the number is not the signal it looks like: six failed
+requests is a normal page with analytics blocked, while the bug worth watching
+often has none. It was also the only reason the list selected `error_count` and
+`failed_count` at all, so those are out of the query, out of `ListRow`, and the
+`?failing=1` branch is out of `page.tsx`. The counts still exist — generated
+columns in the database, and the header of the log pane on the report itself,
+where they sit next to the rows they count.
+
+One consequence worth knowing: `error.tsx` sniffed the words `error_count` to
+offer "run schema-dashboard.sql", and nothing requests that column any more, so
+the hint could never have fired again. It matches PostgREST's own "does not
+exist" now and points at the migration order rather than one file.
+
+**A screenshot report no longer renders a transport.** A play button that
+cannot play, a scrubber with nothing to scrub and a duration of `—:—` were on
+every screenshot report, under a still image. The log pane is untouched: it is
+still the timeline, it just has nothing to drive.
+
 ## The one real risk
 
 This tool records colleagues' screens and their API traffic. A single capture
@@ -420,19 +514,22 @@ personal inbox into a shared link.
 
 ## Open questions
 
-- ~~**Name.** FlamJam is a placeholder — it works, but it's derivative.~~
-  **Answered 18 Sep 2026 — the product is ReKod.** Renamed everywhere it is
-  read: the manifest, the popup, the widget, the dashboard wordmark, the page
-  titles and these docs. **Amended 21 Sep 2026 — the two addresses went too**,
-  ahead of open-sourcing, where a name that reads as derivative of another
-  product is the whole trademark exposure. `https://rekody.vercel.app` now
-  appears in `extension/auth.js` and its `host_permissions` twin; they changed
-  together, because apart the popup stops finding the session cookie, and the
-  Vercel project must be renamed to match or auth breaks against a domain that
-  does not exist. The `flamjam-retention` cron name in `schema.sql` still
-  stands: it is a comment inside an applied migration, and those are not
-  edited. The repo folder is still `flamjam/` — a directory rename is a git
-  operation, not a code change.
+- ~~**Name.** The working title is a placeholder — it works, but it's
+  derivative.~~ **Answered 18 Sep 2026 — the product is ReKod.** Renamed
+  everywhere it is read: the manifest, the popup, the widget, the dashboard
+  wordmark, the page titles and these docs. **Amended 21 Sep 2026 — the two
+  addresses went too**, ahead of open-sourcing, where a name that reads as
+  derivative of another product is the whole trademark exposure.
+  `https://rekody.vercel.app` now appears in `extension/auth.js` and its
+  `host_permissions` twin; they changed together, because apart the popup stops
+  finding the session cookie, and the Vercel project must be renamed to match or
+  auth breaks against a domain that does not exist. **Amended 23 Sep 2026 — the
+  last traces went too.** The old cron-name comment in `schema.sql` and the old
+  email domain in `schema.sql` / `schema-dashboard.sql` are now neutral
+  placeholders: the one rule-break against "applied migrations are not edited",
+  taken because a comment and a policy that `schema-single-user.sql` already
+  drops cannot change the end state. Test fixtures use `api.example`. The repo
+  folder is `rekod/`.
 - **Retention.** 90 days proposed. Videos accumulate fast; old ones are never
   read.
 - **Scope of install.** All of engineering, or design and QA too? Argues for

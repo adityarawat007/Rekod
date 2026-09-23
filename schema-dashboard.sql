@@ -48,20 +48,20 @@ create index if not exists reports_failed_idx on reports (failed_count) where fa
 drop policy if exists "team can read reports" on reports;
 create policy "team can read reports" on reports
   for select to authenticated
-  using ((select auth.jwt()) ->> 'email' like '%@flamapp.com');
+  using ((select auth.jwt()) ->> 'email' like '%@example.com');
 
 drop policy if exists "team can retriage" on reports;
 create policy "team can retriage" on reports
   for update to authenticated
-  using ((select auth.jwt()) ->> 'email' like '%@flamapp.com')
-  with check ((select auth.jwt()) ->> 'email' like '%@flamapp.com');
+  using ((select auth.jwt()) ->> 'email' like '%@example.com')
+  with check ((select auth.jwt()) ->> 'email' like '%@example.com');
 
 drop policy if exists "team can watch video" on storage.objects;
 create policy "team can watch video" on storage.objects
   for select to authenticated
   using (
     bucket_id = 'reports'
-    and (select auth.jwt()) ->> 'email' like '%@flamapp.com'
+    and (select auth.jwt()) ->> 'email' like '%@example.com'
   );
 
 -- Superseded: section 2's domain-lock policies and the `reporter` column are

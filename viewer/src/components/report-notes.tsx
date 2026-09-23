@@ -161,7 +161,7 @@ export function Comments({
         ))}
         {!list.length ? (
           <li className="text-sm text-muted-foreground">
-            {readOnly ? 'No comments on this recording.' : 'Nothing yet. Add the first one.'}
+            {readOnly ? 'No comments on this ReKod.' : 'Nothing yet. Add the first one.'}
           </li>
         ) : null}
       </ul>

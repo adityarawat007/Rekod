@@ -58,6 +58,33 @@
     kind: 'console', lvl: 'error', msg: 'Unhandled rejection: ' + str(e.reason),
   }));
 
+  // Everything above is the PAGE talking. Most of what makes a console look
+  // alarming is the BROWSER talking — CSP violations, blocked fonts, a 404 on a
+  // <script> — and none of it goes through console.*, so no patch can see it.
+  // What is reachable is the handful with a DOM event of their own. The rest
+  // (another extension's content script, deprecation notices, mixed-content
+  // warnings) needs chrome.debugger, which PLAN.md rules out on purpose.
+  addEventListener('securitypolicyviolation', (e) => push({
+    kind: 'console',
+    // report-only is a warning about a policy nothing enforced; enforced is an error.
+    lvl: e.disposition === 'report' ? 'warn' : 'error',
+    msg: `CSP ${e.disposition === 'report' ? 'report-only' : 'blocked'}: `
+       + `${e.violatedDirective} — ${fjRedactUrl(e.blockedURI || '(inline)')}`,
+  }), true);
+
+  // Capture phase, because a resource error is fired AT the element and does
+  // not bubble — the listener above never sees one. The window-targeted events
+  // it does see here are script errors, which that listener already has.
+  addEventListener('error', (e) => {
+    const el = e.target;
+    if (!el || el === window || !el.tagName) return;
+    push({
+      kind: 'console', lvl: 'error',
+      msg: `Failed to load ${el.tagName.toLowerCase()}: `
+         + fjRedactUrl(el.src || el.href || el.currentSrc || '(no url)'),
+    });
+  }, true);
+
   // --- network ---------------------------------------------------------
   const READ_MS = 2000;      // never hold the page's own fetch waiting for our copy
 

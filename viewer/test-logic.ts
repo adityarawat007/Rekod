@@ -14,8 +14,8 @@ const logs = [
   { kind: 'console', lvl: 'error', msg: 'boom', t: T0 + 2000, seq: 4 },
 ] as Entry[];
 const network = [
-  { kind: 'net', method: 'POST', url: 'https://api.flam/v2/render', status: 500, rtype: 'fetch', t: T0 + 1000, seq: 3 },
-  { kind: 'net', method: 'GET', url: 'https://api.flam/ok', status: 200, rtype: 'fetch', t: T0 - 1000, seq: 2 },
+  { kind: 'net', method: 'POST', url: 'https://api.example/v2/render', status: 500, rtype: 'fetch', t: T0 + 1000, seq: 3 },
+  { kind: 'net', method: 'GET', url: 'https://api.example/ok', status: 200, rtype: 'fetch', t: T0 - 1000, seq: 2 },
 ] as NetEntry[];
 
 const merged = timeline({ logs, network });
@@ -66,8 +66,8 @@ assert.strictEqual(clock(-75), '1:15', 'clock is unsigned; stamp adds the sign')
 assert.strictEqual(ms(8200), '8.2s');
 assert.strictEqual(ms(240), '240ms');
 assert.strictEqual(ms(undefined), '');
-assert.strictEqual(shortUrl('https://api.flam/v2/render?token=x'), 'render');
-assert.strictEqual(shortUrl('https://api.flam/'), 'api.flam', 'no path falls back to host');
+assert.strictEqual(shortUrl('https://api.example/v2/render?token=x'), 'render');
+assert.strictEqual(shortUrl('https://api.example/'), 'api.example', 'no path falls back to host');
 assert.strictEqual(shortUrl('not a url'), 'not a url', 'unparseable passes through');
 assert.ok(isScreenshot('2026/08/x.png'));
 assert.ok(!isScreenshot('2026/08/x.webm'));
@@ -120,18 +120,18 @@ assert.strictEqual(safeNext('/\\evil.example'), '/', 'backslash form is refused'
 
 // ── Copy cURL: captured strings are data, never shell syntax ──────────────
 assert.strictEqual(
-  toCurl({ url: 'https://api.flam/ok' }),
-  "curl 'https://api.flam/ok'",
+  toCurl({ url: 'https://api.example/ok' }),
+  "curl 'https://api.example/ok'",
   'a plain GET needs no -X',
 );
 assert.strictEqual(
   toCurl({
-    url: 'https://api.flam/v2/render?q=a b',
+    url: 'https://api.example/v2/render?q=a b',
     method: 'POST',
     reqHeaders: { 'content-type': 'application/json' },
     reqBody: '{"a":1}',
   }),
-  "curl 'https://api.flam/v2/render?q=a b' \\\n  -X POST \\\n  -H 'content-type: application/json' \\\n  --data-raw '{\"a\":1}'",
+  "curl 'https://api.example/v2/render?q=a b' \\\n  -X POST \\\n  -H 'content-type: application/json' \\\n  --data-raw '{\"a\":1}'",
 );
 // the reason the quoting exists: a captured value must not become a command
 const hostile = toCurl({ url: "https://x.test/a'$(id)'b", reqBody: "it's; rm -rf /" });
