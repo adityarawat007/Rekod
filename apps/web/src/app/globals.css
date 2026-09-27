@@ -1,0 +1,218 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ReKod palette — see ../../PLAN.md § Design system.
+   Chart steps are validated per mode against that mode's card surface, not
+   flipped: light passes on #FFFFFF, dark is re-stepped for L 0.48–0.67 on
+   #1C1624. Zest is deliberately absent from the chart ramp — at L 0.85 it
+   fails the lightness band and lands at 1.55:1 on paper. UI accent only. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
+  --font-mono: var(--font-data);
+  --font-mark: var(--font-logo);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --color-jam: var(--jam);
+  --color-jam-deep: var(--jam-deep);
+  --color-zest: var(--zest);
+  --color-grape: var(--grape);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-crit: var(--crit);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
+  --radius-4xl: 8px;
+}
+
+/* light is the base */
+:root {
+  --radius: 8px;
+
+  --jam: #FF2D55;
+  --jam-deep: #D40E36;
+  --zest: #FFC400;
+  --grape: #5B21F0;
+  --good: #00A862;
+  --warn: #F07800;
+  --crit: #E5001E;
+
+  --background: #FFFBF5;
+  --foreground: #1A1420;
+  --card: #FFFFFF;
+  --card-foreground: #1A1420;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1420;
+  --primary: #FF2D55;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F7F3F8;
+  --secondary-foreground: #1A1420;
+  --muted: #F7F3F8;
+  --muted-foreground: #7C7189;
+  --accent: #F4EFF6;
+  --accent-foreground: #1A1420;
+  --destructive: #E5001E;
+  --border: #E6DFE9;
+  --input: #D3C9D8;
+  --ring: #5B21F0;
+
+  /* validated: light steps on #FFFFFF — all six checks pass */
+  --chart-1: #FF2D55;
+  --chart-2: #5B21F0;
+  --chart-3: #00A862;
+  --chart-4: #F07800;
+  --chart-5: #7C7189;
+
+  /* Plain white, and neutral greys with it: the mauve surface was carrying a
+     mauve hover and a mauve border, so recolouring only the surface would have
+     left the tint showing on every hovered nav item. */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1A1420;
+  --sidebar-primary: #FF2D55;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F2F2F3;
+  --sidebar-accent-foreground: #1A1420;
+  --sidebar-border: #E4E4E7;
+  --sidebar-ring: #5B21F0;
+}
+
+.dark {
+  --jam: #FF4E71;
+  --jam-deep: #FF7C95;
+  --zest: #FFD24A;
+  --grape: #A98BFF;
+  --good: #2FD48A;
+  --warn: #FFA23D;
+  --crit: #FF5C6E;
+
+  --background: #14101A;
+  --foreground: #F4EFF7;
+  --card: #1C1624;
+  --card-foreground: #F4EFF7;
+  --popover: #1C1624;
+  --popover-foreground: #F4EFF7;
+  --primary: #FF4E71;
+  --primary-foreground: #14101A;
+  --secondary: #241C2E;
+  --secondary-foreground: #F4EFF7;
+  --muted: #241C2E;
+  --muted-foreground: #8B7E97;
+  --accent: #2B2136;
+  --accent-foreground: #F4EFF7;
+  --destructive: #FF5C6E;
+  --border: #312739;
+  --input: #413350;
+  --ring: #A98BFF;
+
+  /* re-stepped for the dark band, not flipped — validated on #1C1624 */
+  --chart-1: #F2385C;
+  --chart-2: #8B5CF6;
+  --chart-3: #0FA372;
+  --chart-4: #D97706;
+  --chart-5: #8B7E97;
+
+  --sidebar: #181220;
+  --sidebar-foreground: #F4EFF7;
+  --sidebar-primary: #FF4E71;
+  --sidebar-primary-foreground: #14101A;
+  --sidebar-accent: #241C2E;
+  --sidebar-accent-foreground: #F4EFF7;
+  --sidebar-border: #2A2033;
+  --sidebar-ring: #A98BFF;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* tabular figures wherever a timestamp, duration or count sits in a column */
+  .mono,
+  code,
+  pre {
+    font-family: var(--font-data), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display), var(--font-body), sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+
+/* ── login replay (app/login/replay.tsx) ─────────────────────────────────────
+   One 9s loop, three parts kept in step by sharing the period: rows tick in
+   0.7s apart, the playhead sweeps the track, and the sticker lands just after
+   the error row (48% ≈ 4.3s, where the red tick sits). Reduced motion shows the
+   finished frame and nothing moves. */
+@keyframes rk-row {
+  0% { opacity: 0; transform: translateY(6px); }
+  6%, 82% { opacity: 1; transform: none; }
+  92%, 100% { opacity: 0; transform: none; }
+}
+@keyframes rk-sweep {
+  from { left: 0%; }
+  to { left: 100%; }
+}
+@keyframes rk-stamp {
+  0%, 47% { opacity: 0; transform: scale(1.7) rotate(-18deg); }
+  51% { opacity: 1; transform: scale(0.9) rotate(-8deg); }
+  54%, 86% { opacity: 1; transform: scale(1) rotate(-8deg); }
+  93%, 100% { opacity: 0; transform: scale(1) rotate(-8deg); }
+}
+@keyframes rk-blink {
+  50% { opacity: 0.25; }
+}
+.rk-row { animation: rk-row 9s ease-out infinite both; }
+.rk-sweep { animation: rk-sweep 9s linear infinite; }
+.rk-stamp { animation: rk-stamp 9s cubic-bezier(0.2, 0.9, 0.3, 1.3) infinite both; }
+.rk-blink { animation: rk-blink 1.2s steps(2, jump-none) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .rk-row, .rk-sweep, .rk-stamp, .rk-blink { animation: none; }
+  .rk-row { opacity: 1; }
+  .rk-sweep { left: 48%; }
+  .rk-stamp { opacity: 1; transform: rotate(-8deg); }
+}

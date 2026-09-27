@@ -1,0 +1,25 @@
+# Local backing services for apps/web. The app itself runs on the host with
+# `pnpm dev` — this is not the production compose file (Phase 4).
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: rekod
+      POSTGRES_PASSWORD: rekod
+      POSTGRES_DB: rekod
+    ports: ["5432:5432"]
+    volumes: [pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rekod"]
+      interval: 2s
+
+  # S3 API on :8333. No identities configured, so auth is off — dev only.
+  seaweedfs:
+    image: chrislusf/seaweedfs
+    command: server -dir=/data -s3 -s3.port=8333
+    ports: ["8333:8333"]
+    volumes: [s3:/data]
+
+volumes:
+  pg:
+  s3:

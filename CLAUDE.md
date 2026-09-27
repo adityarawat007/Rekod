@@ -1,100 +1,135 @@
 # ReKod
 
 A Chrome extension (MV3) that records a tab with the last 5 minutes of console
-and network already captured, and a Next.js dashboard that plays it back on one
-timeline. Backend is Supabase — one table, one bucket, RLS.
+and network already captured, and a Next.js app that plays it back on one
+timeline — and is the whole backend. Any Postgres (Drizzle), any S3-compatible
+bucket, Better Auth. No Supabase-specific code: Supabase is just one place to
+host the Postgres and the bucket.
 
-Read [`PLAN.md`](PLAN.md) for what is built and what was deliberately skipped.
-Every "skipped" entry has a stated reason; check it before proposing the thing.
+[`ROADMAP.md`](ROADMAP.md) is the plan and its progress log says what has landed.
+[`PLAN.md`](PLAN.md) is the pre-rebuild history — its "skipped" reasons still
+hold for the extension and the viewer UI; its Supabase/RLS parts are gone.
 
-## Two packages, not a monorepo
+## A pnpm workspace with one package
 
 | | |
 |---|---|
-| [`extension/`](extension/) | Vanilla JS, MV3. **No build step — the source is what ships.** No `package.json`, no dependencies. |
-| [`viewer/`](viewer/) | Next.js 16 + React 19 + Tailwind 4. The only thing with dependencies. |
+| [`apps/extension/`](apps/extension/) | Vanilla JS, MV3. **No build step — the source is what ships.** No `package.json`, no dependencies, and **not** listed in `pnpm-workspace.yaml`. |
+| [`apps/web/`](apps/web/) | Next.js 16 + React 19 + Tailwind 4. The only workspace package. |
 
 They share no code and cannot: the extension has no bundler, so it cannot
-import from `viewer/`. Workspace tooling would manage exactly one package.
-Reconsider only if the extension grows a build step.
+import from `apps/web/`. The lockfile and `node_modules` live at the repo root.
+
+## The server
+
+**`src/lib/server` is the tenant boundary, and there is nothing behind it.** No
+RLS. Every function in `lib/server/reports.ts` takes the workspace id first and
+puts it in its WHERE clause; the workspace always comes from the session
+(`requireActor()` / `apiActor()` in `lib/server/session.ts`), never from what a
+caller sent. **Only `src/lib/server` may import `@/lib/db`** — an ESLint rule.
+Add a repo function there rather than querying from a page. A new repo function
+means a new cross-tenant assertion in `apps/web/test-tenancy.ts`.
+
+**Every table lives in the `rekod` Postgres schema, never `public`.** On
+Supabase, `public` is served to the publishable key by the Data API, and with no
+RLS a table there would be world-readable.
+
+**`serverEnv()` in `lib/env.ts` is read on first use, not at import**, so a
+build needs no env and a missing value fails with its name. Never read
+`process.env` directly. `auth()` and `db()` are lazy for the same reason.
+
+**The workspace owns the data.** Better Auth's organization plugin *is* the
+workspace (`organization`, `member`); the UI never says "organization". Every
+user gets a personal one in `databaseHooks.user.create.after`, created as a
+system action so it works while `allowUserToCreateOrganization` is false — team
+workspaces are Phase 3, paid, in `ee/`. The acting workspace is the session's
+active one if the user is still a member of it, else their oldest membership.
+
+**Two ways in, one session.** The dashboard uses Better Auth's cookie
+(`rekod.session_token`, `__Secure-` prefixed over https — `cookiePrefix` is
+`rekod` and `apps/extension/auth.js` reads it by that exact name). `/api/v1`
+accepts **only** `Authorization: Bearer <that cookie's value>` via the bearer
+plugin with `requireSignature` — a cookie-only POST is refused, which is the
+whole CSRF story for the API. Google renders only when both
+`GOOGLE_CLIENT_*` are set; linking trusts Google alone, because Google verifies
+emails. `DISABLE_SIGNUP` / `ALLOWED_EMAIL_DOMAINS` are enforced in
+`user.create.before`, so they cover both methods. No SMTP, so no email
+verification and no password reset yet.
+
+**`proxy.ts` only checks that a session cookie exists.** It runs on every
+request; the real check is `requireActor()`, which reads Better Auth's 5-minute
+signed cookie cache rather than the database. It does **not** bounce a signed-in
+user off `/login` — an expired cookie passes the proxy, `requireActor()` sends
+it to `/login`, and a bounce would send it straight back. The login page makes
+that check itself.
+
+**An upload is three steps, the bytes never touch the server, and the first two
+run while the composer is open.** The moment a recording stops (or a screenshot
+is cropped), `preupload()` in `offscreen.js` calls `POST /api/v1/reports` (just
+`t0`, duration, media type) — which creates the row in `processing` and returns
+one presigned PUT per file — and PUTs the media, `logs.json` and `network.json`
+straight to the bucket. Send only calls `POST /api/v1/reports/<id>/complete`
+with the title, description and page, which names the row and flips it to
+`ready` in one UPDATE. If the background upload failed, Send retries it whole
+once. Discard calls `DELETE /api/v1/reports/<id>`. The logs are taken at the end
+of the capture, not when Send is pressed. It does **not** HEAD the files or record sizes:
+the extension calls it only after every PUT answered 200, and those checks cost
+~1s. Create is two plain inserts, not a transaction, for the same reason.
+
+**Every database round trip is the latency budget.** The Supabase project is in
+Seoul (`ap-northeast-2`); from a laptop each query is ~150ms, so the dev server
+is slow for a reason that production does not share: an upload there is ~4s, most of it Better
+Auth's Bearer session lookup (~550ms, several queries) plus the workspace
+lookup. `apps/web/vercel.json` pins functions to `icn1` (Seoul) so production
+queries are same-region. Move the database, move that line with it; a mismatch
+multiplies every page and every upload. **Logs and network are files, not columns**: five minutes of
+them does not fit a serverless request body. Only `ready` reports are listed or
+shareable. Keys are `<workspace>/<report>/<kind>.<ext>`. Presigning is a local
+HMAC, so signing one URL per row costs nothing.
+
+**The S3 keys and `BETTER_AUTH_SECRET` are the god keys now.** Server env only,
+never `NEXT_PUBLIC_`. Supabase's S3 access keys bypass its storage RLS.
+
+**Share links are copyable forever and revocable.** Every report is born with a
+`share_token` — 32 random bytes, stored **plain**, not hashed, precisely so the
+owner can copy the same link any number of times. "Stop sharing" nulls it; the
+next copy mints a new one. `/s/<token>` reads through `sharedReport()`, the one
+unscoped read: explicit columns, so the workspace, the creator and the token
+never reach the page — never widen it to `select *`. The page signs its own
+media URL per visit (an hour). `?view=media` drops the log pane **and skips
+fetching the log files**; it is a render flag, not a second permission. A share
+link is read-only: no action accepts a token.
+
+**Comments are rows, and `by` is the author's email** — which means every share
+link with a comment carries it; a decision, not an oversight. Soft-deleted, and
+only by their author.
+
+**Deleting a report deletes its objects first, then the row** — see
+`deleteReports()` in `lib/server/reports.ts`. Both orders can orphan a file if
+the second half fails; this one never leaves a report you can open and cannot
+watch. Hard delete, not soft: a deleted recording should be gone.
 
 ## Invariants
 
 **Chrome loads *everything* under the folder you point it at.** That is why the
-extension lives in `extension/` and not at the repo root — the root holds
-`viewer/node_modules` (1.1 GB) and, historically, a `service_role` key. Never
-put a secret, a lockfile, or a dependency tree inside `extension/`. Load
-unpacked from `extension/`, never from the root.
+extension lives in `apps/extension/` and not at the repo root — the root holds
+`node_modules` (1.1 GB) and `.env` files. Never put a secret, a lockfile, or a
+dependency tree inside `apps/extension/`. Load unpacked from `apps/extension/`,
+never from the root.
 
-**No `service_role` key anywhere.** The extension and the dashboard both use the
-publishable key plus a real user session and let RLS decide. If a task seems to
-need the god key, the RLS policy is wrong — fix that instead.
-
-**Single-user, plus public share links.** One account, its own reports. Every
-`reports` row has an `owner` and every policy is `owner = auth.uid()`. There is
-no team, no allowlist, no membership, and no reporter field — removed on
-purpose, not hidden (see the 29 Aug amendment in `PLAN.md`).
-
-Sharing is *not* the team model returning. **Every report now carries a
-`share_token` from birth** (`schema-share-default.sql` defaults the column) and
-is readable at `/s/<token>` by anyone holding it, through exactly one
-`security definer` function — `public.shared_report(uuid)`, the whole anonymous
-surface. `anon` still has no grant on `reports` and storage RLS is untouched:
-the recipient plays a URL the **owner** signed at share time and stored in
-`share_url` — signed the first time the link is copied, because only a session
-that satisfies the storage policy can sign one. `?view=media` on that URL drops
-the log pane; it is a render flag on the same page, not a second permission.
-**There is no revoke.** The control is gone, deliberately; `update reports set
-share_token = null` in the SQL editor is the only way back to private.
-Widening the function is the entire risk; its explicit column
-list is what keeps `owner` and `share_token` from leaking, so never make it
-`select *`.
-
-**Comments are the owner's, and a share link is still read-only.** A report
-carries a `description` (one editable field) and `comments` (an append-only
-jsonb array, `{id, body, at, by}`). Both ride inside `shared_report`, so a
-recipient reads the thread and cannot post to it — `anon` has no write grant
-and gets no second function. `by` is the owner's email, which means every share
-link carries it; that was a decision, not an oversight. There is no comments
-table: one thread, one report, one writer.
-
-**The extension is authenticated, but it never signs in.** It cannot file as
-`anon`. `extension/auth.js` reads the dashboard's `sb-*-auth-token` cookie via
-`chrome.cookies` — from the first origin in `DASH_ORIGINS` that has a live one
-(prod, then the dev server), and every origin listed there needs a matching
-`host_permissions` entry. One session, owned by the dashboard, no copy in
-`chrome.storage`.
-
-**No live token is two states, not one, and `fjSessionState()` is what tells
-them apart.** A Supabase access token lasts an hour and only the dashboard may
-refresh it, so an hour after the last dashboard visit a fully signed-in user has
-a *stale* cookie: aged-out access token, refresh token good for weeks. That is
-not signed out, and the popup must not say it is — `stale` reads "needs a
-refresh" and opens `/`, `none` reads "not signed in" and opens `/login`. A
-cookie that is present but unparseable is `stale` too: that is `@supabase/ssr`
-caught mid-write. `fjSession()` still returns only the live session, because
-every uploader wants exactly that.
-
-**The extension makes no network request of its own, and that is load-bearing.**
-Not `/auth/v1/token` (two refreshers race Supabase's reuse detection), and not a
-GET of the dashboard to make *it* refresh either: `proxy.ts` answers any
-refresh-token error by deleting every `sb-*` cookie, and an extension-initiated
-fetch applies that `Set-Cookie` — so a "harmless" poke signs the user out for
-real. `test-auth.js` passes a `fetch` that throws, to keep it that way.
-
-**A background tab is not that, and `fjRenew()` in `worker.js` is the one
-sanctioned way to renew.** It opens the stale origin with
-`chrome.tabs.create({ active: false })`, waits for `status === 'complete'`, reads
-the cookie again and closes the tab. The distinction is the whole point: a real
-navigation is precisely the case `proxy.ts`'s cookie deletion exists for, so if
-the refresh token genuinely is spent, landing on `/login` and clearing the
-cookie is the *correct* outcome — the popup then says "not signed in", which is
-by then true. One renewal at a time (`renewing`), because the popup and an
-in-flight upload can both ask at once and two tabs would be two refreshes of one
-token. Renewal is routed through `fjLiveSession()`, which every caller reaches
-by asking the worker for `{ to: 'bg', t: 'session' }` — so the popup and the
-uploader share one implementation. A `none` session is never renewed: there is
-no refresh token to spend.
+**The extension is authenticated, but it never signs in.** `auth.js` reads the
+dashboard's session cookie via `chrome.cookies` — from the first origin in
+`DASH_ORIGINS` that has one (prod, then the dev server), and every origin listed
+there needs a matching `host_permissions` entry — and hands the raw value to the
+uploader, which sends it as a Bearer to **that same origin**. One session, owned
+by the dashboard, no copy in `chrome.storage`. A Better Auth cookie is never
+stale: its expiry is the session's, so it is there or gone, and
+`fjSessionState()` answers `live` or `none`. `worker.js` still carries the
+Supabase-era `stale` renewal (`fjRenew`, a background tab); it is unreachable
+now and was left alone on purpose — the extension is next in line for its own
+rework (the connect flow and API keys in ROADMAP Phase 1). The bucket's origin
+needs a `host_permissions` entry too, or the PUT hits CORS: `*.supabase.co` is
+listed for our org's bucket.
 
 **Read cookies with `chrome.cookies.get()`, never `getAll()`.** Measured here on
 a live cookie at the dashboard's own origin, with `<all_urls>` granted:
@@ -102,15 +137,8 @@ a live cookie at the dashboard's own origin, with `<all_urls>` granted:
 `getAll({name})` all return `[]` — no error, no warning, an empty list that is
 indistinguishable from being signed out. The cookie is `SameSite=Lax` and an
 extension page is a different site, which is the likeliest reason getAll's
-would-this-be-sent filter drops it. `@supabase/ssr`'s own get-based adapter
-works the same way, chunk "hints" included. The cost is that `get()` needs the
-exact name, so every chunk is another call. `test-auth.js` stubs `get` and
-leaves `getAll` undefined, so going back to it throws.
-
-`fjRawAt()` also mirrors `combineChunks` by hand: an unchunked cookie wins
-outright, otherwise `.0`, `.1`, … in NUMERIC order, stopping at the first gap.
-Joining a leftover unchunked cookie onto the chunks decodes to garbage, which
-the parser reports as an expired session.
+would-this-be-sent filter drops it. Reading the session is reading a cookie,
+nothing else — `auth.js` makes no request.
 
 **There is no pre-roll UI.** The extension still buffers the five minutes
 before you press record — that is the product — but the viewer stopped
@@ -120,17 +148,15 @@ because without the sign that row and the one twelve seconds after record read
 identically. Do not re-add the chrome.
 
 **Recordings are silent, and sound is switched off rather than absent.**
-`const AUDIO = false` at the top of `extension/offscreen.js` is the whole
+`const AUDIO = false` at the top of `apps/extension/offscreen.js` is the whole
 control: with it false nothing asks for audio, no graph is built, no `,opus`
 reaches the mime string, and every line behaves as it did before audio existed.
 Flipping it to true brings back tab audio plus an optional mic — the popup's
 mic switch (`<label class="toggle">` in `popup.html` and the commented block in
 `popup.js`, which must be uncommented **together**: `popup.js` reads `#mic` at
-load) and the mute in `report-view.tsx` come back with it. `test-capture.js`
-runs the audio assertions against a copy of the file with the flag flipped, so
-the dormant path stays checked; it also asserts the shipped state asks for no
-audio at all. Do not delete the flag or the test flips silently stop testing
-anything.
+load) and the mute in `report-view.tsx` come back with it. Nothing tests the
+dormant path any more (the root test files were removed 27 Sep 2026), so
+flipping the flag means checking the audio by hand. Do not delete the flag.
 
 What that dormant code knows, and why it is not obvious: capturing a tab's
 audio takes it **away from the speakers**, so the tab source is connected to
@@ -163,14 +189,17 @@ a capture that was really waiting to be written up put a stop button over the
 composer — and stopping a screenshot composed a video with no video in it. The
 answer is whatever `toTab` last sent, but only while `rec` is set.
 
-**`extension/redact.js` is the ship gate.** It runs before `capture.js` in the
-MAIN world. Nothing leaves the tab unredacted. Changing it means running
-`node test-redact.js`.
+**`apps/extension/redact.js` is the ship gate.** It runs before `capture.js` in the
+MAIN world. Nothing leaves the tab unredacted. Its tests were removed with the
+other root test files on 27 Sep 2026, so a change to it is checked by hand —
+record a page with a bearer header and a `password` field and read the report.
 
 **A landed upload opens its own report in a background tab.** `offscreen.js` has no
-`chrome.tabs`, so it asks the worker — `{ to: 'bg', t: 'open', path }` — and
-only the path travels: the origin is `DASH`, from `auth.js`, so no message can
-name where a tab opens. `active: false` — nothing is torn away from whatever
+`chrome.tabs`, so it asks the worker — `{ to: 'bg', t: 'open', origin, path }`.
+The origin is the session's — the dashboard the upload went to, so a dev-server
+session opens the dev server, where the report actually is — and the worker
+accepts it only if it is in `DASH_ORIGINS`, falling back to `DASH`. No message
+can open anywhere else. `active: false` — nothing is torn away from whatever
 was being reported on. It fires after the insert returns, never before, because
 a tab onto a row that was never written is a 404 that reads as data loss.
 
@@ -197,54 +226,62 @@ ICE server list is captured by reading `.urls` and nothing else, because
 `username` and `credential` sit beside it and `credential` is **not** in
 `redact.js`'s key denylist.
 
-**The capture contract is mirrored, not shared.** `viewer/src/lib/types.ts`
-describes exactly what `extension/capture.js` writes. Change one side and you
+**The capture contract is mirrored, not shared.** `apps/web/src/lib/types.ts`
+describes exactly what `apps/extension/capture.js` writes. Change one side and you
 must change the other by hand.
 
 ## Migrations
 
-SQL is applied by hand in the Supabase console; the app never runs DDL. Order
-matters and all three are re-runnable:
+Drizzle. `src/lib/db/schema.ts` is the source; `pnpm -C apps/web db:generate`
+writes SQL into `src/lib/db/migrations/`, and `db:migrate` applies it to
+`DATABASE_URL`. Both are run by hand — the app never runs DDL (Phase 4 adds
+migrate-on-boot for Docker). Adding a migration means a new generated file,
+never editing an applied one. The Better Auth tables were generated by
+`npx @better-auth/cli generate` and moved into the `rekod` schema; regenerate
+and diff when adding a Better Auth plugin rather than hand-editing fields.
 
-`schema.sql` → `schema-dashboard.sql` → `schema-single-user.sql` →
-`schema-share.sql` → `schema-drop-status.sql` → `schema-comments.sql` →
-`schema-share-default.sql` → `schema-delete-media.sql` →
-`schema-error-count-warn.sql`
+Ids are UUIDv7 (`lib/db/ids.ts`) and share tokens are random, both minted in
+the app rather than by a Postgres default, so the migrations need no extension
+and run on any Postgres.
 
-The third supersedes parts of the first two; the fourth only adds; the fifth
-only removes; the sixth adds `description` and `comments` and re-creates
-`shared_report` around them; the seventh gives `share_token` a default; the
-eighth lets an owner delete their own storage objects; the ninth folds
-`lvl = "warn"` into `error_count`, because the viewer counts a warning as an
-error and the card reads that column. **Warnings are not stored apart from
-errors** — they never were: one `logs` array, one `lvl` field, and now one
-count. There is no warn column to drop. **There is no triage status.** Reports are not handed to anyone —
-single-user killed the team and a share link is read-only — so "new / triaging /
-fixed" was a state only its own author ever read. The column, its grant, the
-chip, the select and the filter are deleted, not hidden. Adding a migration means a new
-file, never editing an applied one.
+**There is no triage status.** `reports.status` is *upload* state —
+processing / ready / failed — not new / triaging / fixed. A share link is
+read-only, so triage was a state only its own author ever read. **Warnings are
+not stored apart from errors**: one logs file, one `lvl` field.
+
+The old Supabase tables (`public.reports`, its bucket, its policies) were not
+migrated and are not read by anything. They are still in that project until
+someone drops them.
 
 ## Checks
 
 ```
-node test-redact.js              # the ship gate
-node test-auth.js                # the session gate: live / stale+poke / dead
-node test-capture.js             # silent by default, the dormant audio graph, one capture at a time
-cd viewer && npm test            # timeline merge, pre-roll signs, timeline uids
-cd viewer && npm run typecheck
-cd viewer && npm run build
+pnpm test                        # apps/web: timeline merge, pre-roll signs, and the tenancy test
+pnpm typecheck                   # runs `next typegen` first — PageProps is generated, a clean tree has none
+pnpm lint
+pnpm build
 ```
 
-`viewer/` uses **pnpm**; `pnpm dev` serves :3100 (pinned with `-p`, because
-`extension/auth.js` lists that origin). The two `NEXT_PUBLIC_SUPABASE_*` values
-come from `lib/supabase/env.ts`, which throws a named error when they are
-missing — never read `process.env` for them directly, or a missing var becomes a
-blank 500 from `proxy.ts` on every route, static ones included. `npm run lint` is clean — no warnings, no
-errors. Keep it that way.
+CI (`.github/workflows/ci.yml`) runs exactly these. Local Postgres + S3:
+`docker compose -f docker-compose.dev.yml up`, then `apps/web/.env.example`.
+
+`test-tenancy.ts` needs neither: it runs the real repo, the real postgres-js
+client and the real migrations against PGlite (Postgres in WASM) behind
+`@electric-sql/pglite-socket`, with a fake S3 in-process, under
+`--conditions=react-server` so `import 'server-only'` resolves. That is also why
+`lib/db`, `lib/env`, `lib/storage` and `lib/server` import each other by
+**relative path with `.ts`** — node's type stripping does not read tsconfig
+paths. PGlite multiplexes connections into one engine, so concurrent queries
+from a pool can interleave there; the test is sequential. Real Postgres has no
+such problem.
+
+`apps/web/` uses **pnpm**; `pnpm dev` serves :3100 (pinned with `-p`, because
+`apps/extension/auth.js` lists that origin). `pnpm lint` is clean — no warnings,
+no errors. Keep it that way.
 
 ## The dashboard streams
 
-Every route under `viewer/src/app/(dash)/` has a `loading.tsx`, and the segment
+Every route under `apps/web/src/app/(dash)/` has a `loading.tsx`, and the segment
 shares one `error.tsx` and one `not-found.tsx`. A page is a **static shell plus
 a Suspense'd async child** — never an `async` component that awaits before
 returning its layout, which blocks first paint on a database round trip. The
@@ -252,9 +289,10 @@ skeletons live together in `components/skeletons.tsx` so they stay the same
 shape as what replaces them; `loading.tsx` and the in-page fallback share the
 same one.
 
-Supabase reads on this side go through `cache()`d functions
-(`supabaseServer`, `navData`, `getReport`) so a layout and a page asking for the
-same rows make one query. Pass a *promise* to two children rather than fetching
+Reads on this side go through `cache()`d functions (`currentActor`, `navData`,
+`getReport`) so a layout and a page asking for the same rows make one query.
+Mutations are server actions in `(dash)/actions.ts`; each re-derives the actor
+and validates its input, because an action is a public POST endpoint. Pass a *promise* to two children rather than fetching
 twice — see `(dash)/page.tsx`, where the count and the grid share one.
 
 **There is one list, and it is the home page.** `/` is the grid of recordings,
@@ -273,21 +311,16 @@ share page passes the same thing flat and read-only. The header above it is a
 bar with nothing but the way back and the Share button: **the page, the
 project, the clock and the machine all live in the log pane's `Info` tab**,
 which is the first tab and the default. Do not re-add any of them to the
-header — one place to look was the point. Search therefore covers `title` and `description`, not just the title. Thumbnails come
-from `lib/previews.ts`, which signs every path in the page with ONE
-`createSignedUrls` call — never one per row.
-
-**Deleting a report deletes its object first, then the row** — see
-`components/delete-reports.tsx`. Both orders can orphan a `.webm` if the second
-half fails; this one never leaves a report you can open and cannot watch. There
-is no trigger and no cascade: a database trigger cannot call the storage API,
-and touching `storage.objects` from SQL would bypass the policy that makes this
-safe.
+header — one place to look was the point. Search covers `title` and
+`description`, not just the title, and treats `%` and `_` literally.
 
 A failed query `throw`s; it does not render its own error card. `error.tsx`
-owns that, including the missing-migration hint — which matches PostgREST's
-"does not exist" rather than one column name, because the column it used to
-sniff for is no longer selected by anything.
+owns that, including the missing-migration hint, which matches Postgres's
+"does not exist".
+
+**A not-found report still answers 200.** `loading.tsx` streams the shell, so
+the status is committed before `notFound()` runs; the body is the not-found
+page. That was true before the rebuild too. Test for the content, not the code.
 
 **A screenshot report renders no transport.** `ReportView` hides the play
 button, the scrubber and the clock when `media.kind !== 'video'`: there is no
@@ -299,17 +332,10 @@ in its header and Chrome reports `Infinity` — and paints the scrubber pinned t
 the far right, which read as "already finished". `report-view.tsx` probes for it
 (`currentTime = 1e101`, then `durationchange` puts it back at 0) and ignores
 `timeupdate` while the probe is in flight. Fixing it in the extension instead
-would need a bundler in `extension/`, and would leave every recording already in
+would need a bundler in `apps/extension/`, and would leave every recording already in
 the bucket unplayable. There is ONE transport, the custom one: the native
 `controls` scrubbed only the video while the track spans the rolling buffer too,
 and the two disagreed about where the start is.
-
-**`proxy.ts` uses `getClaims()`, never `getUser()`.** It runs on every request,
-RSC navigations included; `getUser()` is a ~370ms round trip to the auth server
-each time and was the real cause of sluggish routing. The project signs with
-ES256, so `getClaims()` verifies locally against a module-cached JWKS. Same
-guarantee — a forged or expired token fails verification. Applies to
-`navData()` too, and to anything else that runs per request.
 
 **The dashboard is light only, for now.** `ThemeProvider` passes
 `forcedTheme="light"`; the `.dark` block in `globals.css` and
@@ -329,7 +355,7 @@ re-running `shadcn add sidebar` reverts it.
 
 ## Next.js 16 is not the Next.js you know
 
-`viewer/AGENTS.md` is auto-written by `next dev` and says so. The authoritative
-docs ship in `viewer/node_modules/next/dist/docs/` — 452 files. Read those
+`apps/web/AGENTS.md` is auto-written by `next dev` and says so. The authoritative
+docs ship in `apps/web/node_modules/next/dist/docs/` — 452 files. Read those
 rather than recalling Next 14/15 conventions. Notably: `middleware.ts` is now
 `proxy.ts` and exports `proxy`.

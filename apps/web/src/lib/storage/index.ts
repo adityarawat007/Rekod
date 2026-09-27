@@ -1,0 +1,52 @@
+import 'server-only';
+import { AwsClient } from 'aws4fetch';
+import { serverEnv } from '../env.ts';
+
+/**
+ * Any S3-compatible bucket: SeaweedFS in dev, Supabase Storage's S3 endpoint
+ * (`https://<ref>.supabase.co/storage/v1/s3`) for our org, R2/S3/MinIO for
+ * self-hosters. Path-style URLs, because Supabase and SeaweedFS both want them.
+ *
+ * The server only signs; bytes go browser/extension ⇄ bucket directly.
+ */
+let client: AwsClient | undefined;
+const aws = () => {
+  const e = serverEnv();
+  return (client ??= new AwsClient({
+    accessKeyId: e.S3_ACCESS_KEY_ID,
+    secretAccessKey: e.S3_SECRET_ACCESS_KEY,
+    service: 's3',
+    region: e.S3_REGION,
+  }));
+};
+
+const objectUrl = (key: string) => {
+  const e = serverEnv();
+  const path = key.split('/').map(encodeURIComponent).join('/');
+  return new URL(`${e.S3_ENDPOINT.replace(/\/$/, '')}/${e.S3_BUCKET}/${path}`);
+};
+
+async function presign(method: 'GET' | 'PUT', key: string, seconds: number) {
+  const url = objectUrl(key);
+  url.searchParams.set('X-Amz-Expires', String(seconds));
+  const signed = await aws().sign(url.toString(), { method, aws: { signQuery: true } });
+  return signed.url;
+}
+
+/** 15 minutes: long enough to upload a 3-minute video on a slow link. */
+export const presignUpload = (key: string, seconds = 900) => presign('PUT', key, seconds);
+/** Short on purpose — see "Old signed URLs keep working" in ROADMAP.md. */
+export const presignDownload = (key: string, seconds = 900) => presign('GET', key, seconds);
+
+export async function removeObject(key: string) {
+  const res = await aws().fetch(objectUrl(key).toString(), { method: 'DELETE' });
+  // 404 is success: the object is already gone, which is what delete wants.
+  if (!res.ok && res.status !== 404) throw new Error(`storage delete ${key}: ${res.status}`);
+}
+
+/** A JSON object (the logs and network files), fetched server-side. */
+export async function readJson<T>(key: string): Promise<T> {
+  const res = await aws().fetch(objectUrl(key).toString());
+  if (!res.ok) throw new Error(`storage read ${key}: ${res.status}`);
+  return res.json() as Promise<T>;
+}

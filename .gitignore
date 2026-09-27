@@ -2,7 +2,7 @@ node_modules/
 .next/
 *.tsbuildinfo
 
-# Secrets. .env.local.example is the tracked template.
+# Secrets. apps/web/.env.example is the tracked template.
 .env.local
 
 .DS_Store
