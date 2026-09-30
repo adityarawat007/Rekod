@@ -165,6 +165,29 @@ const refuse = (tab) => {
   if (RESTRICTED.test(tab.url || '')) throw new Error("Chrome's own pages can't be captured");
 };
 
+/** Asks the dashboard whether this capture may start (GET /api/v1/me), so a
+ *  full plan is said before recording rather than after Send. The server's
+ *  answer is obeyed as is: `message` is thrown for the popup or the pill to
+ *  show, and `path` is opened. Fails open — no session, a network error, an
+ *  older server: capture anyway; POST /api/v1/reports still enforces. */
+async function allowed(kind) {
+  const session = await fjLiveSession();
+  if (!session) return;
+  let me;
+  try {
+    const r = await fetch(`${session.origin}/api/v1/me`, {
+      headers: { Authorization: `Bearer ${session.access_token}`, 'X-ReKod-Version': chrome.runtime.getManifest().version },
+    });
+    me = await r.json();
+  } catch { return; }
+  // Refused outright (`record: false`), or an error written for people — the
+  // 426 "please update" from an outdated version. A bare 401 is not either.
+  const blocked = me?.[kind] === false || !!(me?.error && me?.message);
+  if (!blocked) return;
+  if (me.path && DASH_ORIGINS.includes(session.origin)) chrome.tabs.create({ url: session.origin + me.path });
+  throw new Error(me.message || "Your plan doesn't allow this right now");
+}
+
 async function startVideo(tab) {
   refuse(tab);
   // The mic setting lives in storage, not in the message, because the hotkey
@@ -172,8 +195,13 @@ async function startVideo(tab) {
   // while AUDIO is off in offscreen.js, which ignores the flag anyway; the read
   // stays so the switch is the only thing that has to come back.
   const { fjMic } = await chrome.storage.local.get('fjMic');
-  // tabCapture needs activeTab, which the popup click or the command gesture grants.
-  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+  // tabCapture needs activeTab, which the popup click or the command gesture
+  // grants. Asked alongside the plan check, not after it, so the check adds
+  // no wait before recording starts.
+  const [streamId] = await Promise.all([
+    chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id }),
+    allowed('record'),
+  ]);
   await ensureWidget(tab.id);
   const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: !!fjMic });
   if (r?.err) throw new Error(r.err);
@@ -182,7 +210,10 @@ async function startVideo(tab) {
 
 async function startShot(tab) {
   refuse(tab);
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  const [dataUrl] = await Promise.all([
+    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }),
+    allowed('shot'),
+  ]);
   await ensureWidget(tab.id);
   const r = await ask({ t: 'shot', dataUrl, tabId: tab.id });
   if (r?.err) throw new Error(r.err);

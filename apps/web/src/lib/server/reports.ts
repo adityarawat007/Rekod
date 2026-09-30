@@ -1,9 +1,10 @@
 import 'server-only';
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.ts';
 import { shareToken, uuidv7 } from '../db/ids.ts';
 import { presignDownload, presignUpload, readJson, removeObject } from '../storage/index.ts';
+import { LIMITS, PLANS, type Plan } from '../plans.ts';
 
 /**
  * The scoped reports repo. EVERY function takes the workspace first and puts
@@ -11,6 +12,8 @@ import { presignDownload, presignUpload, readJson, removeObject } from '../stora
  * RLS behind it. test-tenancy.ts checks each one against a second workspace.
  *
  * The one unscoped read is sharedReport(), where the token is the credential.
+ * The one unscoped write is purgeAbandoned(), a system job with no caller.
+ * usageOf() and setPlan() are keyed by user, not workspace: a plan is a person's.
  */
 const { reports: R, reportAssets: A, comments: C, user: U } = schema;
 
@@ -161,7 +164,46 @@ export const CreateInput = z.object({
     .refine((e) => JSON.stringify(e).length < 16_384, 'env is too large'),
   /** The media's MIME type, or null when the capture produced none. */
   media: z.string().regex(/^(video\/webm|image\/png)(;.*)?$/).nullable(),
+  /** Exact byte sizes. Each is signed into its upload URL, so the bucket
+   *  refuses a body of any other length — that is the size cap. */
+  sizes: z.object({
+    media: z.number().int().positive().optional(),
+    logs: z.number().int().nonnegative(),
+    network: z.number().int().nonnegative(),
+  }),
 });
+
+// ── plans ───────────────────────────────────────────────────────────────────
+
+/** A user's standing, in one query. Only `ready` videos count against the
+ *  limit: a discarded or abandoned upload never shows up, so it must not use
+ *  a slot. Deleting a video frees one. Screenshots are not counted.
+ *  `lastHour` counts every create, finished or not — that is the rate limit. */
+export async function usageOf(userId: string) {
+  const [u] = await db().select({
+    plan: U.plan,
+    limit: U.videoLimit,
+    // Raw and aliased: drizzle writes columns unqualified here, and a bare
+    // "id" inside the subquery would bind to reports.id, not the user's.
+    videos: sql<number>`(select count(*)::int from rekod.reports r
+      where r.created_by = rekod."user".id and r.type = 'video' and r.status = 'ready')`,
+    lastHour: sql<number>`(select count(*)::int from rekod.reports r
+      where r.created_by = rekod."user".id and r.created_at > now() - interval '1 hour')`,
+  }).from(U).where(eq(U.id, userId));
+  return u ?? null;
+}
+
+/** Moves a user to a plan, taking its video limit unless given one. The only
+ *  way a plan changes today (`pnpm set-plan`); billing will call it too. */
+export async function setPlan(email: string, plan: Plan, videos: number = PLANS[plan].videos) {
+  const res = await db().update(U).set({ plan, videoLimit: videos })
+    .where(eq(U.email, email.toLowerCase())).returning({ id: U.id });
+  return res.length > 0;
+}
+
+export type Refusal = { refused: 'videos' | 'rate' | 'size'; message: string };
+
+const mb = (n: number) => `${Math.round(n / 2 ** 20)} MB`;
 
 /** Creates the row in `processing` and hands back one presigned PUT per file.
  *  The bytes go extension → bucket; this server never sees them.
@@ -170,14 +212,35 @@ export const CreateInput = z.object({
  *  ~150ms from here and a transaction is four of them. If the second insert
  *  fails, what is left is a `processing` row nobody lists — harmless. The id
  *  is minted here so both inserts can name it. */
-export async function createReport(ws: string, userId: string, input: z.infer<typeof CreateInput>) {
+export async function createReport(
+  ws: string, userId: string, input: z.infer<typeof CreateInput>,
+): Promise<Refusal | { id: string; uploads: Partial<Record<'media' | 'logs' | 'network', string>> }> {
   const type = input.media?.startsWith('image/') ? 'screenshot' as const : 'video' as const;
-  const id = uuidv7();
-  const files: { kind: Kind; mime: string }[] = [
-    ...(input.media ? [{ kind: type, mime: input.media.split(';')[0] }] : []),
-    { kind: 'logs', mime: 'application/json' },
-    { kind: 'network', mime: 'application/json' },
+  const files: { kind: Kind; mime: string; bytes: number }[] = [
+    ...(input.media ? [{ kind: type, mime: input.media.split(';')[0], bytes: input.sizes.media ?? 0 }] : []),
+    { kind: 'logs', mime: 'application/json', bytes: input.sizes.logs },
+    { kind: 'network', mime: 'application/json', bytes: input.sizes.network },
   ];
+  for (const f of files) {
+    const max = LIMITS.bytes[f.kind];
+    if (f.bytes > max || (f.kind === type && !f.bytes)) {
+      return { refused: 'size', message: `This ${f.kind === type ? 'recording' : f.kind + ' file'} is over ${mb(max)}.` };
+    }
+  }
+
+  // Checked here so the extension hears "full" before it uploads anything.
+  // completeReport() enforces the video limit again, since two creates can
+  // both pass this. One query, ~150ms, while the composer is open anyway.
+  const u = await usageOf(userId);
+  if (!u) return { refused: 'videos', message: 'No such user.' };
+  if (u.lastHour >= LIMITS.createsPerHour) {
+    return { refused: 'rate', message: 'Too many ReKods in the last hour. Try again in a bit.' };
+  }
+  if (type === 'video' && u.videos >= u.limit) {
+    return { refused: 'videos', message: `You have used all ${u.limit} ReKods on your plan. Delete one to record another.` };
+  }
+
+  const id = uuidv7();
 
   await db().insert(R).values({
     id, workspaceId: ws, createdBy: userId, type,
@@ -192,7 +255,7 @@ export async function createReport(ws: string, userId: string, input: z.infer<ty
   // Presigning is a local HMAC — no round trip.
   const uploads: Partial<Record<'media' | 'logs' | 'network', string>> = {};
   for (const f of files) {
-    uploads[f.kind === 'logs' || f.kind === 'network' ? f.kind : 'media'] = await presignUpload(keyFor(ws, id, f.kind));
+    uploads[f.kind === 'logs' || f.kind === 'network' ? f.kind : 'media'] = await presignUpload(keyFor(ws, id, f.kind), f.bytes);
   }
   return { id, uploads };
 }
@@ -225,8 +288,16 @@ export async function completeReport(ws: string, id: string, f: z.infer<typeof C
   if (f.pageUrl !== undefined) set.pageUrl = f.pageUrl;
   if (f.project !== undefined) set.project = f.project;
   if (f.env !== undefined) set.env = f.env;
+  // The video limit, in the same UPDATE: a video becomes ready only while its
+  // creator has fewer ready ones than their video_limit. An already-ready row
+  // passes, so a retried /complete stays idempotent. `mine` and `u` are
+  // aliased so that rekod.reports.created_by means the row being completed.
+  const underCap = sql`(${R.type} <> 'video' or ${R.status} = 'ready' or (
+    select count(*) from rekod.reports mine
+    where mine.created_by = rekod.reports.created_by and mine.type = 'video' and mine.status = 'ready'
+  ) < (select u.video_limit from rekod."user" u where u.id = rekod.reports.created_by))`;
   const res = await db().update(R).set(set)
-    .where(and(eq(R.workspaceId, ws), eq(R.id, id))).returning({ id: R.id });
+    .where(and(eq(R.workspaceId, ws), eq(R.id, id), underCap)).returning({ id: R.id });
   return res.length > 0;
 }
 
@@ -249,6 +320,21 @@ export async function deleteReports(ws: string, ids: string[]) {
   await Promise.allSettled(keys.map((k) => removeObject(k.key)));
   const res = await db().delete(R).where(and(eq(R.workspaceId, ws), inArray(R.id, valid))).returning({ id: R.id });
   return res.length;
+}
+
+/** Deletes `processing` reports older than LIMITS.abandonedAfterMs, files
+ *  first, across every workspace — the one unscoped write, run by the cleanup
+ *  job and nothing else. An upload that never reached Send (a closed tab, a
+ *  crash, a client that only ever creates) would otherwise hold its files
+ *  forever. Batched so one run stays inside a function's time limit. */
+export async function purgeAbandoned(batch = 200) {
+  const rows = await db().select({ id: R.id, ws: R.workspaceId }).from(R)
+    .where(and(eq(R.status, 'processing'), lt(R.createdAt, new Date(Date.now() - LIMITS.abandonedAfterMs))))
+    .limit(batch);
+  const byWs = Map.groupBy(rows, (r) => r.ws);
+  let n = 0;
+  for (const [ws, rs] of byWs) n += await deleteReports(ws, rs.map((r) => r.id));
+  return n;
 }
 
 // ── comments ────────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
+import { serverEnv } from './lib/env';
+import { olderThan } from './lib/version';
 
 /**
  * An optimistic gate: is there a session cookie at all? It does not verify
@@ -12,12 +14,26 @@ import { getSessionCookie } from 'better-auth/cookies';
  *  - /login, and /api/auth (Better Auth's own routes, the Google callback too)
  *  - /api/v1: the extension's API, which authenticates by Bearer itself
  *  - /s/<token>: the share page — the token is the credential
+ *  - /api/cron: Vercel's scheduler, which authenticates by CRON_SECRET itself
  *  - /api/health (excluded by the matcher, it never runs this at all)
  */
-const OPEN = ['/login', '/api/auth', '/api/v1', '/s/'];
+const OPEN = ['/login', '/api/auth', '/api/v1', '/api/cron', '/s/'];
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
+  // The kill switch for old extensions: every /api/v1 call carries the
+  // extension's version, and one below MIN_EXTENSION_VERSION is told to update
+  // instead of served. `message` is shown as is, by every version that has
+  // this header — which is why it shipped before anything needed it.
+  const min = path.startsWith('/api/v1') && serverEnv().MIN_EXTENSION_VERSION;
+  if (min && olderThan(req.headers.get('x-rekod-version'), min)) {
+    return NextResponse.json({
+      error: 'outdated',
+      message: 'This version of ReKod is out of date. Update it from chrome://extensions, then try again.',
+    }, { status: 426 });
+  }
+
   const open = OPEN.some((p) => path.startsWith(p));
   const signedIn = !!getSessionCookie(req, { cookiePrefix: 'rekod' });
 

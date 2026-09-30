@@ -12,5 +12,11 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: 'invalid', issues: parsed.error.issues }, { status: 400 });
   }
-  return Response.json(await createReport(actor.workspaceId, actor.userId, parsed.data), { status: 201 });
+  const created = await createReport(actor.workspaceId, actor.userId, parsed.data);
+  if ('refused' in created) {
+    // `message` is for people: the extension shows it as is, in the pill.
+    const status = { videos: 403, rate: 429, size: 413 }[created.refused];
+    return Response.json({ error: created.refused, message: created.message }, { status });
+  }
+  return Response.json(created, { status: 201 });
 }

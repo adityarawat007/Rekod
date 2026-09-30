@@ -53,6 +53,7 @@ await migrate(drizzle(admin), { migrationsFolder: './src/lib/db/migrations' });
 
 const { uuidv7 } = await import('./src/lib/db/ids.ts');
 const repo = await import('./src/lib/server/reports.ts');
+const { LIMITS } = await import('./src/lib/plans.ts');
 
 // ── ids
 const a1 = uuidv7(1_000), a2 = uuidv7(2_000);
@@ -69,10 +70,18 @@ for (const who of ['a', 'b']) {
 
 // ── A files a report through the same path the extension uses
 // The extension creates with only what it knows at stop; the title comes with /complete.
-const input = repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', project: 'app.test' });
-const { id, uploads } = await repo.createReport('wa', 'ua', input);
+const sizes = { media: 4, logs: 60, network: 2 };
+const input = repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', project: 'app.test', sizes });
+/** A create that must succeed. */
+const made = async (ws: string, u: string, i = input) => {
+  const r = await repo.createReport(ws, u, i);
+  if ('refused' in r) throw new Error(`refused: ${r.message}`);
+  return r;
+};
+const { id, uploads } = await made('wa', 'ua');
 assert.deepEqual(Object.keys(uploads).sort(), ['logs', 'media', 'network']);
 assert.match(uploads.media!, /X-Amz-Signature=/);
+assert.match(uploads.media!, /X-Amz-SignedHeaders=content-length%3Bhost/, 'the size is signed into the URL');
 
 assert.equal((await repo.listReports('wa')).length, 0, 'processing reports are not listed');
 
@@ -137,6 +146,53 @@ assert.equal(await repo.getReport('wa', 'nope'), null);
 assert.equal(await repo.deleteReports('wa', [id]), 1);
 assert.equal(objects.size, 0);
 assert.equal(await repo.getReport('wa', id), null);
+
+// ── plans: the video limit is per user, from the user row
+const refusal = async (ws: string, u: string, i: typeof input) => {
+  const r = await repo.createReport(ws, u, i);
+  return 'refused' in r ? r.refused : null;
+};
+assert.equal(await repo.setPlan('A@X.test', 'free', 3), true, 'setPlan matches the email case-insensitively');
+assert.equal(await repo.setPlan('nobody@x.test', 'pro'), false);
+assert.deepEqual((({ plan, limit, videos }) => ({ plan, limit, videos }))((await repo.usageOf('ua'))!),
+  { plan: 'free', limit: 3, videos: 0 });
+assert.equal((await repo.usageOf('ub'))!.limit, 20, 'a new user gets the free plan');
+
+const racer = await made('wa', 'ua');            // created under the limit, completed over it
+for (let i = 0; i < 3; i++) assert.equal(await repo.completeReport('wa', (await made('wa', 'ua')).id), true);
+assert.equal((await repo.usageOf('ua'))!.videos, 3);
+assert.equal(await refusal('wa', 'ua', input), 'videos', 'create refuses a video over the limit');
+assert.equal(await repo.completeReport('wa', racer.id), false, 'complete refuses one that raced past create');
+const png = repo.CreateInput.parse({ t0: Date.now(), media: 'image/png', sizes });
+assert.equal(await refusal('wa', 'ua', png), null, 'screenshots are not counted');
+assert.equal(await refusal('wb', 'ub', input), null, "A's limit is not B's");
+const last = (await repo.listReports('wa'))[0].id;
+assert.equal(await repo.completeReport('wa', last), true, 'a retried complete still succeeds');
+await repo.deleteReports('wa', [last]);
+assert.equal(await refusal('wa', 'ua', input), null, 'deleting one frees a slot');
+await repo.setPlan('a@x.test', 'pro');
+assert.equal((await repo.usageOf('ua'))!.limit, 200, 'a plan brings its own limit');
+assert.equal(await repo.completeReport('wa', racer.id), true, 'and the raced one can land now');
+
+// ── sizes: over the limit, or media with no size, is refused before a row exists
+const big = repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', sizes: { ...sizes, media: LIMITS.bytes.video + 1 } });
+assert.equal(await refusal('wb', 'ub', big), 'size');
+assert.equal(await refusal('wb', 'ub', repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', sizes: { logs: 1, network: 1 } })), 'size');
+assert.equal(await refusal('wb', 'ub', repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', sizes: { ...sizes, logs: LIMITS.bytes.logs + 1 } })), 'size');
+
+// ── rate: creates per hour, finished or not
+let n = (await repo.usageOf('ub'))!.lastHour;
+while (n < LIMITS.createsPerHour) { await made('wb', 'ub', png); n++; }
+assert.equal(await refusal('wb', 'ub', png), 'rate');
+assert.equal(await refusal('wa', 'ua', png), null, "B's rate is not A's");
+
+// ── cleanup: abandoned processing rows go, with their files; ready ones stay
+const readyBefore = (await repo.listReports('wa')).length;
+assert.equal(await repo.purgeAbandoned(), 0, 'nothing is abandoned yet');
+await admin`update rekod.reports set created_at = now() - interval '2 days' where status = 'processing'`;
+assert.ok(await repo.purgeAbandoned() > 0);
+assert.equal((await admin`select count(*)::int as n from rekod.reports where status = 'processing'`)[0].n, 0);
+assert.equal((await repo.listReports('wa')).length, readyBefore, 'ready reports survive the cleanup');
 
 console.log('tenancy ok');
 await admin.end();

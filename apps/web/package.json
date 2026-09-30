@@ -10,7 +10,8 @@
     "test": "node --experimental-strip-types --no-warnings test-logic.ts && node --conditions=react-server --experimental-strip-types --no-warnings test-tenancy.ts",
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "set-plan": "node --env-file=.env.local --conditions=react-server --experimental-strip-types --no-warnings scripts/set-plan.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

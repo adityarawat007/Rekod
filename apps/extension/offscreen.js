@@ -251,12 +251,25 @@ const retry = async (fn) => { try { return await fn(); } catch { return fn(); } 
 async function api(session, path, body, method = 'POST') {
   const r = await fetch(`${session.origin}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+      // The server can refuse versions below a minimum (MIN_EXTENSION_VERSION).
+      'X-ReKod-Version': chrome.runtime.getManifest().version,
+    },
     // Anything that slipped past redaction still cannot carry a NUL escape
     // into jsonb (env is stored as one). Cheaper to scrub than lose a report.
     body: body === undefined ? undefined : JSON.stringify(body).replace(/\\u0000/g, ''),
   });
-  if (!r.ok) throw new Error(`${path} ${r.status} ${await r.text()}`);
+  if (!r.ok) {
+    // `message` is written for people — a plan limit, "please update" — and is
+    // shown as it is. `path`, when sent, is a dashboard page to open with it.
+    // Both are the server's to decide, so a new rule needs no new extension.
+    const text = await r.text();
+    let j = {}; try { j = JSON.parse(text); } catch {}
+    if (j.path) chrome.runtime.sendMessage({ to: 'bg', t: 'open', origin: session.origin, path: j.path }).catch(() => {});
+    throw new Error(j.message || `${path} ${r.status} ${text}`);
+  }
   return r.status === 204 ? null : r.json();
 }
 
@@ -280,21 +293,26 @@ function preupload(tabId, t0) {
     // The row, in `processing`, and one presigned PUT per file. The server
     // picks the id, the storage keys and the workspace. The title and the page
     // are not known yet — they come with /complete.
+    // Logs and network are files, not columns — five minutes of them would
+    // not fit a request body. Built first because the server signs each
+    // file's exact size into its upload URL; that is the size cap.
+    const json = (o) => new Blob([JSON.stringify(o)], { type: 'application/json' });
+    const logs = json(entries.filter((e) => e.kind === 'console' || e.kind === 'event'));
+    const network = json(entries.filter((e) => e.kind === 'net'));
     const { id, uploads } = await retry(() => api(session, '/api/v1/reports', {
       t0, durationMs: shot ? null : Date.now() - t0, media: media ? media.type : null,
+      sizes: { media: media?.size, logs: logs.size, network: network.size },
     }));
 
-    // The bytes, straight to the bucket. Logs and network are files, not
-    // columns — five minutes of them would not fit a request body.
+    // The bytes, straight to the bucket.
     const put = (url, body, type) => retry(async () => {
       const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': type }, body });
       if (!r.ok) throw new Error(`upload ${r.status}`);
     });
-    const json = (o) => new Blob([JSON.stringify(o)], { type: 'application/json' });
     await Promise.all([
       media && put(uploads.media, media, media.type),
-      put(uploads.logs, json(entries.filter((e) => e.kind === 'console' || e.kind === 'event')), 'application/json'),
-      put(uploads.network, json(entries.filter((e) => e.kind === 'net')), 'application/json'),
+      put(uploads.logs, logs, 'application/json'),
+      put(uploads.network, network, 'application/json'),
     ]);
     return { id, session };
   })();

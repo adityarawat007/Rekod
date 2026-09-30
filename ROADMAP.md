@@ -31,7 +31,7 @@ Everything one person needs is free; anything a team needs is paid. This is the 
 | --- | --- |
 | Recording, screenshots, console and network capture, rolling 5-minute buffer | Free |
 | Redaction, including custom redaction rules | Free |
-| Personal workspace with unlimited reports and comments | Free |
+| Personal workspace with 20 videos (more by plan, or set per user), unlimited screenshots and comments | Free |
 | Read-only share links | Free |
 | Email + password and Google sign-in, extension API tokens | Free |
 | Self-hosting with Docker | Free |

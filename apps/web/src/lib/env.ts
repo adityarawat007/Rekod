@@ -8,6 +8,9 @@ import { z } from 'zod';
 const list = z.string().optional().transform((s) =>
   (s ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean));
 const flag = z.string().optional().transform((s) => s === 'true' || s === '1');
+/** An optional value where `NAME=` (empty) means unset, as .env.example writes it. */
+const unsetIfEmpty = (t: z.ZodString) =>
+  z.string().optional().transform((s) => s || undefined).pipe(t.optional());
 
 const schema = z.object({
   DATABASE_URL: z.url(),
@@ -26,6 +29,12 @@ const schema = z.object({
   S3_BUCKET: z.string().min(1),
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_SECRET_ACCESS_KEY: z.string().min(1),
+
+  /** Bearer for /api/cron/cleanup. Unset: the job refuses every caller. */
+  CRON_SECRET: unsetIfEmpty(z.string().min(16)),
+  /** e.g. 0.3.0. Older extensions (or ones sending no version) get a 426
+   *  "please update" from /api/v1. Unset: every version is accepted. */
+  MIN_EXTENSION_VERSION: unsetIfEmpty(z.string().regex(/^\d+(\.\d+)*$/)),
 });
 
 export type ServerEnv = z.infer<typeof schema>;

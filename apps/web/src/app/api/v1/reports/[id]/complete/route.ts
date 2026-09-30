@@ -15,6 +15,8 @@ export async function POST(req: Request, ctx: RouteContext<'/api/v1/reports/[id]
   }
   const { id } = await ctx.params;
   if (!(await completeReport(actor.workspaceId, id, parsed.data))) {
+    // Also what a video over its creator's video_limit gets. Create refuses those first, so
+    // only two uploads racing each other reach this.
     return Response.json({ error: 'not found' }, { status: 404 });
   }
   return Response.json({ id, path: `/reports/${id}` });

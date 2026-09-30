@@ -1,5 +1,6 @@
 import { bigint, boolean, index, integer, jsonb, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { shareToken, uuidv7 } from './ids.ts';
+import { PLANS } from '../plans.ts';
 
 /**
  * Every ReKod table lives in the `rekod` Postgres schema, not `public`: on
@@ -18,6 +19,10 @@ export const user = rekod.table('user', {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
+  // ReKod's, not Better Auth's — it ignores columns it was not told about, and
+  // not declaring them means sign-up cannot set them. See lib/plans.ts.
+  plan: text('plan').notNull().default('free'),
+  videoLimit: integer('video_limit').notNull().default(PLANS.free.videos),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 });

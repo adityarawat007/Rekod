@@ -5,6 +5,7 @@ import assert from 'node:assert';
 import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
+import { olderThan } from './src/lib/version.ts';
 
 const T0 = 1700000000000;
 
@@ -152,5 +153,13 @@ assert.strictEqual(
 assert.strictEqual(uaSummary('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/131.0')?.os, 'Windows');
 assert.deepStrictEqual(uaSummary(''), null, 'no UA is no claim');
 assert.deepStrictEqual(uaSummary('something entirely unknown'), { browser: null, os: null, apple: false });
+
+// ── the extension version gate ──────────────────────────────────────────────
+assert.equal(olderThan('0.2.0', '0.3.0'), true);
+assert.equal(olderThan('0.10.0', '0.9.9'), false, 'numeric, not string, order');
+assert.equal(olderThan('0.3', '0.3.0'), false, 'a missing part is 0');
+assert.equal(olderThan('0.3.0', '0.3.0'), false, 'the minimum itself passes');
+assert.equal(olderThan(null, '0.1.0'), true, 'no header is too old');
+assert.equal(olderThan('1.0-beta', '0.1.0'), true, 'garbage is too old');
 
 console.log('viewer logic ok');

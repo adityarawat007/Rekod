@@ -87,6 +87,21 @@ them does not fit a serverless request body. Only `ready` reports are listed or
 shareable. Keys are `<workspace>/<report>/<kind>.<ext>`. Presigning is a local
 HMAC, so signing one URL per row costs nothing.
 
+**A plan is a person's, and its limit is a number on the user row.**
+`user.plan` + `user.video_limit` (not Better Auth fields — undeclared on
+purpose, so sign-up cannot set them). `lib/plans.ts` holds each plan's default;
+`setPlan()` / `pnpm set-plan <email> <plan> [videos]` copies it onto the row,
+or sets any number by hand. Only `ready` videos count; screenshots do not.
+`createReport()` refuses early (limit, 30 creates/hour, per-file size) and
+`completeReport()` re-checks the limit inside its one UPDATE. The size cap is
+the exact `Content-Length` signed into each presigned PUT. `/api/v1/me` is the
+extension's pre-capture check and fails open; the server is the real gate.
+Every refusal carries a `message` for people (and optionally a `path`), which
+the extension shows as is — a new rule is a server change, not an extension
+release. `X-ReKod-Version` + `MIN_EXTENSION_VERSION` is the kill switch for old
+installs. `/api/cron/cleanup` (daily, `CRON_SECRET`) purges `processing` rows
+older than a day, with their files.
+
 **The S3 keys and `BETTER_AUTH_SECRET` are the god keys now.** Server env only,
 never `NEXT_PUBLIC_`. Supabase's S3 access keys bypass its storage RLS.
 

@@ -26,15 +26,19 @@ const objectUrl = (key: string) => {
   return new URL(`${e.S3_ENDPOINT.replace(/\/$/, '')}/${e.S3_BUCKET}/${path}`);
 };
 
-async function presign(method: 'GET' | 'PUT', key: string, seconds: number) {
+async function presign(method: 'GET' | 'PUT', key: string, seconds: number, bytes?: number) {
   const url = objectUrl(key);
   url.searchParams.set('X-Amz-Expires', String(seconds));
-  const signed = await aws().sign(url.toString(), { method, aws: { signQuery: true } });
+  // allHeaders: aws4fetch leaves content-length out of the signature by
+  // default. Signed in, the bucket rejects a body of any other length.
+  const headers = bytes === undefined ? undefined : { 'content-length': String(bytes) };
+  const signed = await aws().sign(url.toString(), { method, headers, aws: { signQuery: true, allHeaders: true } });
   return signed.url;
 }
 
-/** 15 minutes: long enough to upload a 3-minute video on a slow link. */
-export const presignUpload = (key: string, seconds = 900) => presign('PUT', key, seconds);
+/** 15 minutes: long enough to upload a 3-minute video on a slow link. The
+ *  exact size is signed in — that is the only size cap a direct upload has. */
+export const presignUpload = (key: string, bytes: number, seconds = 900) => presign('PUT', key, seconds, bytes);
 /** Short on purpose — see "Old signed URLs keep working" in ROADMAP.md. */
 export const presignDownload = (key: string, seconds = 900) => presign('GET', key, seconds);
 
