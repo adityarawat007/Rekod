@@ -1,17 +1,17 @@
 import { Suspense } from 'react';
-import { AppSidebar, AppSidebarSkeleton } from '@/components/app-sidebar';
+import { AppSidebar, SidebarUserSkeleton } from '@/components/app-sidebar';
 import { SidebarNav } from '@/components/sidebar-nav';
 import { Brand } from '@/components/brand';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 
-// Not async on purpose. proxy.ts already proved there is a session and RLS
-// scopes every row below to it, so the shell needs no data of its own and
-// paints before the first query returns.
+// Not async on purpose. proxy.ts already proved there is a session and
+// lib/server scopes every row below to it, so the shell needs no data of its
+// own and paints before the first query returns.
 export default function DashLayout({ children }: LayoutProps<'/'>) {
   return (
     <SidebarProvider>
       <AppSidebar>
-        <Suspense fallback={<AppSidebarSkeleton />}>
+        <Suspense fallback={<SidebarUserSkeleton />}>
           <SidebarNav />
         </Suspense>
       </AppSidebar>

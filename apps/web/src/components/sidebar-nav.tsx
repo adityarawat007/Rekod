@@ -1,19 +1,17 @@
 import { cache } from 'react';
-import { requireActor } from '@/lib/server/session';
-import { projectsOf } from '@/lib/server/reports';
-import { AppSidebarNav } from '@/components/app-sidebar';
+import { currentUser } from '@/lib/server/session';
+import { SidebarUser } from '@/components/app-sidebar';
 
-/** One cheap read feeds every sidebar count and the project list. The full
- *  logs/network blobs are never touched here. cache()d so a page that also
- *  needs the project list does not run it twice. */
+/** The signed-in person, from Better Auth's signed cookie cache — no database
+ *  round trip, so the chip fills in almost with the shell. cache()d so the
+ *  report page asking for the email costs nothing. */
 export const navData = cache(async () => {
-  const a = await requireActor();
-  const { projects, total } = await projectsOf(a.workspaceId);
-  return { email: a.email, name: a.name, image: a.image, projects, counts: { all: total } };
+  const u = await currentUser();
+  return { email: u?.email ?? null, name: u?.name, image: u?.image };
 });
 
-/** Streams into the sidebar shell. Awaiting this in the layout instead would
- *  block first paint of the whole dashboard on a database round trip. */
+/** Streams into the sidebar footer. requireActor() on the page is the real
+ *  check; a missing session here just renders the fallback label. */
 export async function SidebarNav() {
-  return <AppSidebarNav {...await navData()} />;
+  return <SidebarUser {...await navData()} />;
 }

@@ -96,7 +96,6 @@ assert.equal(await repo.completeReport('wb', id, { title: 'pwned' }), false, 'B 
 assert.equal(await repo.completeReport('wa', id, { title: '100% broken_login', env: { host: 'app.test' } }), true);
 assert.equal(await repo.getReport('wb', id), null, 'B reads A');
 assert.equal((await repo.listReports('wb')).length, 0, 'B lists A');
-assert.equal((await repo.projectsOf('wb')).total, 0, 'B counts A');
 assert.equal(await repo.updateReport('wb', id, { title: 'pwned' }), false, 'B edits A');
 assert.equal(await repo.addComment('wb', 'ub', id, 'hi'), null, 'B comments on A');
 assert.equal(await repo.shareTokenFor('wb', id), null, 'B shares A');
@@ -110,7 +109,6 @@ assert.equal(mine?.title, '100% broken_login');
 assert.equal(mine?.logs.length, 1);
 assert.match(mine!.media!.url, /video\.webm/);
 assert.equal((await repo.listReports('wa')).length, 1);
-assert.equal((await repo.projectsOf('wa')).total, 1);
 
 // ── search treats % and _ literally
 assert.equal((await repo.listReports('wa', { q: '100%' })).length, 1);

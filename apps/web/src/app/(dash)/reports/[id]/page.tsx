@@ -28,8 +28,8 @@ export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
   const report = await getReport(id);
   if (!report) notFound();
 
-  // navData() is cache()d and the layout already ran it, so the signed-in
-  // email costs nothing here.
+  // navData() is cache()d, the layout already ran it, and it reads the
+  // session cookie, not the database — the email costs nothing here.
   const { email } = await navData();
 
   return (

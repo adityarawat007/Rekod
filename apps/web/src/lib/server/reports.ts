@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.ts';
 import { shareToken, uuidv7 } from '../db/ids.ts';
@@ -27,7 +27,7 @@ const keyFor = (ws: string, id: string, kind: Kind) =>
 
 // ── list ────────────────────────────────────────────────────────────────────
 
-export type ListFilters = { project?: string; q?: string; days?: number };
+export type ListFilters = { q?: string };
 
 export type ListRow = {
   id: string;
@@ -44,10 +44,8 @@ const likeable = (q: string) => `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 
 export async function listReports(ws: string, f: ListFilters = {}): Promise<ListRow[]> {
   const where = [eq(R.workspaceId, ws), eq(R.status, 'ready')];
-  if (f.project) where.push(eq(R.project, f.project));
   const q = f.q?.trim();
   if (q) where.push(or(ilike(R.title, likeable(q)), ilike(R.description, likeable(q)))!);
-  if (f.days) where.push(gte(R.createdAt, new Date(Date.now() - f.days * 864e5)));
 
   const rows = await db()
     .select({
@@ -66,19 +64,6 @@ export async function listReports(ws: string, f: ListFilters = {}): Promise<List
   return Promise.all(rows.map(async ({ key, ...r }) => ({
     ...r, preview: key ? await presignDownload(key, 3600) : null,
   })));
-}
-
-/** Sidebar: the project list and the total, from one small read. */
-export async function projectsOf(ws: string) {
-  const rows = await db()
-    .select({ project: R.project, n: count() })
-    .from(R)
-    .where(and(eq(R.workspaceId, ws), eq(R.status, 'ready')))
-    .groupBy(R.project);
-  return {
-    projects: rows.map((r) => r.project).filter((p): p is string => !!p).sort(),
-    total: rows.reduce((s, r) => s + r.n, 0),
-  };
 }
 
 // ── one report ──────────────────────────────────────────────────────────────

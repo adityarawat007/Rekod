@@ -33,6 +33,12 @@ async function actorFrom(h: Headers): Promise<Actor | null> {
 /** cache()d per request: the layout, the page and every streamed child ask. */
 export const currentActor = cache(async () => actorFrom(await headers()));
 
+/** Who is signed in, without the workspace lookup: the session alone comes
+ *  from the 5-minute signed cookie cache, so this makes no query. For display
+ *  only — anything that reads or writes rows goes through requireActor(). */
+export const currentUser = cache(async () =>
+  (await auth().api.getSession({ headers: await headers() }))?.user ?? null);
+
 /** For pages and server actions. proxy.ts only checks the cookie exists. */
 export async function requireActor(): Promise<Actor> {
   const a = await currentActor();

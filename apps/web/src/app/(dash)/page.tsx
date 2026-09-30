@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { requireActor } from '@/lib/server/session';
 import { listReports } from '@/lib/server/reports';
-import { navData } from '@/components/sidebar-nav';
 import { PageHeader } from '@/components/page-header';
 import { ReportFilters } from '@/components/report-filters';
 import { ReportList, type ListRow } from '@/components/report-list';
@@ -12,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 // inbox listing the same rows. Two screens for one job. The recordings are the
 // product, so they are the home page — tiles, trend and by-project bars are
 // deleted, not hidden. See PLAN.md.
-const FILTER_KEYS = ['project', 'q', 'range'] as const;
 
 type Search = Awaited<PageProps<'/'>['searchParams']>;
 const one = (sp: Search, k: string) =>
@@ -20,15 +18,16 @@ const one = (sp: Search, k: string) =>
 
 export default async function Home(props: PageProps<'/'>) {
   const sp = await props.searchParams;
-  const filtered = FILTER_KEYS.some((k) => one(sp, k));
+  const q = one(sp, 'q');
+  const filtered = !!q;
 
   // Started here, awaited in two places. One query feeds both the count and the
   // grid, and neither this component nor the page shell waits for it.
-  const rows = search(sp);
+  const rows = search(q);
 
-  // Keying the boundary on the query means changing a filter shows the skeleton
+  // Keying the boundary on the query means a new search shows the skeleton
   // again, instead of leaving stale cards up with no sign anything happened.
-  const key = FILTER_KEYS.map((k) => one(sp, k) ?? '').join(' ');
+  const key = q ?? '';
 
   return (
     <>
@@ -42,7 +41,7 @@ export default async function Home(props: PageProps<'/'>) {
       />
       <div className="space-y-4 p-6 md:p-8">
         <Suspense fallback={<Skeleton className="h-9 w-full" />}>
-          <Filters />
+          <ReportFilters />
         </Suspense>
 
         <Suspense key={key} fallback={<ReportGridSkeleton />}>
@@ -51,12 +50,6 @@ export default async function Home(props: PageProps<'/'>) {
       </div>
     </>
   );
-}
-
-/** The project list is the sidebar's query, already cached for this request. */
-async function Filters() {
-  const { projects } = await navData();
-  return <ReportFilters projects={projects} />;
 }
 
 async function ResultCount({ rows, filtered }: { rows: Promise<ListRow[]>; filtered: boolean }) {
@@ -69,21 +62,16 @@ async function Grid({ rows, filtered }: { rows: Promise<ListRow[]>; filtered: bo
   return (
     <ReportList
       rows={list}
-      empty={filtered ? 'No ReKods match these filters.' : undefined}
+      empty={filtered ? 'No ReKods match this search.' : undefined}
     />
   );
 }
 
-async function search(sp: Search): Promise<ListRow[]> {
+async function search(q: string | undefined): Promise<ListRow[]> {
   const { workspaceId } = await requireActor();
-  const range = one(sp, 'range');
-  const rows = await listReports(workspaceId, {
-    project: one(sp, 'project'),
-    // Title and description both, because a title is optional and plenty of
-    // recordings only ever have the write-up.
-    q: one(sp, 'q'),
-    days: range && /^\d+$/.test(range) ? Number(range) : undefined,
-  });
+  // Title and description both, because a title is optional and plenty of
+  // recordings only ever have the write-up.
+  const rows = await listReports(workspaceId, { q });
   return rows.map((r) => ({
     id: r.id, title: r.title, project: r.project, created_at: r.createdAt.toISOString(),
     shot: r.type === 'screenshot', preview: r.preview,
