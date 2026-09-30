@@ -128,7 +128,11 @@ async function route(msg, sender) {
   // chrome.tabs nor chrome.cookies. Answered before ensureOffscreen — it is the
   // offscreen doc asking.
   if (msg.t === 'ui') { toTab(msg.tabId, msg.state); return { ok: true }; }
-  if (msg.t === 'session') return fjLiveSession();
+  // With the version: an offscreen document has no chrome.runtime.getManifest.
+  if (msg.t === 'session') {
+    const s = await fjLiveSession();
+    return s && { ...s, version: chrome.runtime.getManifest().version };
+  }
   // The dashboard, in a BACKGROUND tab: the report is there when it is wanted,
   // and whatever was being done on the page carries on.
   if (msg.t === 'open') {

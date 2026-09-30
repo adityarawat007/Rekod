@@ -33,7 +33,7 @@ Everything one person needs is free; anything a team needs is paid. This is the 
 | Redaction, including custom redaction rules | Free |
 | Personal workspace with 20 videos (more by plan, or set per user), unlimited screenshots and comments | Free |
 | Read-only share links | Free |
-| Email + password and Google sign-in, extension API tokens | Free |
+| Google sign-in (email + password is off until SMTP exists), extension API tokens | Free |
 | Self-hosting with Docker | Free |
 | Creating team workspaces, invites, roles | Paid |
 | Jira, Linear, GitHub and Slack integrations | Paid |

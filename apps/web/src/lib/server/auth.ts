@@ -31,10 +31,12 @@ function build() {
         member: schema.member, invitation: schema.invitation,
       },
     }),
-    // ponytail: no email verification or password reset — both need SMTP,
-    // which no instance has yet. Add sendResetPassword + requireEmailVerification
-    // behind an SMTP_URL when one does.
-    emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    // Google only. Off here, not just hidden on /login: with it on, Better
+    // Auth's /sign-up/email would still take accounts from a curl. Google
+    // verifies the address, which also makes one person, one account, harder
+    // to dodge for the plan limits. Turning it back on needs SMTP first
+    // (verification, reset) — see ROADMAP.
+    emailAndPassword: { enabled: false },
     socialProviders: google,
     // Google verifies the email it hands back, so a Google sign-in with the
     // address of an existing password account is that account.

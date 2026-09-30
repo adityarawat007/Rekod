@@ -255,7 +255,8 @@ async function api(session, path, body, method = 'POST') {
       Authorization: `Bearer ${session.access_token}`,
       'Content-Type': 'application/json',
       // The server can refuse versions below a minimum (MIN_EXTENSION_VERSION).
-      'X-ReKod-Version': chrome.runtime.getManifest().version,
+      // From the worker, with the session: getManifest does not exist here.
+      'X-ReKod-Version': session.version,
     },
     // Anything that slipped past redaction still cannot carry a NUL escape
     // into jsonb (env is stored as one). Cheaper to scrub than lose a report.

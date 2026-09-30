@@ -50,11 +50,13 @@ active one if the user is still a member of it, else their oldest membership.
 `rekod` and `apps/extension/auth.js` reads it by that exact name). `/api/v1`
 accepts **only** `Authorization: Bearer <that cookie's value>` via the bearer
 plugin with `requireSignature` — a cookie-only POST is refused, which is the
-whole CSRF story for the API. Google renders only when both
-`GOOGLE_CLIENT_*` are set; linking trusts Google alone, because Google verifies
-emails. `DISABLE_SIGNUP` / `ALLOWED_EMAIL_DOMAINS` are enforced in
-`user.create.before`, so they cover both methods. No SMTP, so no email
-verification and no password reset yet.
+whole CSRF story for the API. **Google is the only sign-in** (1 Oct 2026):
+`emailAndPassword` is `enabled: false` in the server config, not merely hidden
+on `/login`, so `/sign-up/email` refuses too. Without both `GOOGLE_CLIENT_*`
+nobody can sign in, and `/login` says so. Google verifies the address, which is
+also what keeps one-person-one-account honest for the plan limits. Bringing
+passwords back needs SMTP first (verification, reset). `DISABLE_SIGNUP` /
+`ALLOWED_EMAIL_DOMAINS` are enforced in `user.create.before`.
 
 **`proxy.ts` only checks that a session cookie exists.** It runs on every
 request; the real check is `requireActor()`, which reads Better Auth's 5-minute
