@@ -24,90 +24,96 @@
   host.style.cssText = CENTERED;
   const root = host.attachShadow({ mode: 'closed' });
   // This bar sits on somebody else's page, so it is built to read as an
-  // instrument rather than as part of the site: near-black on every background,
-  // light or dark. #17161A is Ink with the violet pulled almost out, so it is
-  // still ours without being a tinted grey. The dashboard's light palette is
-  // for our own surfaces — see popup.html.
+  // instrument rather than as part of the site: near-black zinc (#18181B) on
+  // every background, light or dark. The dashboard's light palette is for our
+  // own surfaces — the composer card below, and popup.html.
   //
   // No webfont. A content script's @font-face is fetched under the HOST page's
   // CSP, so on any site with a font-src policy it silently falls back — a bar
   // that renders in a different face per site is worse than one honest stack.
-  // The UI face is the platform grotesque (SF Pro / Segoe Variable), the clock
-  // is the platform mono with tabular figures so digits do not jitter.
+  // Inter where it is installed, else the platform grotesque; the clock is the
+  // platform mono with tabular figures so digits do not jitter.
   root.innerHTML = `<style>
     *{box-sizing:border-box}
-    #ui{user-select:none;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;
-        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",Inter,Roboto,system-ui,sans-serif}
-    .bar,.card{border-radius:16px;
-      box-shadow:0 12px 32px -10px rgba(0,0,0,.45),0 2px 10px -3px rgba(0,0,0,.3)}
+    #ui{user-select:none;-webkit-font-smoothing:antialiased;letter-spacing:-.006em;font-size:13px;line-height:1.4;
+        font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
     /* The pill stays near-black: it sits ON somebody else's page and has to read
-       as an instrument against any background, light or dark, which is exactly
-       what a Paper-coloured pill would not do. The card is a form, not chrome,
-       so it wears the dashboard's light palette — same as popup.html. */
-    .bar{background:#17161A;color:#F5F2F6;box-shadow:inset 0 1px 0 rgba(255,255,255,.07),
-      0 12px 32px -10px rgba(0,0,0,.6),0 2px 10px -3px rgba(0,0,0,.45);
-      display:inline-flex;align-items:center;gap:2px;padding:6px;cursor:grab}
+       as an instrument against any background. A hairline of white inside and a
+       single soft shadow outside is all the lift it needs. */
+    .bar{background:#18181B;color:#FAFAFA;border-radius:12px;border:1px solid #09090B;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 8px 24px -8px rgba(0,0,0,.45);
+      display:inline-flex;align-items:center;gap:2px;padding:4px;cursor:grab}
     .bar:active{cursor:grabbing}
-    .bar.msg{gap:9px;padding:10px 15px 10px 12px;font-size:13px;font-weight:500}
+    .bar.msg{gap:8px;padding:8px 13px 8px 11px;font-size:12.5px;font-weight:500}
 
-    /* The stop button IS the recording indicator, so the surface keeps exactly
-       one Jam-coloured element instead of a red dot competing with a red
-       button. The ring breathes; nothing else on the bar moves. */
-    .stop{position:relative;width:32px;height:32px;border-radius:11px;background:#FF2D55;border:0;padding:0;cursor:pointer}
-    .stop::after{content:"";position:absolute;inset:0;border-radius:inherit;
-      box-shadow:0 0 0 0 rgba(255,45,85,.5);animation:live 2.1s cubic-bezier(.2,.6,.3,1) infinite}
-    @keyframes live{to{box-shadow:0 0 0 10px rgba(255,45,85,0)}}
-    @media (prefers-reduced-motion:reduce){.stop::after{animation:none}}
+    /* Red is the record light and nothing else: a dot that breathes beside the
+       clock. The stop button is a plain white square, the universal glyph. */
+    .rec{display:inline-flex;align-items:center;gap:8px;padding:0 6px 0 9px}
+    .rdot{position:relative;width:8px;height:8px;border-radius:50%;background:#DC2626;flex:0 0 auto}
+    .rdot::after{content:"";position:absolute;inset:0;border-radius:inherit;
+      box-shadow:0 0 0 0 rgba(229,0,30,.55);animation:live 1.8s cubic-bezier(.2,.6,.3,1) infinite}
+    @keyframes live{to{box-shadow:0 0 0 7px rgba(229,0,30,0)}}
+    @media (prefers-reduced-motion:reduce){.rdot::after{animation:none}}
 
-    .ico{display:grid;place-items:center;width:32px;height:32px;border-radius:11px;padding:0;
-         background:none;border:0;color:#9C95A2;cursor:pointer;transition:background .12s,color .12s}
-    .ico:hover{background:rgba(255,255,255,.09);color:#F5F2F6}
-    .sep{width:1px;height:18px;background:rgba(255,255,255,.13);margin:0 4px}
+    .stop{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;border:0;padding:0;
+          background:rgba(255,255,255,.08);cursor:pointer;transition:background .12s}
+    .stop::before{content:"";width:10px;height:10px;border-radius:2.5px;background:#FAFAFA}
+    .stop:hover{background:rgba(255,255,255,.16)}
+    .ico{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;padding:0;
+         background:none;border:0;color:#A1A1AA;cursor:pointer;transition:background .12s,color .12s}
+    .ico:hover{background:rgba(255,255,255,.08);color:#FAFAFA}
+    .sep{width:1px;height:16px;background:rgba(255,255,255,.12);margin:0 3px}
     .t{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;
-       font-size:13px;font-weight:500;letter-spacing:.02em;padding:0 9px;min-width:52px;text-align:center}
-    .t.warn{color:#FFC400}
-    .dot{width:8px;height:8px;border-radius:50%;background:#FF2D55;flex:0 0 auto}
-    .dot.ok{background:#00A862}.dot.bad{background:#FF5C6E}
+       font-size:12.5px;font-weight:500;letter-spacing:.01em;min-width:40px}
+    .t.warn{color:#F07800}
+    .dot{width:7px;height:7px;border-radius:50%;background:#71717A;flex:0 0 auto}
+    .dot.ok{background:#00A862}.dot.bad{background:#DC2626}
 
-    .card{width:340px;padding:15px;cursor:grab;background:#FFFBF5;color:#1A1420;
-          border:1px solid #E6DFE9}
-    .card h4{margin:0 0 10px;font-size:13.5px;font-weight:600}
-    /* Two fields now — a title and a write-up, both optional. Same skin, so
-       the card reads as one form rather than two controls that met by
-       accident. */
-    textarea,input{width:100%;background:#FFFFFF;border:1px solid #E6DFE9;
-             border-radius:10px;color:#1A1420;padding:10px;font:inherit;font-size:12.5px;letter-spacing:0;
-             user-select:text;cursor:auto}
-    input{font-weight:600}
-    textarea{height:64px;resize:none;margin-top:7px}
-    /* 400, not the input's 600: a bold placeholder on Paper reads as a value
-       somebody already typed. #7C7189 is the popup's muted ink — 4.6:1. */
-    ::placeholder{color:#7C7189;font-weight:400}
-    :is(textarea,input):focus{outline:none;border-color:#FF2D55}
-    .facts{display:flex;flex-wrap:wrap;gap:9px;margin:11px 0 13px;font-family:ui-monospace,monospace;
-           font-size:10.5px;color:#7C7189}
-    .row{display:flex;gap:8px}
-    .btn{border:0;border-radius:10px;padding:9px 14px;font:inherit;font-size:12.5px;font-weight:600;
-         background:#FF2D55;color:#fff;cursor:pointer}
-    .btn:hover{background:#D40E36}
-    .btn.ghost{background:#F0EBF2;color:#4A4152}
-    .btn.ghost:hover{background:#E4DDE7;color:#1A1420}
-    :is(.ico,.stop):focus-visible{outline:2px solid #A98BFF;outline-offset:2px}
-    .btn:focus-visible{outline:2px solid #5B21F0;outline-offset:2px}   /* on Paper, not on Ink */
+    /* The card is a form, not chrome, so it wears the dashboard's light palette
+       — same as popup.html. It floats over a page, so it keeps one soft shadow. */
+    .card{width:356px;padding:14px;cursor:grab;background:#FFFFFF;color:#18181B;
+          border:1px solid #E4E4E7;border-radius:12px;
+          box-shadow:0 12px 32px -12px rgba(0,0,0,.22),0 2px 6px -2px rgba(0,0,0,.08)}
+    .card h4{margin:0 0 10px;font-size:13.5px;font-weight:600;letter-spacing:-.012em}
+    /* Two fields — a title and a write-up, both optional. Same skin, so the
+       card reads as one form rather than two controls that met by accident. */
+    textarea,input{display:block;width:100%;background:#FFFFFF;border:1px solid #E4E4E7;
+             border-radius:8px;color:#18181B;padding:8px 10px;font:inherit;font-size:13px;letter-spacing:-.006em;
+             user-select:text;cursor:auto;transition:border-color .12s,box-shadow .12s}
+    input{font-weight:500}
+    textarea{height:72px;resize:none;margin-top:6px;line-height:1.45}
+    /* 400, not the input's 500: a heavy placeholder reads as a value somebody
+       already typed. */
+    ::placeholder{color:#A1A1AA;font-weight:400}
+    :is(textarea,input):hover{border-color:#D4D4D8}
+    :is(textarea,input):focus{outline:none;border-color:#71717A}
+    .facts{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0 12px;
+           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#52525B}
+    .facts span{background:#F4F4F5;border-radius:6px;padding:3px 7px}
+    .row{display:flex;gap:6px}
+    .btn{border:1px solid #18181B;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;font-weight:500;
+         background:#18181B;color:#FFFFFF;cursor:pointer;transition:background .12s,border-color .12s}
+    .btn:hover{background:#27272A;border-color:#27272A}
+    .btn.ghost{background:#FFFFFF;color:#18181B;border-color:#E4E4E7}
+    .btn.ghost:hover{background:#F4F4F5;border-color:#E4E4E7}
+    :is(.ico,.stop,.btn):focus-visible{outline:2px solid #A1A1AA;outline-offset:2px}
 
     /* The selection overlay. The picture was already taken when this appears —
        it dims the live page, it is never in the capture. Before the first drag
        the shade itself is the dim; once dragging starts the shade goes clear
        and the selection's 9999px box-shadow does the dimming instead, which is
        how the hole in the middle stays a real hole. */
-    .shade{position:absolute;inset:0;cursor:crosshair;touch-action:none;background:rgba(10,8,14,.42)}
+    .shade{position:absolute;inset:0;cursor:crosshair;touch-action:none;background:rgba(9,9,11,.42)}
     .shade.live{background:transparent}
-    .sel{display:none;position:absolute;border:2px solid #FF2D55;
-         box-shadow:0 0 0 9999px rgba(10,8,14,.42)}
+    .sel{display:none;position:absolute;border:1.5px solid #FFFFFF;border-radius:2px;
+         box-shadow:0 0 0 1px rgba(9,9,11,.5),0 0 0 9999px rgba(9,9,11,.42)}
     .tip{position:absolute;top:14px;left:50%;transform:translateX(-50%);white-space:nowrap;
-         background:#17161A;color:#F5F2F6;border-radius:12px;padding:9px 14px;font-size:12.5px;
-         font-weight:500;box-shadow:0 12px 32px -10px rgba(0,0,0,.6)}
-    .tip b{font-weight:600;color:#FF8FA3}
+         background:#18181B;color:#FAFAFA;border:1px solid #09090B;border-radius:10px;padding:7px 12px;
+         font-size:12.5px;font-weight:500;
+         box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 8px 24px -8px rgba(0,0,0,.5)}
+    .tip span{color:#A1A1AA;margin:0 4px}
+    .tip kbd{font:500 10.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#FAFAFA;
+             background:rgba(255,255,255,.1);border-radius:5px;padding:3px 5px;margin-right:2px}
   </style><div id="ui"></div>`;
   const ui = root.getElementById('ui');
 
@@ -229,12 +235,12 @@
     // Both controls are icon-only, so both carry a title and an aria-label:
     // the square does more than stop, it hands you the composer.
     ui.innerHTML = `<div class="bar">
+      <span class="rec"><span class="rdot"></span><span class="t" id="tm">00:00</span></span>
       <button class="stop" id="s" title="Stop and write it up"
               aria-label="Stop recording and write it up"></button>
-      <span class="t" id="tm">00:00</span>
       <span class="sep"></span>
-      <button class="ico" id="c" title="Discard this ReKod"
-              aria-label="Discard this ReKod">${X}</button></div>`;
+      <button class="ico" id="c" title="Discard this Rekod"
+              aria-label="Discard this Rekod">${X}</button></div>`;
     const tm = root.getElementById('tm');
     root.getElementById('s').onclick = () => send({ t: 'stop' });
     root.getElementById('c').onclick = () => send({ t: 'discard' });
@@ -265,7 +271,7 @@
     // for fixed children, and the sheet would stop covering the viewport.
     host.style.cssText = 'position:fixed;inset:0;z-index:2147483647';
     ui.innerHTML = `<div class="shade" id="sh"><div class="sel" id="sel"></div>
-      <div class="tip">Drag to select · click for the whole tab · <b>Esc</b> cancels</div></div>`;
+      <div class="tip">Drag to select<span>·</span>click for the whole tab<span>·</span><kbd>Esc</kbd> cancels</div></div>`;
     const sh = root.getElementById('sh');
     const sel = root.getElementById('sel');
     let sx = 0, sy = 0, box = null;
@@ -327,23 +333,23 @@
   const compose = (m) => {
     stopTicker();
     const media = m.kind === 'shot'
-      ? `✓ screenshot${m.dims ? ` ${m.dims}` : ''}`
-      : `✓ ${fmt(m.dur || 0)} video`;
+      ? `screenshot${m.dims ? ` ${m.dims}` : ''}`
+      : `${fmt(m.dur || 0)} video`;
     // `m.mic` only ever arrives while AUDIO is on in offscreen.js, which it is
     // not: recordings are silent, so there is nothing to announce. Kept because
     // a mic that was asked for and refused is the one capture failure nothing
     // else shows — the video looks fine and is silent where a voice should be.
-    const audio = m.mic === 'on' ? '<span>✓ mic</span>'
-      : m.mic === 'denied' ? '<span style="color:#B37800">⚠ no mic — permission refused</span>' : '';
+    const audio = m.mic === 'on' ? '<span>mic</span>'
+      : m.mic === 'denied' ? '<span style="color:#B45309">⚠ no mic — permission refused</span>' : '';
     // Both fields are optional and neither is a comment: the title and the
     // description are the report's own, editable later on the dashboard. The
     // comment thread only ever grows there. See schema-comments.sql.
-    ui.innerHTML = `<div class="card"><h4>Save this ReKod</h4>
+    ui.innerHTML = `<div class="card"><h4>Save this Rekod</h4>
       <input id="ti" placeholder="Title (optional)">
       <textarea id="t" placeholder="What happened? Optional — you can write this later."></textarea>
-      <div class="facts"><span>${media}</span>${audio}<span>✓ ${m.logs} logs</span>
-        <span>✓ ${m.net} requests</span><span>✓ redacted</span></div>
-      <div class="row"><button class="btn" id="go" style="flex:1">Save ReKod</button>
+      <div class="facts"><span>${media}</span>${audio}<span>${m.logs} logs</span>
+        <span>${m.net} requests</span><span>redacted</span></div>
+      <div class="row"><button class="btn" id="go" style="flex:1">Save Rekod</button>
         <button class="btn ghost" id="no">Discard</button></div></div>`;
     const name = root.getElementById('ti');
     const box = root.getElementById('t');
@@ -370,7 +376,7 @@
     if (m.s === 'compose')   compose(m);
     if (m.s === 'idle')      idle();
     if (m.s === 'uploading') note('', 'Uploading…');
-    if (m.s === 'sent')    { note('ok', 'Sent ✓'); setTimeout(idle, 2500); }
+    if (m.s === 'sent')    { note('ok', 'Sent — opened in a new tab'); setTimeout(idle, 2500); }
     if (m.s === 'failed')  { note('bad', m.err || 'Upload failed'); console.warn('[rekod]', m.err); setTimeout(idle, 6000); }
   };
   // Both of these are the UI's, so both are the top frame's. worker.js also

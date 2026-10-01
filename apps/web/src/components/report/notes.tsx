@@ -1,25 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, SendHorizontal, Trash2 } from 'lucide-react';
 import { addComment, deleteComment, saveNotes } from '@/app/(dash)/actions';
 import { Button } from '@/components/ui/button';
 import { ago } from '@/lib/format';
 import type { Comment } from '@/lib/types';
 
-/**
- * The two writable surfaces on a report: its own title/description, and the
- * comment thread. Both go through server actions, which take the workspace
- * from the session — the component names a report, never a tenant.
- */
+/** Both go through server actions, which take the workspace from the
+ *  session: this names a report, never a tenant. */
 const failed = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Borderless on purpose: these read as the heading and the blurb until you
- *  click into them. The ring appears on focus so they are still findable. */
 const FIELD =
-  'w-full rounded-md bg-transparent px-2 py-1 -mx-2 outline-none ' +
-  'placeholder:text-muted-foreground/60 hover:bg-muted/50 ' +
-  'focus:bg-muted/50 focus:ring-2 focus:ring-ring/40 transition-colors';
+  'w-full rounded-lg bg-transparent px-2 py-1 -mx-2 outline-none transition-colors ' +
+  'placeholder:text-muted-foreground/70 hover:bg-muted/60 focus:bg-muted/60';
 
 export function ReportNotes({
   id,
@@ -32,9 +26,7 @@ export function ReportNotes({
 }) {
   const [err, setErr] = useState<string | null>(null);
 
-  // Saved on blur, not per keystroke: a comparison against what the server sent
-  // means tabbing through without typing writes nothing. There is no "Saved"
-  // toast — the field keeping what you typed is the receipt.
+  // Saved on blur, and only if it changed.
   const commit = (field: 'title' | 'description', was: string) => async (
     e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -57,18 +49,17 @@ export function ReportNotes({
         placeholder="Title"
         aria-label="Report title"
         onBlur={commit('title', title)}
-        className={`${FIELD} font-heading text-2xl font-extrabold leading-tight`}
+        className={`${FIELD} text-2xl font-semibold leading-tight tracking-tight`}
       />
       <textarea
         key={`d-${id}`}
         defaultValue={description ?? ''}
         placeholder="Add a description…"
         aria-label="Report description"
-        // field-sizing grows it to fit in Chrome; rows=2 is what Firefox and
-        // Safari get instead, which is a usable box rather than a slit.
+        // field-sizing is Chrome-only; rows=2 is the fallback.
         rows={2}
         onBlur={commit('description', description ?? '')}
-        className={`${FIELD} mt-1 resize-none field-sizing-content text-sm text-muted-foreground`}
+        className={`${FIELD} mt-1 resize-none field-sizing-content text-[15px] leading-relaxed text-foreground/80`}
       />
       {err ? (
         <p role="alert" className="px-0.5 text-xs text-destructive">
@@ -88,9 +79,8 @@ export function Comments({
   comments: Comment[];
   readOnly?: boolean;
 }) {
-  // Local list is the source of truth after the first render: a router.refresh()
-  // per comment would re-run the report query and re-sign the video URL, which
-  // restarts the player mid-watch. The row is re-read on the next navigation.
+  // Local state, not router.refresh(): a refresh re-signs the video URL and
+  // restarts the player mid-watch.
   const [list, setList] = useState(comments);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
@@ -105,8 +95,7 @@ export function Comments({
     try {
       const c = await addComment(id, text);
       setList((l) => [...l, c]);
-      // Cleared only once it is stored — on a failure the box still holds it,
-      // because typing a comment twice is worse than any error message.
+      // Cleared only once stored, so a failure keeps the text.
       setBody('');
     } catch (e) {
       setErr(failed(e));
@@ -129,22 +118,28 @@ export function Comments({
   }
 
   return (
-    <section className="mt-1" aria-label="Comments">
-      <h2 className="text-sm font-semibold">
-        {list.length ? `${list.length} comment${list.length === 1 ? '' : 's'}` : 'Comments'}
-      </h2>
+    <section aria-label="Comments" className="space-y-4">
+      {list.length ? (
+        <h2 className="text-sm font-semibold">
+          {list.length} comment{list.length === 1 ? '' : 's'}
+        </h2>
+      ) : null}
 
-      <ul className="mt-4 space-y-4">
+      <ul className="space-y-4">
         {list.map((c) => (
           <li key={c.id} className="group flex gap-3">
+            <span
+              aria-hidden
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-semibold uppercase"
+            >
+              {c.by?.[0] ?? '?'}
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="mono truncate">{c.by ?? 'unknown'}</span>
-                <span aria-hidden>·</span>
-                <span className="shrink-0">{ago(c.at)}</span>
+              <p className="flex items-center gap-2 text-[13px]">
+                <span className="truncate font-medium">{c.by ?? 'unknown'}</span>
+                <span className="shrink-0 text-muted-foreground">{ago(c.at)}</span>
               </p>
-              {/* Captured pages are untrusted; this is the owner's own typing,
-                  and it is rendered as text either way. No markdown, no html. */}
+              {/* Plain text, never markdown or HTML. */}
               <p className="mt-1 whitespace-pre-wrap break-words text-sm">{c.body}</p>
             </div>
             {readOnly ? null : (
@@ -161,28 +156,29 @@ export function Comments({
             )}
           </li>
         ))}
-        {!list.length ? (
-          <li className="text-sm text-muted-foreground">
-            {readOnly ? 'No comments on this ReKod.' : 'Nothing yet. Add the first one.'}
-          </li>
+        {!list.length && readOnly ? (
+          <li className="text-sm text-muted-foreground">No comments on this Rekod.</li>
         ) : null}
       </ul>
 
       {readOnly ? null : (
-        <form onSubmit={post} className="mt-5 rounded-lg border bg-card p-2">
+        <form
+          onSubmit={post}
+          className="rounded-xl border bg-card p-3 shadow-xs transition-colors focus-within:border-foreground/25"
+        >
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            // ⌘/Ctrl+Enter, the same send chord as the extension's compose card.
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) post(e); }}
             placeholder="Write a comment"
             aria-label="Write a comment"
             rows={2}
-            className="w-full resize-none bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
+            className="w-full resize-none bg-transparent px-1 text-[15px] outline-none placeholder:text-muted-foreground"
           />
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={busy || !body.trim()}>
-              {busy ? <Loader2 className="animate-spin" /> : null} Comment
+          <div className="flex items-center justify-end gap-3">
+            <span className="hidden text-xs text-muted-foreground sm:inline">⌘↵ to send</span>
+            <Button type="submit" size="sm" variant={body.trim() ? 'default' : 'outline'} disabled={busy || !body.trim()}>
+              {busy ? <Loader2 className="animate-spin" /> : <SendHorizontal />} Comment
             </Button>
           </div>
         </form>

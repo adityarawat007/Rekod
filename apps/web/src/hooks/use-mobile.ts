@@ -3,10 +3,8 @@ import * as React from "react"
 const MOBILE_BREAKPOINT = 768
 const QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`
 
-// Edited from shadcn's generated version, which set state inside an effect and
-// so rendered twice on mount — once as `false`, once with the real value. Same
-// subscription, read through useSyncExternalStore instead. Re-run `shadcn add
-// sidebar` and this comes back; reapply.
+// Edited from shadcn's (setState in an effect, two renders on mount) to use
+// useSyncExternalStore. `shadcn add sidebar` reverts it; reapply.
 const subscribe = (onChange: () => void) => {
   const mql = window.matchMedia(QUERY)
   mql.addEventListener("change", onChange)

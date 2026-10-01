@@ -1,15 +1,14 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Copy, Crosshair, PanelBottom, PanelRight, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Crosshair, PanelBottom, PanelRight, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { JsonView } from '@/components/json-view';
-import { ms, shortUrl, stamp, toCurl } from '@/lib/format';
+import { JsonView } from '@/components/report/json-view';
+import { PaneToolbar } from '@/components/report/pane-toolbar';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ms, stamp, toCurl, urlParts } from '@/lib/format';
 import { netFailed, type Entry, type NetEntry, type TimelineEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -31,26 +30,20 @@ const RTYPE_LABEL: Record<string, string> = {
   other: 'Other',
 };
 
+/** One grid for the heads and the rows. Docked right, `data-wide` columns hide. */
+const COLS = 'grid items-center gap-3 px-4';
+const cols = (narrow: boolean) =>
+  cn(COLS, narrow ? 'grid-cols-[2.75rem_minmax(0,1fr)] [&>[data-wide]]:hidden' : 'grid-cols-[2.75rem_minmax(0,1fr)_3.5rem_3rem_4.5rem_3.5rem]');
+
+/** Only failures are coloured: green 200s drowned the one 500. */
 function statusClass(status: number) {
-  if (status === 0 || status >= 500) return 'text-crit';
-  if (status >= 400) return 'text-warn';
-  return 'text-good';
+  if (status === 0 || status >= 400) return 'font-medium text-crit';
+  if (status >= 300) return 'text-muted-foreground';
+  return '';
 }
 
-/**
- * The network tab, laid out like the browser's own: the full request table,
- * and the selected request in a panel that slides over the bottom of it.
- *
- * Over, not beside and not under. Beside it, the table lost every column but
- * the URL to make room. Under it, an inline drop-down pushed every row below
- * down the page. Over it, the table keeps its columns and its scroll position,
- * and the split is yours to drag — the rows behind the panel are one drag
- * away, so nothing has to collapse.
- *
- * It docks right by default and moves to the bottom on request, which is the
- * browser's own choice and for the same reason: a wide pane wants the panel
- * beside the list, a short one wants it under.
- */
+/** The request table, with the selected request in a resizable panel laid
+ *  over it (not inline, which pushed every row below it down), like DevTools. */
 export function NetworkPane({
   rows,
   frames,
@@ -58,7 +51,7 @@ export function NetworkPane({
   onSeek,
 }: {
   rows: Net[];
-  /** ws connection id → its frames, rendered under the connection row. */
+  /** ws connection id → its frames. */
   frames: Map<number, Net[]>;
   off: (e: Entry) => number;
   onSeek: (e: Entry) => void;
@@ -66,14 +59,10 @@ export function NetworkPane({
   const [type, setType] = useState('all');
   const [query, setQuery] = useState('');
   const [errorsOnly, setErrorsOnly] = useState(false);
-  // By uid: seq collides across navigations, so `sel === e.seq` selected two
-  // rows at once.
+  // By uid: seq collides across navigations.
   const [sel, setSel] = useState<number | null>(null);
-  // Which edge the detail panel is docked to, and how much of the pane it
-  // takes — as a FRACTION, not pixels: the pane is the viewport on xl and a
-  // fixed slab below it, and a size picked in one of those is wrong in the
-  // other. The side is a working preference, so it outlives the page; a
-  // private window or blocked storage just means it starts on the right.
+  // A fraction, not pixels: the pane is the viewport on xl and a fixed slab
+  // below it. The dock side is remembered; blocked storage means 'right'.
   const [dock, setDock] = useState<Dock>(() => {
     try {
       return localStorage.getItem(DOCK_KEY) === 'bottom' ? 'bottom' : 'right';
@@ -93,8 +82,7 @@ export function NetworkPane({
   };
 
   const clamp = (v: number) => Math.min(0.9, Math.max(0.15, v));
-  // The separator is on the panel's inner edge either way, so the fraction is
-  // always measured from the edge it is docked to.
+  // Measured from the docked edge.
   const drag = (e: React.PointerEvent) => {
     e.preventDefault();
     const box = wrap.current?.getBoundingClientRect();
@@ -109,7 +97,6 @@ export function NetworkPane({
     addEventListener('pointerup', up);
   };
 
-  // Arrow keys resize too: towards the docked edge shrinks, away grows.
   const nudge = (e: React.KeyboardEvent) => {
     const grow = right ? 'ArrowLeft' : 'ArrowUp';
     const shrink = right ? 'ArrowRight' : 'ArrowDown';
@@ -127,77 +114,81 @@ export function NetworkPane({
   });
 
   const active = visible.find((e) => e.uid === sel) ?? null;
+  const narrow = !!active && right;
 
   return (
-    // The height matches the console tab's toolbar + list, so switching tabs
-    // does not resize the panel under the pointer.
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b bg-muted/30 px-2.5 py-1.5">
-        <Search className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by URL"
-          aria-label="Filter requests by URL"
-          className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
-        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+      <PaneToolbar query={query} onQuery={setQuery} placeholder="Filter by URL">
+        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={errorsOnly}
             onChange={(e) => setErrorsOnly(e.target.checked)}
-            className="size-3.5 accent-crit"
+            className="size-3.5 accent-foreground"
           />
           Errors only
         </label>
-      </div>
+      </PaneToolbar>
 
-      <div className="flex flex-wrap items-center gap-1.5 border-b px-2.5 py-1.5">
+      <ToggleGroup
+        value={[type]}
+        // One type at a time; clicking the pressed chip keeps it pressed.
+        onValueChange={(v) => v[0] && setType(v[0])}
+        size="sm"
+        spacing={1.5}
+        aria-label="Request type"
+        className="w-full shrink-0 flex-wrap border-b px-4 py-2"
+      >
         {types.map((t) => (
-          <span key={t} className="flex items-center gap-1.5">
-            <Badge
-              variant={type === t ? 'default' : 'ghost'}
-              className="cursor-pointer rounded-md"
-              render={<button onClick={() => setType(t)} />}
-            >
-              {t === 'all' ? 'All' : (RTYPE_LABEL[t] ?? t)}
-            </Badge>
-            {t === 'all' && <Separator orientation="vertical" className="h-4" />}
-          </span>
+          <ToggleGroupItem
+            key={t}
+            value={t}
+            className="rounded-md bg-muted text-xs text-foreground/80 aria-pressed:bg-foreground aria-pressed:text-background"
+          >
+            {t === 'all' ? 'All' : (RTYPE_LABEL[t] ?? t)}
+          </ToggleGroupItem>
         ))}
+      </ToggleGroup>
+
+      <div className={cn(cols(narrow), 'shrink-0 border-b bg-muted/40 py-1.5 text-xs font-medium text-muted-foreground')}>
+        <span>At</span>
+        <span>Name</span>
+        <span data-wide>Method</span>
+        <span data-wide>Status</span>
+        <span data-wide>Type</span>
+        <span data-wide className="text-right">Time</span>
       </div>
 
       <div ref={wrap} className="relative flex min-h-0 flex-1">
         <ScrollArea className="h-full min-w-0 flex-1">
-          {visible.map((e, i) => (
-            <button
-              key={e.uid}
-              onClick={() => setSel(e.uid)}
-              className={cn(
-                'flex w-full items-center gap-2.5 border-b px-2.5 py-1.5 text-left text-xs hover:bg-accent/50',
-                netFailed(e) && 'bg-crit/5',
-                sel === e.uid && 'bg-accent',
-              )}
-              title={e.url}
-            >
-              <span className="mono w-5 shrink-0 text-right text-muted-foreground">{i + 1}</span>
-              <span className="mono shrink-0 text-muted-foreground">{stamp(off(e))}</span>
-              <span className={cn('mono w-9 shrink-0 font-medium', statusClass(e.status))}>
-                {e.status || 'ERR'}
-              </span>
-              <span className="mono w-11 shrink-0 text-muted-foreground">
-                {e.method ?? RTYPE_LABEL[e.rtype]}
-              </span>
-              <span className={cn('mono min-w-0 flex-1 truncate', netFailed(e) && 'text-crit')}>
-                {shortUrl(e.url)}
-              </span>
-              <span className="mono shrink-0 text-muted-foreground">{ms(e.ms)}</span>
-            </button>
-          ))}
+          {visible.map((e) => {
+            const { name, host } = urlParts(e.url);
+            return (
+              <button
+                key={e.uid}
+                onClick={() => setSel(e.uid)}
+                className={cn(
+                  cols(narrow),
+                  'w-full border-b py-1.5 text-left text-[13px] hover:bg-muted/50',
+                  netFailed(e) && 'bg-crit/4',
+                  sel === e.uid && 'bg-accent hover:bg-accent',
+                )}
+                title={e.url}
+              >
+                <span className="mono text-xs text-muted-foreground">{stamp(off(e))}</span>
+                <span className={cn('min-w-0 truncate', netFailed(e) && 'text-crit')}>
+                  {name}
+                  <span className="ml-1.5 text-muted-foreground">{host}</span>
+                </span>
+                <span data-wide className="mono text-xs">{e.method ?? '—'}</span>
+                <span data-wide className={cn('mono text-xs', statusClass(e.status))}>{e.status || 'ERR'}</span>
+                <span data-wide className="truncate text-xs text-muted-foreground">{RTYPE_LABEL[e.rtype] ?? e.rtype}</span>
+                <span data-wide className="mono text-right text-xs text-muted-foreground">{ms(e.ms)}</span>
+              </button>
+            );
+          })}
           {!visible.length && (
-            <p className="p-6 text-center text-sm text-muted-foreground">
-              No requests match this filter.
-            </p>
+            <p className="p-8 text-center text-sm text-muted-foreground">No requests match this filter.</p>
           )}
         </ScrollArea>
 
@@ -209,9 +200,7 @@ export function NetworkPane({
             )}
             style={right ? { width: `${split * 100}%` } : { height: `${split * 100}%` }}
           >
-            {/* A real separator, so this is draggable with a pointer AND
-                resizable from the keyboard. First child either way, which puts
-                it on the panel's inner edge. */}
+            {/* First child, so it sits on the panel's inner edge. */}
             <div
               role="separator"
               aria-orientation={right ? 'vertical' : 'horizontal'}
@@ -220,13 +209,13 @@ export function NetworkPane({
               onPointerDown={drag}
               onKeyDown={nudge}
               className={cn(
-                'group flex shrink-0 items-center justify-center bg-muted/40 hover:bg-jam/30 focus-visible:bg-jam/40 focus-visible:outline-none',
+                'group flex shrink-0 items-center justify-center bg-muted/40 hover:bg-foreground/10 focus-visible:bg-foreground/15 focus-visible:outline-none',
                 right ? 'h-full w-2 cursor-col-resize' : 'h-2 w-full cursor-row-resize',
               )}
             >
               <span
                 className={cn(
-                  'rounded-full bg-border group-hover:bg-jam',
+                  'rounded-full bg-border group-hover:bg-foreground/50',
                   right ? 'h-8 w-0.5' : 'h-0.5 w-8',
                 )}
                 aria-hidden
@@ -275,8 +264,6 @@ function Detail({
 
   return (
     <Tabs defaultValue="headers" className="flex min-h-0 min-w-0 flex-1 flex-col gap-0">
-      {/* Wraps: docked right this toolbar is half a pane wide, and a clipped
-          Copy cURL is worse than a second row. */}
       <div className="flex flex-wrap items-center gap-1 border-b bg-muted/30 px-2 py-1.5">
         <Button size="icon-xs" variant="ghost" onClick={onClose} aria-label="Close request detail">
           <X />
@@ -358,7 +345,6 @@ function Detail({
   );
 }
 
-/** Native <details> — the disclosure behaviour is the element's, not ours. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details open className="group border-b last:border-b-0">
@@ -386,15 +372,14 @@ function Headers({ title, h }: { title: string; h?: Record<string, string> | nul
 
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-3 px-3 py-1.5 text-[11px]">
+    <div className="grid grid-cols-[minmax(0,7.5rem)_1fr] gap-3 px-3 py-1.5 text-[11px]">
       <span className="mono wrap-break-word text-muted-foreground">{k}:</span>
-      <span className="mono break-all">{v}</span>
+      <span className="mono wrap-anywhere">{v}</span>
     </div>
   );
 }
 
-/** A websocket's traffic, under its connection row. ↑ sent, ↓ received. Binary
- *  frames arrive from capture.js already described rather than encoded. */
+/** ↑ sent, ↓ received. capture.js describes binary frames rather than encoding them. */
 function WsFrames({ frames, off }: { frames?: Net[]; off: (e: Entry) => number }) {
   if (!frames?.length) {
     return (

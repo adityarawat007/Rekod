@@ -2,7 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
-import { offset, stamp, clock, ms, shortUrl, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
+import { offset, stamp, clock, ms, urlParts, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 import { olderThan } from './src/lib/version.ts';
@@ -67,9 +67,9 @@ assert.strictEqual(clock(-75), '1:15', 'clock is unsigned; stamp adds the sign')
 assert.strictEqual(ms(8200), '8.2s');
 assert.strictEqual(ms(240), '240ms');
 assert.strictEqual(ms(undefined), '');
-assert.strictEqual(shortUrl('https://api.example/v2/render?token=x'), 'render');
-assert.strictEqual(shortUrl('https://api.example/'), 'api.example', 'no path falls back to host');
-assert.strictEqual(shortUrl('not a url'), 'not a url', 'unparseable passes through');
+assert.deepStrictEqual(urlParts('https://api.example/v2/render?token=x'), { name: 'render?token=x', host: 'api.example' });
+assert.deepStrictEqual(urlParts('https://api.example/'), { name: '/', host: 'api.example' }, 'no path is /');
+assert.deepStrictEqual(urlParts('not a url'), { name: 'not a url', host: '' }, 'unparseable passes through');
 
 // ── timeline: uid is unique even when seq repeats across a navigation ──────
 // capture.js restarts seq at 1 on every page load while the offscreen buffer

@@ -54,6 +54,7 @@ await migrate(drizzle(admin), { migrationsFolder: './src/lib/db/migrations' });
 const { uuidv7 } = await import('./src/lib/db/ids.ts');
 const repo = await import('./src/lib/server/reports.ts');
 const { LIMITS } = await import('./src/lib/plans.ts');
+const ws = await import('./src/lib/server/workspaces.ts');
 
 // ── ids
 const a1 = uuidv7(1_000), a2 = uuidv7(2_000);
@@ -67,6 +68,21 @@ for (const who of ['a', 'b']) {
   await admin`insert into rekod.organization (id, name, slug, created_at) values (${'w' + who}, ${who}, ${who}, ${now})`;
   await admin`insert into rekod.member (id, organization_id, user_id, role, created_at) values (${'m' + who}, ${'w' + who}, ${'u' + who}, 'owner', ${now})`;
 }
+
+// ── workspaces: each user lists their own, and free creates none
+assert.deepEqual((await ws.workspacesOf('ub')).map((w) => w.id), ['wb'], "B lists A's workspace");
+assert.deepEqual(await ws.workspacesLeft('ua'), { plan: 'free', left: 0 });
+assert.equal(((await ws.createWorkspace('ua', 'team')) as { refused?: string }).refused, 'plan', 'free creates a second workspace');
+await admin`update rekod."user" set plan = 'pro' where id = 'ub'`;
+assert.equal((await ws.workspacesLeft('ub')).left, 9, 'pro owns one, may create nine more');
+// The real create: a system action, which allowUserToCreateOrganization: false
+// does not stop. B owns it, and A cannot see it.
+const team = await ws.createWorkspace('ub', 'B team');
+assert.ok('id' in team, 'pro creates a workspace');
+assert.deepEqual((await ws.workspacesOf('ub')).map((w) => w.name), ['b', 'B team']);
+assert.equal((await ws.workspacesLeft('ub')).left, 8);
+assert.ok(!(await ws.workspacesOf('ua')).some((w) => w.id === team.id), "A lists B's new workspace");
+await admin`update rekod."user" set plan = 'free' where id = 'ub'`;
 
 // ── A files a report through the same path the extension uses
 // The extension creates with only what it knows at stop; the title comes with /complete.
@@ -83,7 +99,7 @@ assert.deepEqual(Object.keys(uploads).sort(), ['logs', 'media', 'network']);
 assert.match(uploads.media!, /X-Amz-Signature=/);
 assert.match(uploads.media!, /X-Amz-SignedHeaders=content-length%3Bhost/, 'the size is signed into the URL');
 
-assert.equal((await repo.listReports('wa')).length, 0, 'processing reports are not listed');
+assert.equal((await repo.listReports('wa')).rows.length, 0, 'processing reports are not listed');
 
 await fetch(uploads.media!, { method: 'PUT', body: 'webm' });
 await fetch(uploads.logs!, { method: 'PUT', body: JSON.stringify([{ kind: 'console', lvl: 'error', msg: 'x', t: 1, seq: 1 }]) });
@@ -91,11 +107,14 @@ await fetch(uploads.network!, { method: 'PUT', body: '[]' });
 
 // ── B cannot touch any of it
 assert.equal(await repo.completeReport('wb', id), false, 'B completes A');
-assert.equal((await repo.listReports('wa')).length, 0, "B's complete did not flip A's report");
+assert.equal((await repo.listReports('wa')).rows.length, 0, "B's complete did not flip A's report");
 assert.equal(await repo.completeReport('wb', id, { title: 'pwned' }), false, 'B names A');
 assert.equal(await repo.completeReport('wa', id, { title: '100% broken_login', env: { host: 'app.test' } }), true);
 assert.equal(await repo.getReport('wb', id), null, 'B reads A');
-assert.equal((await repo.listReports('wb')).length, 0, 'B lists A');
+assert.equal((await repo.listReports('wb')).rows.length, 0, 'B lists A');
+assert.equal((await repo.listReports('wb', { types: ['video'] })).rows.length, 0, 'B lists A by type');
+assert.equal((await repo.listReports('wa', { types: ['video'] })).rows.length, 1, 'the type filter keeps a video');
+assert.equal((await repo.listReports('wa', { types: ['screenshot'] })).rows.length, 0, 'and drops it for screenshots');
 assert.equal(await repo.updateReport('wb', id, { title: 'pwned' }), false, 'B edits A');
 assert.equal(await repo.addComment('wb', 'ub', id, 'hi'), null, 'B comments on A');
 assert.equal(await repo.shareTokenFor('wb', id), null, 'B shares A');
@@ -106,14 +125,15 @@ assert.equal(objects.size, 3, "B's delete left A's files alone");
 // ── A can, and the data survived B's attempts
 const mine = await repo.getReport('wa', id);
 assert.equal(mine?.title, '100% broken_login');
+assert.equal(mine?.creator?.email, 'a@x.test', 'the byline names the creator');
 assert.equal(mine?.logs.length, 1);
 assert.match(mine!.media!.url, /video\.webm/);
-assert.equal((await repo.listReports('wa')).length, 1);
+assert.equal((await repo.listReports('wa')).rows.length, 1);
 
 // ── search treats % and _ literally
-assert.equal((await repo.listReports('wa', { q: '100%' })).length, 1);
-assert.equal((await repo.listReports('wa', { q: '1%0' })).length, 0, '% is not a wildcard');
-assert.equal((await repo.listReports('wa', { q: 'k_n' })).length, 0, '_ is not a wildcard');
+assert.equal((await repo.listReports('wa', { q: '100%' })).rows.length, 1);
+assert.equal((await repo.listReports('wa', { q: '1%0' })).rows.length, 0, '% is not a wildcard');
+assert.equal((await repo.listReports('wa', { q: 'k_n' })).rows.length, 0, '_ is not a wildcard');
 
 // ── comments: only in-workspace, only your own to delete
 const c = await repo.addComment('wa', 'ua', id, 'first');
@@ -125,11 +145,13 @@ assert.equal((await repo.getReport('wa', id))!.comments.length, 0);
 
 // ── share: same link every copy, dead after revoke, fresh after that
 const t1 = await repo.shareTokenFor('wa', id);
+assert.match(t1!, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, 'a share token is a v4 UUID');
+assert.equal(await repo.sharedReport(id), null, "the report's own id is not a share link");
 assert.equal(await repo.shareTokenFor('wa', id), t1, 'copying twice gives the same link');
 const shared = await repo.sharedReport(t1!);
 assert.equal(shared?.id, id);
 assert.ok(!('workspaceId' in shared!) && !('shareToken' in shared!), 'share view leaks no tenancy fields');
-assert.equal((await repo.sharedReport(t1!, false))!.logs.length, 0, '?view=media skips the logs');
+assert.equal((await repo.sharedReport(t1!, false))!.logs.length, 0, '/v/ skips the logs');
 assert.equal(await repo.sharedReport('0'.repeat(64)), null);
 assert.equal(await repo.sharedReport('not-a-token'), null);
 await repo.revokeShare('wa', id);
@@ -164,7 +186,7 @@ assert.equal(await repo.completeReport('wa', racer.id), false, 'complete refuses
 const png = repo.CreateInput.parse({ t0: Date.now(), media: 'image/png', sizes });
 assert.equal(await refusal('wa', 'ua', png), null, 'screenshots are not counted');
 assert.equal(await refusal('wb', 'ub', input), null, "A's limit is not B's");
-const last = (await repo.listReports('wa'))[0].id;
+const last = (await repo.listReports('wa')).rows[0].id;
 assert.equal(await repo.completeReport('wa', last), true, 'a retried complete still succeeds');
 await repo.deleteReports('wa', [last]);
 assert.equal(await refusal('wa', 'ua', input), null, 'deleting one frees a slot');
@@ -178,6 +200,23 @@ assert.equal(await refusal('wb', 'ub', big), 'size');
 assert.equal(await refusal('wb', 'ub', repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', sizes: { logs: 1, network: 1 } })), 'size');
 assert.equal(await refusal('wb', 'ub', repo.CreateInput.parse({ t0: Date.now(), media: 'video/webm', sizes: { ...sizes, logs: LIMITS.bytes.logs + 1 } })), 'size');
 
+// ── pages: newest first, no overlap, no gap, and the cursor stays in its workspace
+const pngSizes = { ...sizes };
+const before = (await repo.listReports('wb')).rows.length;
+for (let i = 0; i < repo.PAGE_SIZE + 2 - before; i++) {
+  await repo.completeReport('wb', (await made('wb', 'ub', repo.CreateInput.parse({ t0: Date.now(), media: 'image/png', sizes: pngSizes }))).id);
+}
+const p1 = await repo.listReports('wb');
+assert.equal(p1.rows.length, repo.PAGE_SIZE);
+assert.ok(p1.next, 'a full page has a next cursor');
+const p2 = await repo.listReports('wb', { after: p1.next! });
+assert.equal(p2.rows.length, 2);
+assert.equal(p2.next, null, 'the last page has none');
+const all = [...p1.rows, ...p2.rows].map((r) => r.id);
+assert.equal(new Set(all).size, all.length, 'pages do not overlap');
+assert.deepEqual(all, [...all].sort().reverse(), 'newest first');
+assert.equal((await repo.listReports('wa', { after: p1.next! })).rows.some((r) => all.includes(r.id)), false, "B's cursor in A's workspace lists none of B");
+
 // ── rate: creates per hour, finished or not
 let n = (await repo.usageOf('ub'))!.lastHour;
 while (n < LIMITS.createsPerHour) { await made('wb', 'ub', png); n++; }
@@ -185,12 +224,12 @@ assert.equal(await refusal('wb', 'ub', png), 'rate');
 assert.equal(await refusal('wa', 'ua', png), null, "B's rate is not A's");
 
 // ── cleanup: abandoned processing rows go, with their files; ready ones stay
-const readyBefore = (await repo.listReports('wa')).length;
+const readyBefore = (await repo.listReports('wa')).rows.length;
 assert.equal(await repo.purgeAbandoned(), 0, 'nothing is abandoned yet');
 await admin`update rekod.reports set created_at = now() - interval '2 days' where status = 'processing'`;
 assert.ok(await repo.purgeAbandoned() > 0);
 assert.equal((await admin`select count(*)::int as n from rekod.reports where status = 'processing'`)[0].n, 0);
-assert.equal((await repo.listReports('wa')).length, readyBefore, 'ready reports survive the cleanup');
+assert.equal((await repo.listReports('wa')).rows.length, readyBefore, 'ready reports survive the cleanup');
 
 console.log('tenancy ok');
 await admin.end();

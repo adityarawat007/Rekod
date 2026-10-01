@@ -1,22 +1,18 @@
 import { Fragment } from 'react';
 import { reindent } from '@/lib/format';
 
-// Tokenise into React nodes rather than an HTML string — same highlighting the
-// old app.js did, without hand-escaping anything.
+// React nodes, not an HTML string: nothing to escape.
 const TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
 
 const CLASS = {
-  key: 'text-grape',
+  key: 'text-link',
   str: 'text-good',
-  lit: 'text-chart-2',
+  lit: 'text-muted-foreground',
   num: 'text-warn',
 };
 
-/** Pretty-prints when the body parses as JSON. When it does not — nearly always
- *  a payload capture.js cut at 4 KB — it falls back to re-indenting the text as
- *  written, which is the difference between a readable object and one 4,000
- *  character line. Anything that is not JSON-shaped is passed through
- *  untouched: a failed parse must never mangle the payload. */
+/** Pretty-prints JSON. A body capture.js cut at 4 KB will not parse, so it is
+ *  re-indented as written; anything not JSON-shaped passes through untouched. */
 export function JsonView({ text, pretty = true }: { text?: string | null; pretty?: boolean }) {
   if (text == null || text === '') {
     return <pre className="mono text-xs text-muted-foreground">no body</pre>;
@@ -28,8 +24,6 @@ export function JsonView({ text, pretty = true }: { text?: string | null; pretty
     try {
       src = JSON.stringify(JSON.parse(src), null, 2);
     } catch {
-      // Only when it opens like JSON. Re-indenting prose or HTML on its
-      // punctuation would be worse than leaving it alone.
       if (/^\s*[{[]/.test(src)) { src = reindent(src); partial = true; }
     }
   }

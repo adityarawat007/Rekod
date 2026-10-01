@@ -4,18 +4,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ReKod palette — see ../../PLAN.md § Design system.
-   Chart steps are validated per mode against that mode's card surface, not
-   flipped: light passes on #FFFFFF, dark is re-stepped for L 0.48–0.67 on
-   #1C1624. Zest is deliberately absent from the chart ramp — at L 0.85 it
-   fails the lightness band and lands at 1.55:1 on paper. UI accent only. */
+/* Zinc greys; the only hues are functional (crit / warn / good / link). */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-body);
-  --font-heading: var(--font-display);
+  --font-heading: var(--font-body);
   --font-mono: var(--font-data);
-  --font-mark: var(--font-logo);
+  --font-mark: var(--font-body);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -24,11 +20,6 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -46,10 +37,7 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
 
-  --color-jam: var(--jam);
-  --color-jam-deep: var(--jam-deep);
-  --color-zest: var(--zest);
-  --color-grape: var(--grape);
+  --color-link: var(--link);
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-crit: var(--crit);
@@ -57,106 +45,83 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
-  --radius-xl: 8px;
-  --radius-2xl: 8px;
-  --radius-3xl: 8px;
-  --radius-4xl: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 16px;
+  --radius-4xl: 16px;
 }
 
-/* light is the base */
 :root {
-  --radius: 8px;
+  --radius: 10px;
 
-  --jam: #FF2D55;
-  --jam-deep: #D40E36;
-  --zest: #FFC400;
-  --grape: #5B21F0;
+  --link: #2563EB;
   --good: #00A862;
   --warn: #F07800;
-  --crit: #E5001E;
+  --crit: #DC2626;
 
-  --background: #FFFBF5;
-  --foreground: #1A1420;
+  --background: #FFFFFF;
+  --foreground: #18181B;
   --card: #FFFFFF;
-  --card-foreground: #1A1420;
+  --card-foreground: #18181B;
   --popover: #FFFFFF;
-  --popover-foreground: #1A1420;
-  --primary: #FF2D55;
+  --popover-foreground: #18181B;
+  --primary: #18181B;
   --primary-foreground: #FFFFFF;
-  --secondary: #F7F3F8;
-  --secondary-foreground: #1A1420;
-  --muted: #F7F3F8;
-  --muted-foreground: #7C7189;
-  --accent: #F4EFF6;
-  --accent-foreground: #1A1420;
-  --destructive: #E5001E;
-  --border: #E6DFE9;
-  --input: #D3C9D8;
-  --ring: #5B21F0;
+  --secondary: #F4F4F5;
+  --secondary-foreground: #18181B;
+  --muted: #F4F4F5;
+  --muted-foreground: #71717A;
+  --accent: #F4F4F5;
+  --accent-foreground: #18181B;
+  --destructive: #DC2626;
+  --border: #E9E9EC;
+  --input: #E4E4E7;
+  --ring: #A1A1AA;
 
-  /* validated: light steps on #FFFFFF — all six checks pass */
-  --chart-1: #FF2D55;
-  --chart-2: #5B21F0;
-  --chart-3: #00A862;
-  --chart-4: #F07800;
-  --chart-5: #7C7189;
 
-  /* Plain white, and neutral greys with it: the mauve surface was carrying a
-     mauve hover and a mauve border, so recolouring only the surface would have
-     left the tint showing on every hovered nav item. */
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #1A1420;
-  --sidebar-primary: #FF2D55;
+  --sidebar: #FCFDFC;
+  --sidebar-foreground: #3F3F46;
+  --sidebar-primary: #18181B;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F2F2F3;
-  --sidebar-accent-foreground: #1A1420;
-  --sidebar-border: #E4E4E7;
-  --sidebar-ring: #5B21F0;
+  --sidebar-accent: #EBEBED;
+  --sidebar-accent-foreground: #18181B;
+  --sidebar-border: #E9E9EC;
+  --sidebar-ring: #A1A1AA;
 }
 
 .dark {
-  --jam: #FF4E71;
-  --jam-deep: #FF7C95;
-  --zest: #FFD24A;
-  --grape: #A98BFF;
+  --link: #60A5FA;
   --good: #2FD48A;
   --warn: #FFA23D;
   --crit: #FF5C6E;
 
-  --background: #14101A;
-  --foreground: #F4EFF7;
-  --card: #1C1624;
-  --card-foreground: #F4EFF7;
-  --popover: #1C1624;
-  --popover-foreground: #F4EFF7;
-  --primary: #FF4E71;
-  --primary-foreground: #14101A;
-  --secondary: #241C2E;
-  --secondary-foreground: #F4EFF7;
-  --muted: #241C2E;
-  --muted-foreground: #8B7E97;
-  --accent: #2B2136;
-  --accent-foreground: #F4EFF7;
+  --background: #09090B;
+  --foreground: #FAFAFA;
+  --card: #18181B;
+  --card-foreground: #FAFAFA;
+  --popover: #18181B;
+  --popover-foreground: #FAFAFA;
+  --primary: #FAFAFA;
+  --primary-foreground: #18181B;
+  --secondary: #27272A;
+  --secondary-foreground: #FAFAFA;
+  --muted: #27272A;
+  --muted-foreground: #A1A1AA;
+  --accent: #27272A;
+  --accent-foreground: #FAFAFA;
   --destructive: #FF5C6E;
-  --border: #312739;
-  --input: #413350;
-  --ring: #A98BFF;
+  --border: #27272A;
+  --input: #3F3F46;
+  --ring: #71717A;
 
-  /* re-stepped for the dark band, not flipped — validated on #1C1624 */
-  --chart-1: #F2385C;
-  --chart-2: #8B5CF6;
-  --chart-3: #0FA372;
-  --chart-4: #D97706;
-  --chart-5: #8B7E97;
-
-  --sidebar: #181220;
-  --sidebar-foreground: #F4EFF7;
-  --sidebar-primary: #FF4E71;
-  --sidebar-primary-foreground: #14101A;
-  --sidebar-accent: #241C2E;
-  --sidebar-accent-foreground: #F4EFF7;
-  --sidebar-border: #2A2033;
-  --sidebar-ring: #A98BFF;
+  --sidebar: #0F0F11;
+  --sidebar-foreground: #D4D4D8;
+  --sidebar-primary: #FAFAFA;
+  --sidebar-primary-foreground: #18181B;
+  --sidebar-accent: #27272A;
+  --sidebar-accent-foreground: #FAFAFA;
+  --sidebar-border: #27272A;
+  --sidebar-ring: #71717A;
 }
 
 @layer base {
@@ -169,7 +134,6 @@
   html {
     @apply font-sans;
   }
-  /* tabular figures wherever a timestamp, duration or count sits in a column */
   .mono,
   code,
   pre {
@@ -177,8 +141,14 @@
     font-variant-numeric: tabular-nums;
   }
   h1, h2, h3 {
-    font-family: var(--font-display), var(--font-body), sans-serif;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
+  }
+  /* Also overrides a strokeWidth prop (it is an attribute): use a class. */
+  svg.lucide {
+    stroke-width: 2.25;
+  }
+  html {
+    font-feature-settings: 'cv11', 'ss01';
   }
 }
 

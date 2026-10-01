@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 /** UUIDv7 (RFC 9562): 48-bit ms timestamp, then random. Time-ordered, so new
  *  rows land at the end of the primary-key index instead of all over it.
@@ -13,5 +13,7 @@ export function uuidv7(now = Date.now()): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-/** A share token: 32 random bytes, hex. The token IS the credential. */
-export const shareToken = () => randomBytes(32).toString('hex');
+/** A share token, and the credential itself: a v4 UUID, 122 random bits —
+ *  the shape of the link (/c/<uuid>), never the report's own id, which is
+ *  time-ordered and cannot be revoked. */
+export const shareToken = () => randomUUID();

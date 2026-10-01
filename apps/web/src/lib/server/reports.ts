@@ -27,7 +27,16 @@ const keyFor = (ws: string, id: string, kind: Kind) =>
 
 // ── list ────────────────────────────────────────────────────────────────────
 
-export type ListFilters = { q?: string };
+export const REPORT_TYPES = ['video', 'screenshot'] as const;
+export type ReportType = (typeof REPORT_TYPES)[number];
+export type ListFilters = {
+  q?: string;
+  types?: ReportType[];
+  /** The last id of the previous page. */
+  after?: string;
+};
+
+export const PAGE_SIZE = 24;
 
 export type ListRow = {
   id: string;
@@ -35,6 +44,7 @@ export type ListRow = {
   project: string | null;
   createdAt: Date;
   type: 'video' | 'screenshot';
+  durationMs: number | null;
   /** Signed thumbnail source, or null when the report has no media. */
   preview: string | null;
 };
@@ -42,28 +52,39 @@ export type ListRow = {
 /** LIKE treats % and _ as wildcards and \ as the escape; a search box does not. */
 const likeable = (q: string) => `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 
-export async function listReports(ws: string, f: ListFilters = {}): Promise<ListRow[]> {
+/** One page, newest first. Keyset on the id: ids are UUIDv7 minted at create,
+ *  so id order IS creation order, and the cursor needs no timestamp — which
+ *  would lose Postgres's microseconds in a JS Date and skip rows. */
+export async function listReports(
+  ws: string,
+  f: ListFilters = {},
+): Promise<{ rows: ListRow[]; next: string | null }> {
   const where = [eq(R.workspaceId, ws), eq(R.status, 'ready')];
   const q = f.q?.trim();
   if (q) where.push(or(ilike(R.title, likeable(q)), ilike(R.description, likeable(q)))!);
+  if (f.types?.length) where.push(inArray(R.type, f.types));
+  if (f.after && isId(f.after)) where.push(lt(R.id, f.after));
 
   const rows = await db()
     .select({
       id: R.id, title: R.title, project: R.project, createdAt: R.createdAt, type: R.type,
-      key: A.storageKey,
+      durationMs: R.durationMs, key: A.storageKey,
     })
     .from(R)
     .leftJoin(A, and(eq(A.reportId, R.id), inArray(A.kind, ['video', 'screenshot'])))
     .where(and(...where))
-    .orderBy(desc(R.createdAt))
-    // ponytail: 60 — every card is a range request for a video frame.
-    // Paginate when the grid outgrows one screenful of scrolling.
-    .limit(60);
+    .orderBy(desc(R.id))
+    // One extra row says whether there is a next page, without a count(*).
+    .limit(PAGE_SIZE + 1);
 
-  // Signing is a local HMAC, not a round trip, so one per row costs nothing.
-  return Promise.all(rows.map(async ({ key, ...r }) => ({
-    ...r, preview: key ? await presignDownload(key, 3600) : null,
-  })));
+  const page = rows.slice(0, PAGE_SIZE);
+  return {
+    // Signing is a local HMAC, not a round trip, so one per row costs nothing.
+    rows: await Promise.all(page.map(async ({ key, ...r }) => ({
+      ...r, preview: key ? await presignDownload(key, 3600) : null,
+    }))),
+    next: rows.length > PAGE_SIZE ? page.at(-1)!.id : null,
+  };
 }
 
 // ── one report ──────────────────────────────────────────────────────────────
@@ -119,17 +140,28 @@ async function hydrate(row: BaseRow, withLogs = true) {
 
 export async function getReport(ws: string, id: string) {
   if (!isId(id)) return null;
-  const [row] = await db().select({ ...reportCols, shareToken: R.shareToken }).from(R)
+  // The creator, owner side only: sharedReport() never names anyone.
+  const [row] = await db()
+    .select({ ...reportCols, shareToken: R.shareToken, byName: U.name, byEmail: U.email, byImage: U.image })
+    .from(R)
+    .leftJoin(U, eq(U.id, R.createdBy))
     .where(and(eq(R.workspaceId, ws), eq(R.id, id))).limit(1);
   if (!row) return null;
-  const { shareToken: token, ...base } = row;
-  return { ...(await hydrate(base)), shareToken: token };
+  const { shareToken: token, byName, byEmail, byImage, ...base } = row;
+  return {
+    ...(await hydrate(base)),
+    shareToken: token,
+    creator: byEmail ? { name: byName, email: byEmail, image: byImage } : null,
+  };
 }
 
 /** The whole anonymous surface. Explicit columns — no workspace, no creator,
  *  no token — and a processing report is not shareable yet. */
+/** A v4 UUID, or the 64-hex tokens minted before 1 Oct 2026. */
+const SHARE_TOKEN = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[0-9a-f]{64})$/;
+
 export async function sharedReport(token: string, withLogs = true) {
-  if (!/^[0-9a-f]{64}$/.test(token)) return null;
+  if (!SHARE_TOKEN.test(token)) return null;
   const row = await baseRow(and(eq(R.shareToken, token), eq(R.status, 'ready')));
   return row ? hydrate(row, withLogs) : null;
 }
@@ -219,10 +251,10 @@ export async function createReport(
   const u = await usageOf(userId);
   if (!u) return { refused: 'videos', message: 'No such user.' };
   if (u.lastHour >= LIMITS.createsPerHour) {
-    return { refused: 'rate', message: 'Too many ReKods in the last hour. Try again in a bit.' };
+    return { refused: 'rate', message: 'Too many Rekods in the last hour. Try again in a bit.' };
   }
   if (type === 'video' && u.videos >= u.limit) {
-    return { refused: 'videos', message: `You have used all ${u.limit} ReKods on your plan. Delete one to record another.` };
+    return { refused: 'videos', message: `You have used all ${u.limit} Rekods on your plan. Delete one to record another.` };
   }
 
   const id = uuidv7();
@@ -237,7 +269,6 @@ export async function createReport(
     reportId: id, workspaceId: ws, kind: f.kind, mimeType: f.mime, storageKey: keyFor(ws, id, f.kind),
   })));
 
-  // Presigning is a local HMAC — no round trip.
   const uploads: Partial<Record<'media' | 'logs' | 'network', string>> = {};
   for (const f of files) {
     uploads[f.kind === 'logs' || f.kind === 'network' ? f.kind : 'media'] = await presignUpload(keyFor(ws, id, f.kind), f.bytes);

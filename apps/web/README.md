@@ -54,7 +54,7 @@ as a second workspace and expects nothing back.
 - Pages and server actions call `requireActor()`.
 - `/api/v1` accepts only `Authorization: Bearer <session cookie value>` — what
   the extension sends.
-- `/s/<token>` is the one unscoped read, through an explicit column list.
+- `/c/<token>` and `/v/<token>` are the one unscoped read, through an explicit column list.
 
 Media, logs and network are files at `<workspace>/<report>/<kind>.<ext>`, uploaded
 by the extension to presigned URLs and read back through presigned URLs that
@@ -67,14 +67,14 @@ expire in an hour.
 | `src/app/(dash)/page.tsx` | **The only list.** Grid of recordings — search, project, range |
 | `src/app/(dash)/reports/[id]/page.tsx` | One report — media, logs and thread from `lib/server/reports.ts` |
 | `src/app/(dash)/actions.ts` | Every dashboard mutation: notes, comments, share, delete |
-| `src/app/s/[token]/page.tsx` | Public share page. No session; reads through `sharedReport(token)` |
+| `src/app/(share)/shared.tsx` | Public share pages `/c/` and `/v/`. No session; reads through `sharedReport(token)`. `/s/` redirects |
 | `src/app/api/v1/reports/…` | The extension's upload: create → PUT to the bucket → complete |
 | `src/app/api/auth/[...all]` | Better Auth, the Google callback included |
 | `src/lib/server/` | **The tenant boundary.** Auth config, session → workspace, the scoped repo |
 | `src/lib/db/` | Drizzle schema (all in the `rekod` Postgres schema) and migrations |
 | `src/lib/storage/` | Presign PUT/GET, HEAD, delete — any S3-compatible bucket |
-| `src/components/report-view.tsx` | Video + shared timeline + Console/Network/Steps/Device |
-| `src/components/report-list.tsx` | The grid. Thumbnail is a frame from the video, no stored poster |
+| `src/components/report/` | The report page: player, DevTools pane (Info/Console/Network/Steps), notes, share |
+| `src/components/home/report-list.tsx` | The grid. Thumbnail is a frame from the video, no stored poster |
 | `src/lib/types.ts` | **The capture contract.** Mirrors what `apps/extension/capture.js` writes |
 | `src/proxy.ts` | Cookie-present gate (Next 16 renamed `middleware.ts`) |
 | `src/app/auth/signout/route.ts` | POST target for both Sign out buttons |

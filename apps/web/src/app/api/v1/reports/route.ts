@@ -1,9 +1,8 @@
 import { apiActor } from '@/lib/server/session';
 import { CreateInput, createReport } from '@/lib/server/reports';
 
-/** Step 1 of an upload: the row, in `processing`, plus one presigned PUT per
- *  file. Metadata only — the recording and the logs go straight to the bucket,
- *  so nothing large passes through this function. */
+/** Step 1: a `processing` row plus one presigned PUT per file. The bytes go
+ *  straight to the bucket, never through here. */
 export async function POST(req: Request) {
   const actor = await apiActor(req);
   if (!actor) return Response.json({ error: 'unauthorized' }, { status: 401 });

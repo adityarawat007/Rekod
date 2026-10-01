@@ -3,7 +3,7 @@ import { shareToken, uuidv7 } from './ids.ts';
 import { PLANS } from '../plans.ts';
 
 /**
- * Every ReKod table lives in the `rekod` Postgres schema, not `public`: on
+ * Every Rekod table lives in the `rekod` Postgres schema, not `public`: on
  * Supabase, `public` is served to the publishable key by the Data API, and
  * with no RLS a table there would be world-readable.
  */
@@ -19,7 +19,7 @@ export const user = rekod.table('user', {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
-  // ReKod's, not Better Auth's — it ignores columns it was not told about, and
+  // Rekod's, not Better Auth's — it ignores columns it was not told about, and
   // not declaring them means sign-up cannot set them. See lib/plans.ts.
   plan: text('plan').notNull().default('free'),
   videoLimit: integer('video_limit').notNull().default(PLANS.free.videos),
@@ -99,7 +99,7 @@ export const invitation = rekod.table('invitation', {
   index('invitation_email_idx').on(t.email),
 ]);
 
-// ── ReKod ───────────────────────────────────────────────────────────────────
+// ── Rekod ───────────────────────────────────────────────────────────────────
 // Every tenant table carries workspace_id, and src/lib/server filters on it in
 // every query. That filter is the whole tenant boundary — there is no RLS.
 

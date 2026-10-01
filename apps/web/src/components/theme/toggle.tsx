@@ -11,16 +11,12 @@ const OPTIONS = [
   { v: 'system', Icon: Monitor, label: 'System' },
 ] as const;
 
-// The canonical "have we hydrated yet" read: the server snapshot is false, the
-// client snapshot is true, and nothing ever notifies. Replaces a setState in an
-// effect, which React flags as a cascading render.
+// "Hydrated yet?" without a setState-in-effect.
 const NEVER = () => () => {};
 const useHydrated = () => useSyncExternalStore(NEVER, () => true, () => false);
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
-  // theme is unknown until the client reads it; rendering it during SSR would
-  // mark the wrong item as pressed.
   const ready = useHydrated();
 
   return (

@@ -2,15 +2,14 @@ import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { requireActor } from '@/lib/server/session';
 import { getReport as fetchReport } from '@/lib/server/reports';
-import { ReportHeader } from '@/components/report-header';
-import { ReportView } from '@/components/report-view';
-import { Comments, ReportNotes } from '@/components/report-notes';
-import { navData } from '@/components/sidebar-nav';
+import { ReportHeader } from '@/components/report/header';
+import { ReportView } from '@/components/report/view';
+import { Comments, ReportNotes } from '@/components/report/notes';
 import { timeline, type Entry, type Env, type NetEntry } from '@/lib/types';
 import { ago } from '@/lib/format';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-/** generateMetadata and the page both want the row. cache() keyed on the id —
- *  a primitive, so it actually hits — makes that one query, not two. */
+/** Keyed on a primitive so generateMetadata and the page share one query. */
 const getReport = cache(async (id: string) => {
   const { workspaceId } = await requireActor();
   return fetchReport(workspaceId, id);
@@ -19,7 +18,6 @@ const getReport = cache(async (id: string) => {
 export async function generateMetadata(props: PageProps<'/reports/[id]'>) {
   const { id } = await props.params;
   const report = await getReport(id);
-  // A title is optional now, and '' is not a page title.
   return { title: report?.title || 'Report' };
 }
 
@@ -28,32 +26,31 @@ export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
   const report = await getReport(id);
   if (!report) notFound();
 
-  // navData() is cache()d, the layout already ran it, and it reads the
-  // session cookie, not the database — the email costs nothing here.
-  const { email } = await navData();
+  const by = report.creator;
 
   return (
-    // The page owns the viewport on a wide screen: the header is a bar, the
-    // two columns below it split what is left and scroll separately.
-    <div className="flex flex-col xl:h-svh xl:overflow-hidden">
-      <ReportHeader id={report.id} shareToken={report.shareToken} />
-      <div className="flex min-h-0 flex-1 flex-col p-6 md:p-8">
-        <ReportView
-          entries={timeline({ logs: report.logs as Entry[], network: report.network as NetEntry[] })}
-          t0={report.t0}
-          env={report.env as Env}
-          media={report.media}
-          info={{ project: report.project, pageUrl: report.pageUrl, createdAt: report.createdAt }}
-        >
-          {/* Under the player, in the scrolling column — the reference layout:
-              title, description, who made it, then the thread. */}
-          <ReportNotes id={report.id} title={report.title} description={report.description} />
-          <p className="border-t pt-3 text-xs text-muted-foreground">
-            <span className="mono">{email ?? 'you'}</span> recorded this · {ago(report.createdAt)}
-          </p>
-          <Comments id={report.id} comments={report.comments} />
-        </ReportView>
-      </div>
-    </div>
+    <ReportView
+      toolbar={<ReportHeader id={report.id} shareToken={report.shareToken} />}
+      entries={timeline({ logs: report.logs as Entry[], network: report.network as NetEntry[] })}
+      t0={report.t0}
+      env={report.env as Env}
+      media={report.media}
+      info={{ project: report.project, pageUrl: report.pageUrl, createdAt: report.createdAt }}
+    >
+      <ReportNotes id={report.id} title={report.title} description={report.description} />
+      <p className="flex items-center gap-2 border-t pt-4 text-sm text-muted-foreground">
+        <Avatar className="size-6">
+          {by?.image ? <AvatarImage src={by.image} alt="" referrerPolicy="no-referrer" /> : null}
+          <AvatarFallback className="text-[10px] font-semibold text-foreground">
+            {(by?.name || by?.email || '?')[0].toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <span>
+          <span className="font-medium text-foreground">{by?.name || by?.email || 'Someone'}</span> recorded this
+          via the Chrome extension · {ago(report.createdAt)}
+        </span>
+      </p>
+      <Comments id={report.id} comments={report.comments} />
+    </ReportView>
   );
 }

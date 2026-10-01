@@ -6,18 +6,20 @@ export function clock(seconds: number) {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 }
 
-/** −0:12 means twelve seconds before record was pressed. The sign is information. */
+/** −0:12 is twelve seconds before record. The sign is information. */
 export const stamp = (seconds: number) => (seconds < 0 ? '−' : '') + clock(seconds);
 
 export const ms = (n?: number) =>
   n == null ? '' : n >= 1000 ? `${(n / 1000).toFixed(1)}s` : `${Math.round(n)}ms`;
 
-export function shortUrl(u: string) {
+/** A request as the table names it: "https://api.x.com/v1/cart?id=2" →
+ *  { name: "cart?id=2", host: "api.x.com" }. No path names it "/". */
+export function urlParts(u: string) {
   try {
     const url = new URL(u);
-    return url.pathname.split('/').filter(Boolean).pop() || url.hostname;
+    return { name: (url.pathname.split('/').filter(Boolean).pop() ?? '/') + url.search, host: url.host };
   } catch {
-    return u;
+    return { name: u, host: '' };
   }
 }
 
@@ -33,19 +35,8 @@ export function ago(iso: string) {
 
 export const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
-/**
- * A captured URL, but only if it is safe to put in an `href`.
- *
- * `page_url` is whatever the reported page was, and `redact.js` deliberately
- * does not restrict the scheme: `blob:` and `data:` are legitimate in the
- * network log, where URLs are rendered as text. A link is different —
- * `javascript:` in an href executes on THIS origin, and the share page is
- * handed to people who are not the owner, so the author of a report would
- * otherwise be able to run script in a recipient's session.
- *
- * Returns null when there is nothing safe to link to; the caller renders no
- * link at all rather than a dead one.
- */
+/** A captured URL only if it is http(s), else null. A `javascript:` href
+ *  would run in a share-link recipient's session on this origin. */
 export function httpUrl(u: string | null | undefined): string | null {
   if (!u) return null;
   try {
@@ -56,29 +47,12 @@ export function httpUrl(u: string | null | undefined): string | null {
   }
 }
 
-/**
- * Where `s` seconds sits on a timeline spanning [lo, hi], as a percentage.
- *
- * Clamped, because the two ends do not agree: the span comes from the log
- * entries, and the video keeps playing past the last one. An unclamped ratio
- * put the progress bar's right edge outside its own container.
- *
- * Returns 0 for an empty or inverted span rather than NaN, which CSS drops
- * silently and which reads as "the bar is missing".
- */
+/** `s` on [lo, hi] as a clamped percentage; 0, not NaN, for an empty span. */
 export const trackPct = (s: number, lo: number, hi: number) =>
   hi > lo ? Math.min(100, Math.max(0, ((s - lo) / (hi - lo)) * 100)) : 0;
 
-/**
- * Re-indents JSON-ish text that `JSON.parse` rejected — which in practice means
- * a body `capture.js` cut at its 4 KB ceiling, since redaction re-serializes
- * compact. Minified JSON renders as one unbroken wall of characters otherwise.
- *
- * A pure character walk: it never reorders, drops or re-encodes a byte outside
- * whitespace between tokens, so a truncated payload still reads as what was
- * actually sent. String literals are stepped over, escapes included, so a brace
- * inside a value cannot shift the indent.
- */
+/** Re-indents JSON that JSON.parse rejected (a body cut at 4 KB). Only
+ *  whitespace between tokens changes; string literals are stepped over. */
 export function reindent(src: string): string {
   let out = '';
   let depth = 0;
@@ -103,17 +77,8 @@ export function reindent(src: string): string {
   return out;
 }
 
-/**
- * The selected request as a `curl` command, for pasting into a shell.
- *
- * Every argument is single-quoted, because a captured URL or header value is
- * whatever the page sent — a space, a `;` or a `$(…)` in one of them would
- * otherwise be shell syntax rather than data. A single quote is the only
- * character that can end such a string, hence the one replacement.
- *
- * Headers arrive already redacted: `redact.js` runs before capture, so an
- * Authorization value here is a placeholder, not a credential.
- */
+/** Every argument single-quoted: captured values are page-controlled, and a
+ *  `$(…)` must stay data. Headers are already redacted by redact.js. */
 export function toCurl(e: {
   url: string;
   method?: string;
@@ -128,16 +93,8 @@ export function toCurl(e: {
   return parts.join(' \\\n  ');
 }
 
-/**
- * A user agent string reduced to the two facts anyone actually reads off it:
- * which browser, and which OS. The full string stays available as a title —
- * this is a label, not a replacement for the evidence.
- *
- * Order is the whole trick. Every Chromium browser still says `Chrome`, and
- * Chrome still says `Safari`, so the most specific token has to be tested
- * first: Edge before Opera before Chrome before Safari. Anything unrecognised
- * returns null for that half rather than a wrong guess.
- */
+/** Browser and OS from a UA. Order matters: every Chromium says Chrome and
+ *  Chrome says Safari, so Edge → Opera → Chrome → Safari. Unknown is null. */
 export function uaSummary(ua?: string | null) {
   if (!ua) return null;
   const v = (re: RegExp) => re.exec(ua)?.[1]?.split('.')[0] ?? '';
@@ -151,8 +108,7 @@ export function uaSummary(ua?: string | null) {
     : /Safari\//.test(ua) ? named('Safari', /Version\/(\d+)/)
     : null;
 
-  // iPadOS reports itself as a Mac in desktop mode, which is why iPhone/iPad
-  // is tested before Mac OS X.
+  // iPadOS claims to be a Mac, so iPhone/iPad is tested first.
   const os =
     /(iPhone|iPad|iPod)/.test(ua) ? 'iOS'
     : /Android/.test(ua) ? named('Android', /Android (\d+)/)

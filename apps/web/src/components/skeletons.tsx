@@ -1,30 +1,29 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import { PanelFrame } from '@/components/shell/panel-frame';
 
-/** Loading shapes, kept next to each other so they stay in step with the real
- *  layouts. Every one mirrors the padding and row height of what replaces it —
- *  a skeleton the wrong size is a layout shift with extra steps. */
+/** The grid both the cards and their skeleton lay out on. */
+export const GRID = 'grid gap-x-6 gap-y-8 sm:grid-cols-2 xl:grid-cols-3 xl:gap-x-8 xl:gap-y-10';
+
+/** Each mirrors the padding and row heights of what replaces it. */
 
 export function PageHeaderSkeleton() {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 border-b px-6 py-5 md:px-8">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-40" />
-        <Skeleton className="h-4 w-52" />
-      </div>
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b px-6 py-4 md:px-8">
+      <Skeleton className="h-8 w-40" />
+      <Skeleton className="h-9 w-full sm:w-72" />
     </div>
   );
 }
 
 export function ReportGridSkeleton({ cards = 6 }: { cards?: number }) {
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <ul className={GRID}>
       {Array.from({ length: cards }, (_, i) => (
-        <li key={i} className="space-y-2.5 rounded-lg border p-2.5">
-          <Skeleton className="aspect-video w-full rounded-md" />
-          {/* One line: the card lost its title, then its error count. What is
-              left is the project and the age, on one row. */}
-          <div className="space-y-1.5 px-0.5 pb-0.5">
-            <Skeleton className="h-3 w-32" />
+        <li key={i} className="space-y-3">
+          <Skeleton className="aspect-video w-full rounded-xl" />
+          <div className="flex justify-between px-1">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-12" />
           </div>
         </li>
       ))}
@@ -32,18 +31,31 @@ export function ReportGridSkeleton({ cards = 6 }: { cards?: number }) {
   );
 }
 
-/** Two columns, the same heights the real thing takes: the log pane fills the
- *  viewport on xl and is a fixed slab below it. */
+/** ReportView's shape. */
 export function ReportViewSkeleton() {
   return (
-    <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-2 xl:overflow-hidden">
-      <div className="space-y-3">
-        <Skeleton className="aspect-video w-full rounded-lg" />
-        <Skeleton className="h-20 w-full rounded-lg" />
-        <Skeleton className="h-8 w-[60%]" />
-        <Skeleton className="h-4 w-[40%]" />
-      </div>
-      <Skeleton className="h-[70svh] w-full rounded-lg xl:h-full" />
-    </div>
+    <PanelFrame className="xl:flex-row">
+        <div className="min-w-0 flex-1">
+          <div className="flex h-16 items-center gap-2 border-b px-4">
+            <Skeleton className="size-9 rounded-lg" />
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="ml-auto h-9 w-32 rounded-lg" />
+          </div>
+          <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
+            <Skeleton className="aspect-video w-full rounded-2xl" />
+            <Skeleton className="h-8 w-[50%]" />
+            <Skeleton className="h-4 w-[35%]" />
+          </div>
+        </div>
+        <div className="h-[80svh] border-t xl:h-auto xl:w-[min(44%,720px)] xl:border-l xl:border-t-0">
+          <div className="flex h-16 items-center justify-between border-b px-4">
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="size-9 rounded-lg" />
+          </div>
+          <div className="flex h-11 items-center gap-6 border-b px-4">
+            {[40, 64, 64, 48].map((w, i) => <Skeleton key={i} className="h-4" style={{ width: w }} />)}
+          </div>
+        </div>
+    </PanelFrame>
   );
 }

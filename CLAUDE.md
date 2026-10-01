@@ -41,8 +41,12 @@ build needs no env and a missing value fails with its name. Never read
 **The workspace owns the data.** Better Auth's organization plugin *is* the
 workspace (`organization`, `member`); the UI never says "organization". Every
 user gets a personal one in `databaseHooks.user.create.after`, created as a
-system action so it works while `allowUserToCreateOrganization` is false — team
-workspaces are Phase 3, paid, in `ee/`. The acting workspace is the session's
+system action so it works while `allowUserToCreateOrganization` is false. A
+second workspace is Pro: `createWorkspace()` in `lib/server/workspaces.ts`
+checks `PLANS[plan].workspaces` against owned memberships, then creates as a
+system action too, so the plugin's own create endpoint stays shut. Switching
+is `setActiveOrganization` from a server action, which is why `nextCookies()`
+is the last Better Auth plugin. The acting workspace is the session's
 active one if the user is still a member of it, else their oldest membership.
 
 **Two ways in, one session.** The dashboard uses Better Auth's cookie
@@ -108,14 +112,24 @@ older than a day, with their files.
 never `NEXT_PUBLIC_`. Supabase's S3 access keys bypass its storage RLS.
 
 **Share links are copyable forever and revocable.** Every report is born with a
-`share_token` — 32 random bytes, stored **plain**, not hashed, precisely so the
-owner can copy the same link any number of times. "Stop sharing" nulls it; the
-next copy mints a new one. `/s/<token>` reads through `sharedReport()`, the one
-unscoped read: explicit columns, so the workspace, the creator and the token
-never reach the page — never widen it to `select *`. The page signs its own
-media URL per visit (an hour). `?view=media` drops the log pane **and skips
-fetching the log files**; it is a render flag, not a second permission. A share
+`share_token` — a random v4 UUID (122 bits; tokens minted before 1 Oct 2026 are
+64 hex and still valid), stored **plain**, not hashed, precisely so the owner
+can copy the same link any number of times. "Stop sharing" nulls it; the next
+copy mints a new one. **The link carries the token, never the report id**: the
+id is time-ordered and cannot be revoked. `/c/<token>` (with DevTools) and
+`/v/<token>` (video only) both read through `sharedReport()`, the one unscoped
+read: explicit columns, so the workspace, the creator and the token never reach
+the page — never widen it to `select *`. The page signs its own media URL per
+visit (an hour). `/v/` drops the log pane **and skips fetching the log files**;
+it is a render choice on one token, not a second permission — anyone holding a
+`/v/` link can type `/c/`. Old `/s/<token>[?view=media]` links redirect. A share
 link is read-only: no action accepts a token.
+
+**The grid is paged by id.** `listReports()` returns 24 rows and a `next`
+cursor — the last id — and keysets on `id < after`, newest first. Ids are
+UUIDv7 minted at create, so id order is creation order; a timestamp cursor
+would drop Postgres's microseconds in a JS Date and skip rows. Page one renders
+on the server; the rest come through `moreReports()` as the sentinel nears.
 
 **Comments are rows, and `by` is the author's email** — which means every share
 link with a comment carries it; a decision, not an oversight. Soft-deleted, and
@@ -171,7 +185,7 @@ reaches the mime string, and every line behaves as it did before audio existed.
 Flipping it to true brings back tab audio plus an optional mic — the popup's
 mic switch (`<label class="toggle">` in `popup.html` and the commented block in
 `popup.js`, which must be uncommented **together**: `popup.js` reads `#mic` at
-load) and the mute in `report-view.tsx` come back with it. Nothing tests the
+load) and the mute in `components/report/player.tsx` come back with it. Nothing tests the
 dormant path any more (the root test files were removed 27 Sep 2026), so
 flipping the flag means checking the audio by hand. Do not delete the flag.
 
@@ -220,9 +234,10 @@ can open anywhere else. `active: false` — nothing is torn away from whatever
 was being reported on. It fires after the insert returns, never before, because
 a tab onto a row that was never written is a 404 that reads as data loss.
 
-**In the UI the thing is called a ReKod.** Every user-facing label — the grid,
-the sidebar, the delete and share controls, the extension's composer — says
-ReKod / ReKods. The code, the database and these notes still say report: the
+**In the UI the thing is called a Rekod** — that casing, everywhere (1 Oct
+2026). Every user-facing label — the grid, the sidebar, the delete and share
+controls, the extension's composer — says Rekod / Rekods. The one exception is
+the `X-ReKod-Version` header, which is protocol, not copy. The code, the database and these notes still say report: the
 table is `reports`, the route is `/reports/[id]`, and renaming those buys
 nothing. Keep the two apart; do not rename the column.
 
@@ -299,34 +314,40 @@ no errors. Keep it that way.
 ## The dashboard streams
 
 Every route under `apps/web/src/app/(dash)/` has a `loading.tsx`, and the segment
-shares one `error.tsx` and one `not-found.tsx`. A page is a **static shell plus
+shares one error component and one `not-found.tsx`. The sidebar lives in
+`(dash)/(home)/layout.tsx`, not `(dash)/layout.tsx`: **the report page has no
+sidebar** — it is edge to edge, Jam-style. `(home)/error.tsx` re-exports the
+shared one so an error on `/` keeps the sidebar. A page is a **static shell plus
 a Suspense'd async child** — never an `async` component that awaits before
 returning its layout, which blocks first paint on a database round trip. The
 skeletons live together in `components/skeletons.tsx` so they stay the same
 shape as what replaces them; `loading.tsx` and the in-page fallback share the
 same one.
 
-Reads on this side go through `cache()`d functions (`currentActor`, `navData`,
-`getReport`) so a layout and a page asking for the same rows make one query.
+Reads on this side go through `cache()`d functions (`currentActor`, `getReport`) so a layout and a page asking for the same rows make one query.
 Mutations are server actions in `(dash)/actions.ts`; each re-derives the actor
-and validates its input, because an action is a public POST endpoint. Pass a *promise* to two children rather than fetching
-twice — see `(dash)/page.tsx`, where the count and the grid share one.
+and validates its input, because an action is a public POST endpoint. When two children need the same rows, pass
+them one *promise* rather than fetching twice.
 
 **There is one list, and it is the home page.** `/` is the grid of recordings,
 filtered by search params; there is no separate inbox route. **The card carries
 no error count and there is no `Has errors` filter** — both deleted 23 Sep 2026,
 which is also why the grid no longer selects `error_count` / `failed_count`. A
 count on a card nobody has opened is a verdict, and a wrong one: the counts live
-in the log pane of the report, next to the rows they count. **The card shows
-its title only when the report has one** — both of the extension's compose
-inputs are optional, so an untitled card renders no placeholder line at all. A
-title is filled in later on the report page, where it and the description are
-edited in place — under the player, in the scrolling left column, with the log pane
-holding the full viewport height on the right. `ReportView` takes that column's
+in the log pane of the report, next to the rows they count. **A card's first line is
+its title, or the site when there is none** — both of the extension's compose
+inputs are optional, and a card with no text under its thumbnail broke the
+grid's rhythm (1 Oct 2026, reversing "no line at all"). Never a placeholder
+like "Untitled". A title is filled in later on the report page, where it and
+the description are edited in place — under the player, in the scrolling left
+column, with the DevTools pane (`components/report/devtools-pane.tsx`) holding the full viewport
+height on the right. `ReportView` takes that column's
 contents as `children`, so the owner's page passes editable fields and the
 share page passes the same thing flat and read-only. The header above it is a
-bar with nothing but the way back and the Share button: **the page, the
-project, the clock and the machine all live in the log pane's `Info` tab**,
+bar with nothing but the way back, the ⋯ menu (delete) and the Share button:
+**the page, the project, the clock and the machine all live in the DevTools
+pane's `Info` tab**, which leaves out a row that was not captured rather than
+dashing it,
 which is the first tab and the default. Do not re-add any of them to the
 header — one place to look was the point. Search covers `title` and
 `description`, not just the title, and treats `%` and `_` literally.
@@ -346,7 +367,7 @@ playhead to move on a still image. The log pane is unchanged.
 **The recording has no duration until the player asks for it.** `offscreen.js`
 pipes MediaRecorder chunks straight into a Blob, so the webm carries no duration
 in its header and Chrome reports `Infinity` — and paints the scrubber pinned to
-the far right, which read as "already finished". `report-view.tsx` probes for it
+the far right, which read as "already finished". `components/report/player.tsx` probes for it
 (`currentTime = 1e101`, then `durationchange` puts it back at 0) and ignores
 `timeupdate` while the probe is in flight. Fixing it in the extension instead
 would need a bundler in `apps/extension/`, and would leave every recording already in
@@ -356,14 +377,25 @@ and the two disagreed about where the start is.
 
 **The dashboard is light only, for now.** `ThemeProvider` passes
 `forcedTheme="light"`; the `.dark` block in `globals.css` and
-`theme-toggle.tsx` are both still there and both inert, and `<ThemeToggle />`
-is commented out in `app-sidebar.tsx` rather than deleted. Dark comes back by
-dropping the prop and uncommenting that one line — the dark palette was
-validated rather than eyeballed (see `PLAN.md`), so re-deriving it is the
-expensive part, not re-enabling it. The extension's composer card is light for
+`components/theme/toggle.tsx` are both still there and both inert, and `<ThemeToggle />`
+is commented out in `components/shell/app-sidebar.tsx` rather than deleted. Dark comes back by
+dropping the prop and uncommenting that one line — but the `.dark` block was
+re-done in zinc with the light one on 1 Oct 2026 and has **not** been checked
+for contrast, so check it before shipping it.
+
+**No pink, no purple.** The palette is zinc greys; the only hues are
+functional — `crit` (#DC2626, a red with no pink in it), `warn`, `good`, and
+`link` (blue). The old `jam` / `grape` / `zest` / `chart-*` tokens are deleted,
+not hidden; the primary button is near-black. The extension's `popup.html` and
+`widget.js` carry the same values by hand. The extension's composer card is light for
 the same reason; **the on-page pill and the crop tip stay near-black on
 purpose** — they sit on somebody else's page and have to read as an instrument
 against any background.
+
+Components are grouped by surface: `components/report/` (the report page),
+`components/home/` (the grid and its header), `components/shell/` (sidebar,
+brand, workspace switcher), `components/theme/`; `skeletons.tsx` stays at the
+root because it mirrors all of them.
 
 `components/ui/` is shadcn (`base-nova` style, Base UI underneath, so the slot
 prop is `render`, not `asChild`). Compose those primitives — do not hand-roll a

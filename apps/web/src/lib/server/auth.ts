@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, organization } from 'better-auth/plugins';
+import { nextCookies } from 'better-auth/next-js';
 import { db, schema } from '../db/index.ts';
 import { serverEnv } from '../env.ts';
 
@@ -71,10 +72,14 @@ function build() {
       },
     },
     plugins: [
-      // Team workspaces are Phase 3 and paid; until ee/ answers features.has,
-      // nobody creates a second one.
+      // A second workspace is Pro. The plan check is createWorkspace() in
+      // lib/server/workspaces.ts, which creates as a system action — so the
+      // plugin's own create endpoint stays shut to every user.
       organization({ allowUserToCreateOrganization: false }),
       bearer({ requireSignature: true }),
+      // Lets a server action's auth().api call set cookies — switching
+      // workspace rewrites the session cookie cache. Must stay last.
+      nextCookies(),
     ],
   });
   return instance;

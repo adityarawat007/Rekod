@@ -1,9 +1,7 @@
 import { apiActor } from '@/lib/server/session';
 import { deleteReports } from '@/lib/server/reports';
 
-/** The extension's discard: a capture thrown away in the composer was already
- *  uploading, so its files and its `processing` row go. Files first, then the
- *  row — see deleteReports(). */
+/** The composer's discard: the files, then the `processing` row. */
 export async function DELETE(req: Request, ctx: RouteContext<'/api/v1/reports/[id]'>) {
   const actor = await apiActor(req);
   if (!actor) return Response.json({ error: 'unauthorized' }, { status: 401 });

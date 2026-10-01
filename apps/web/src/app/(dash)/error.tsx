@@ -5,10 +5,8 @@ import Link from 'next/link';
 import { RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { PageHeader } from '@/components/page-header';
+import { PageHeader } from '@/components/home/page-header';
 
-// One boundary for every dashboard route. The sidebar lives in the layout, so
-// it survives — a failed query costs you the panel, not the app.
 export default function DashError({
   error,
   reset,
@@ -20,10 +18,7 @@ export default function DashError({
     console.error(error);
   }, [error]);
 
-  // The one failure mode with a known fix: a database that has not had every
-  // migration applied, which Postgres reports as a relation or column that
-  // "does not exist". In production the message is redacted to a digest, so
-  // this only ever fires in dev — which is where it is needed.
+  // A missing migration. Production redacts the message, so this is dev-only.
   const needsMigration = /does not exist/i.test(error.message);
 
   return (
@@ -51,7 +46,7 @@ export default function DashError({
                 <RotateCw /> Try again
               </Button>
               <Button variant="outline" render={<Link href="/" />}>
-                Back to ReKods
+                Back to Rekods
               </Button>
             </div>
           </CardContent>
