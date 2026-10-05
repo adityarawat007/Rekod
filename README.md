@@ -2,7 +2,10 @@
   <img src="docs/banner.png" alt="" width="100%">
 </p>
 
-<h1 align="center">rekod</h1>
+<h1 align="center">
+  <img src="apps/web/public/rekod-mark.svg" alt="" width="40" align="absmiddle">
+  rekod
+</h1>
 
 <p align="center">
   <b>Bug reports that already know what happened.</b><br>
