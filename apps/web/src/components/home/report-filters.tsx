@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Camera, Check, ChevronDown, Loader2, Search, Video, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger,
@@ -16,7 +15,7 @@ const TYPES = [
 ] as const;
 
 /** Filters live in the URL, so a filtered list is a link you can paste. */
-export function ReportFilters() {
+export function ReportFilters({ counter }: { counter?: React.ReactNode }) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, start] = useTransition();
@@ -29,7 +28,7 @@ export function ReportFilters() {
     const query = next.q ?? q;
     if (query) sp.set('q', query);
     for (const t of next.types ?? types) sp.append('type', t);
-    start(() => router.replace(sp.size ? `/?${sp}` : '/'));
+    start(() => router.replace(sp.size ? `/rekod?${sp}` : '/rekod'));
   };
 
   useEffect(() => {
@@ -52,62 +51,62 @@ export function ReportFilters() {
 
   const toggle = (t: string) => go({ types: types.includes(t) ? types.filter((x) => x !== t) : [...types, t] });
   const Icon = pending ? Loader2 : Search;
+  const value = types.length === 1 ? TYPES.find((t) => t.value === types[0])?.label : types.length ? `${types.length} types` : 'All';
 
   return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+      {/* §6.3 chip. Active: --ink border on --panel, with ×. Inactive: ▾. */}
+      <div
+        className={cn(
+          'flex h-[38px] items-center border transition-colors duration-150',
+          types.length ? 'border-ink bg-panel text-ink' : 'border-line-strong bg-bg text-muted-foreground',
+        )}
+      >
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                className={cn(
-                  'h-9 gap-1.5 bg-muted px-3 text-[15px] hover:bg-muted/70 data-popup-open:bg-muted/70',
-                  types.length && 'rounded-r-none bg-foreground/8 font-medium hover:bg-foreground/10',
-                )}
-              />
-            }
+            render={<button type="button" className="flex h-full items-center gap-2 pl-3 pr-2 hover:bg-tint-soft data-popup-open:bg-tint-soft" />}
           >
-            {types.length === 1 ? TYPES.find((t) => t.value === types[0])?.label : 'Type'}
-            {types.length > 1 ? <span className="text-muted-foreground tabular-nums">· {types.length}</span> : null}
-            <ChevronDown className="text-muted-foreground" />
+            <span className="label font-normal text-faint">Type</span>
+            <span className="font-medium">{value}</span>
+            {types.length ? null : <ChevronDown className="size-4" />}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56 p-1.5">
+          <DropdownMenuContent align="start" className="w-56 p-1">
             {TYPES.map(({ value, label, icon: TypeIcon }) => (
               <DropdownMenuCheckboxItem
                 key={value}
                 checked={types.includes(value)}
                 onCheckedChange={() => toggle(value)}
                 closeOnClick={false}
-                className="gap-3 py-2 pr-2 text-[15px] [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"
+                className="gap-3 py-2 pr-2 [&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"
               >
+                {/* §6.11 checkbox: 17px, square. */}
                 <span
                   aria-hidden
                   className={cn(
-                    'grid size-[18px] place-items-center rounded-[5px] border border-input bg-background transition-colors',
-                    types.includes(value) && 'border-foreground bg-foreground text-background',
+                    'grid size-[17px] place-items-center border-[1.5px] border-line-strong bg-panel transition-colors duration-150',
+                    types.includes(value) && 'border-ink bg-ink text-panel',
                   )}
                 >
                   {types.includes(value) ? <Check className="size-3 [stroke-width:3]" /> : null}
                 </span>
-                <TypeIcon className="size-5" /> {label}
+                <TypeIcon className="size-4" /> {label}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
         {types.length ? (
-          <Button
-            variant="ghost"
-            aria-label="Clear the type filter"
+          <button
+            type="button"
+            aria-label="Remove the type filter"
             onClick={() => go({ types: [] })}
-            className="ml-px h-9 w-8 rounded-l-none bg-foreground/8 px-0 hover:bg-foreground/10"
+            className="grid h-full w-8 place-items-center hover:bg-tint-soft"
           >
-            <X />
-          </Button>
+            <X className="size-4" />
+          </button>
         ) : null}
       </div>
 
-      <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+      <div className="relative min-w-0 flex-1 sm:w-80 sm:flex-none">
         <Icon
           aria-hidden
           className={cn(
@@ -120,14 +119,30 @@ export function ReportFilters() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search Rekods"
-          className="h-9 rounded-lg pl-9 pr-12"
+          placeholder="Search rekods"
+          className="pl-9 pr-12"
           aria-label="Search titles and descriptions"
         />
-        <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground sm:block">
+        <kbd className="mono pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 border border-line-strong px-1.5 text-[11px] leading-5 text-muted-foreground sm:block">
           ⌘K
         </kbd>
       </div>
+
+      {types.length || q ? (
+        <button
+          type="button"
+          onClick={() => {
+            setQ('');
+            go({ q: '', types: [] });
+          }}
+          className="mono inline-flex h-8 items-center text-[12.5px] font-medium text-ink underline underline-offset-4 hover:text-primary"
+        >
+          Clear filters
+        </button>
+      ) : null}
+
+      {/* ≤760px the counter takes its own line (§4). */}
+      <div className="w-full narrow:ml-auto narrow:w-auto">{counter}</div>
     </div>
   );
 }

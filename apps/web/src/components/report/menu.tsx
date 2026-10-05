@@ -24,7 +24,7 @@ export function ReportMenu({ id }: { id: string }) {
     setErr(null);
     try {
       await deleteReports([id]);
-      router.push('/');
+      router.push('/rekod');
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -35,12 +35,12 @@ export function ReportMenu({ id }: { id: string }) {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="More actions" />}>
+        <DropdownMenuTrigger render={<Button variant="outline" size="icon-lg" aria-label="More actions" />}>
           <Ellipsis />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem variant="destructive" onClick={() => setOpen(true)}>
-            <Trash2 /> Delete Rekod
+            <Trash2 /> Delete rekod
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -48,16 +48,16 @@ export function ReportMenu({ id }: { id: string }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete this Rekod?</DialogTitle>
+            <DialogTitle>Delete this rekod?</DialogTitle>
             <DialogDescription>
               The video, the console and network log and the comments all go. Any share link for it
               stops working. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {err ? <p role="alert" className="text-sm text-destructive">{err}</p> : null}
+          {err ? <p role="alert" className="text-sm text-error">{err}</p> : null}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={remove} disabled={busy}>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="destructive-solid" onClick={remove} disabled={busy}>
               {busy ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
             </Button>
           </DialogFooter>

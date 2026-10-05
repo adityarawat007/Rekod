@@ -1,12 +1,26 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-export function Brand({ href = '/', small = false }: { href?: string; small?: boolean }) {
+/** §3 wordmark: the word "rekod", sans 700,
+ *  lowercase. Inside the app it goes to the grid (/rekod); the landing page,
+ *  the login page and share links point it at the landing page (/).
+ *  `className` recolours the word. */
+export function Brand({
+  href = '/rekod',
+  small = false,
+  className,
+}: {
+  href?: string;
+  small?: boolean;
+  className?: string;
+}) {
   return (
-    <Link href={href} className={cn('flex w-fit items-center gap-2 px-1 py-0.5', small && 'gap-1.5 px-0')}>
-      <Image src="/logo.png" alt="" width={128} height={128} priority className={cn('rounded-md', small ? 'size-5' : 'size-7')} />
-      <span className={cn('font-mark font-semibold tracking-tight', small ? 'text-sm' : 'text-lg')}>Rekod</span>
+    <Link
+      href={href}
+      aria-label={href === '/' ? 'rekod home' : 'rekod, all rekods'}
+      className={cn('flex w-fit shrink-0 items-center', small ? 'gap-1.5' : 'gap-2')}
+    >
+      <span className={cn('font-bold tracking-[-0.02em] text-ink', small ? 'text-lg' : 'text-[22px]', className)}>rekod</span>
     </Link>
   );
 }

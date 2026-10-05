@@ -1,159 +1,171 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "../styles/tokens.css";
+@import "../styles/marketing.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
-/* Zinc greys; the only hues are functional (crit / warn / good / link). */
+/* REKOD_DESIGN_SYSTEM.md is the authority; its tokens live, unrenamed, in
+   styles/tokens.css. shadcn's own `--muted` and `--accent` would collide with
+   the spec's (text grey, pink), so shadcn's colours point straight at spec
+   tokens here instead of through variables of their own. Radius is 0 and
+   shadows are flat: every utility at once. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-body);
-  --font-heading: var(--font-body);
-  --font-mono: var(--font-data);
-  --font-mark: var(--font-body);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
+  --font-sans: var(--font-inter-tight), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: var(--font-inter-tight), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, Menlo, Consolas, monospace;
+
+  /* shadcn's names */
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--panel);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--panel);
+  --color-popover-foreground: var(--ink);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
+  --color-primary-foreground: var(--on-primary);
+  --color-secondary: var(--bg);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--bg);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--bg);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--error);
+  --color-border: var(--line);
+  --color-input: var(--line-strong);
+  --color-ring: var(--focus);
 
+  /* The spec's names (§10.2), less the two above that shadcn owns. */
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-faint: var(--faint);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-open: var(--open);
+  --color-on-open: var(--on-open);
+  --color-pink: var(--accent);
+  --color-pink-soft: var(--accent-soft);
+  --color-pink-ring: var(--accent-ring);
+  --color-on-pink: var(--on-accent);
+  --color-tint: var(--tint);
+  --color-tint-soft: var(--tint-soft);
   --color-link: var(--link);
-  --color-good: var(--good);
-  --color-warn: var(--warn);
-  --color-crit: var(--crit);
+  --color-focus: var(--focus);
+  --color-selected: var(--selected);
+  --color-cell: var(--cell);
+  --color-cell-text: var(--cell-text);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-chrome: var(--chrome);
+  --color-on-chrome: var(--on-chrome);
+  --color-on-chrome-muted: var(--on-chrome-muted);
+  /* Older names, still used by the log rows. */
+  --color-crit: var(--error);
+  --color-warn: var(--warning);
+  --color-good: var(--success);
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
-  --radius-3xl: 16px;
-  --radius-4xl: 16px;
+
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+
+  /* §4 breakpoints: desktop from 761px (≤760 is phone), two columns from 1101px.
+     In rem, like Tailwind's own: a px breakpoint can't be sorted against the
+     rem ones, lands before them in the CSS, and sm: then overrides it. */
+  --breakpoint-narrow: 47.5625rem; /* 761px */
+  --breakpoint-wide: 68.8125rem; /* 1101px */
 }
 
 :root {
-  --radius: 10px;
-
-  --link: #2563EB;
-  --good: #00A862;
-  --warn: #F07800;
-  --crit: #DC2626;
-
-  --background: #FFFFFF;
-  --foreground: #18181B;
-  --card: #FFFFFF;
-  --card-foreground: #18181B;
-  --popover: #FFFFFF;
-  --popover-foreground: #18181B;
-  --primary: #18181B;
-  --primary-foreground: #FFFFFF;
-  --secondary: #F4F4F5;
-  --secondary-foreground: #18181B;
-  --muted: #F4F4F5;
-  --muted-foreground: #71717A;
-  --accent: #F4F4F5;
-  --accent-foreground: #18181B;
-  --destructive: #DC2626;
-  --border: #E9E9EC;
-  --input: #E4E4E7;
-  --ring: #A1A1AA;
-
-
-  --sidebar: #FCFDFC;
-  --sidebar-foreground: #3F3F46;
-  --sidebar-primary: #18181B;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EBEBED;
-  --sidebar-accent-foreground: #18181B;
-  --sidebar-border: #E9E9EC;
-  --sidebar-ring: #A1A1AA;
-}
-
-.dark {
-  --link: #60A5FA;
-  --good: #2FD48A;
-  --warn: #FFA23D;
-  --crit: #FF5C6E;
-
-  --background: #09090B;
-  --foreground: #FAFAFA;
-  --card: #18181B;
-  --card-foreground: #FAFAFA;
-  --popover: #18181B;
-  --popover-foreground: #FAFAFA;
-  --primary: #FAFAFA;
-  --primary-foreground: #18181B;
-  --secondary: #27272A;
-  --secondary-foreground: #FAFAFA;
-  --muted: #27272A;
-  --muted-foreground: #A1A1AA;
-  --accent: #27272A;
-  --accent-foreground: #FAFAFA;
-  --destructive: #FF5C6E;
-  --border: #27272A;
-  --input: #3F3F46;
-  --ring: #71717A;
-
-  --sidebar: #0F0F11;
-  --sidebar-foreground: #D4D4D8;
-  --sidebar-primary: #FAFAFA;
-  --sidebar-primary-foreground: #18181B;
-  --sidebar-accent: #27272A;
-  --sidebar-accent-foreground: #FAFAFA;
-  --sidebar-border: #27272A;
-  --sidebar-ring: #71717A;
+  --radius: 0;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-size: 14px;
+    line-height: 20px;
   }
   html {
     @apply font-sans;
+    /* No rubber-band overscroll: dragging past an edge showed a strip of bare
+       canvas under the page. The colour is there for browsers that still
+       bounce (older Safari). */
+    overscroll-behavior: none;
+    background-color: var(--bg);
+  }
+  body {
+    overscroll-behavior: none;
   }
   .mono,
   code,
   pre {
-    font-family: var(--font-data), ui-monospace, monospace;
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+  /* §3 h2: sans 600, tight. */
   h1, h2, h3 {
+    font-weight: 600;
     letter-spacing: -0.015em;
   }
-  /* Also overrides a strokeWidth prop (it is an attribute): use a class. */
+  /* §5: Lucide at stroke 1.6. Also overrides a strokeWidth prop: use a class. */
   svg.lucide {
-    stroke-width: 2.25;
+    stroke-width: 1.6;
   }
-  html {
-    font-feature-settings: 'cv11', 'ss01';
+  /* §7: focus is always a 2px --focus outline, 2px off. Beats `outline-none`. */
+  :focus-visible {
+    outline: 2px solid var(--focus) !important;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition: none !important;
+      animation: none !important;
+    }
   }
 }
 
+/* §3 `label`: chip keys, table heads, section eyebrows. Never a sentence. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
-/* ── login replay (app/login/replay.tsx) ─────────────────────────────────────
+/* §3 stat: big counters. */
+@utility stat {
+  font-size: 28px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ── replay (components/marketing/replay.tsx: the login page) ───────────────
    One 9s loop, three parts kept in step by sharing the period: rows tick in
    0.7s apart, the playhead sweeps the track, and the sticker lands just after
    the error row (48% ≈ 4.3s, where the red tick sits). Reduced motion shows the

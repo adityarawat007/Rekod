@@ -12,12 +12,14 @@ export default function SharedError({ error, reset }: { error: Error & { digest?
   }, [error]);
 
   return (
-    <PanelFrame className="items-center justify-center gap-3 p-6 text-center">
-      <p className="font-medium">This Rekod would not load</p>
-      <p className="max-w-xs text-sm text-muted-foreground">The link is valid, so this is on our side.</p>
-      <Button onClick={reset}>
-        <RotateCw /> Try again
-      </Button>
+    <PanelFrame className="items-center justify-center p-4">
+      <div className="max-w-md space-y-3 border bg-panel px-[26px] py-6">
+        <h2 className="text-xl">This rekod would not load</h2>
+        <p className="text-muted-foreground">The link is valid, so this is on our side. Try again in a moment.</p>
+        <Button onClick={reset}>
+          <RotateCw /> Try again
+        </Button>
+      </div>
     </PanelFrame>
   );
 }

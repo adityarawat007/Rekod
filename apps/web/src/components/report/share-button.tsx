@@ -73,7 +73,7 @@ export function ShareButton({ id, shareToken }: Props) {
 
   return (
     <div className="flex items-center">
-      <Button onClick={() => copy()} disabled={busy} className="rounded-r-none">
+      <Button size="lg" onClick={() => copy()} disabled={busy}>
         {busy ? <Loader2 className="animate-spin" /> : copied ? <Check /> : <Link2 />}
         {copied ? 'Copied' : 'Copy link'}
       </Button>
@@ -82,18 +82,18 @@ export function ShareButton({ id, shareToken }: Props) {
         <PopoverTrigger
           render={
             <Button
-              variant="default"
+              size="icon-lg"
               aria-label="Share options"
-              className="rounded-l-none border-l border-background/25 px-2"
+              className="border-l border-l-on-primary/30"
             >
               <ChevronDown />
             </Button>
           }
         />
-        <PopoverContent align="end" className="w-[22rem] gap-4 p-4">
+        <PopoverContent align="end" className="w-[22rem] gap-4 p-5">
           <div className="flex items-center justify-between">
-            <PopoverTitle className="text-[15px]">Share</PopoverTitle>
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <PopoverTitle className="text-base font-semibold">Share</PopoverTitle>
+            <span className="label flex items-center gap-1.5 text-muted-foreground">
               <Globe className="size-3.5" /> Anyone with the link
             </span>
           </div>
@@ -101,17 +101,17 @@ export function ShareButton({ id, shareToken }: Props) {
           <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="What the link shows">
             <ModeCard label="With DevTools" on={mode === 'devtools'} onClick={() => setMode('devtools')}>
               <div className="flex h-full gap-1">
-                <div className="flex-[3] rounded-[3px] bg-zinc-800" />
-                <div className="flex flex-[2] flex-col gap-1 rounded-[3px] bg-background p-1">
+                <div className="flex-[3] bg-chrome" />
+                <div className="flex flex-[2] flex-col gap-1 bg-panel p-1">
                   {[80, 60, 70, 45].map((w, i) => (
-                    <span key={i} className={cn('h-1 rounded-full', i === 2 ? 'bg-crit/60' : 'bg-border')} style={{ width: `${w}%` }} />
+                    <span key={i} className={cn('h-1', i === 2 ? 'bg-error' : 'bg-line')} style={{ width: `${w}%` }} />
                   ))}
                 </div>
               </div>
             </ModeCard>
             <ModeCard label="Video only" on={mode === 'media'} onClick={() => setMode('media')}>
-              <div className="grid h-full place-items-center rounded-[3px] bg-zinc-800">
-                <Play className="size-3 fill-white text-white" />
+              <div className="grid h-full place-items-center bg-chrome">
+                <Play className="size-3 fill-on-chrome text-on-chrome" />
               </div>
             </ModeCard>
           </div>
@@ -121,27 +121,22 @@ export function ShareButton({ id, shareToken }: Props) {
               readOnly
               value={link ?? 'Copy once to create the link'}
               aria-label="Share link"
-              className="h-9 text-[13px] text-muted-foreground"
+              className="mono text-xs text-muted-foreground"
               onFocus={(e) => e.currentTarget.select()}
             />
-            <Button onClick={() => copy()} disabled={busy} className="h-9">
+            <Button variant="outline" size="lg" onClick={() => copy()} disabled={busy}>
               {copied ? <Check /> : <Link2 />} {copied ? 'Copied' : 'Copy'}
             </Button>
           </div>
 
           {token ? (
-            <button
-              type="button"
-              onClick={stop}
-              disabled={busy}
-              className="flex w-fit items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive"
-            >
-              <Unlink className="size-3.5" /> Stop sharing
-            </button>
+            <Button variant="destructive" size="sm" className="w-fit" onClick={stop} disabled={busy}>
+              <Unlink /> Stop sharing
+            </Button>
           ) : null}
 
           {err ? (
-            <p role="alert" className="text-xs text-destructive">
+            <p role="alert" className="text-xs text-error">
               {err}
             </p>
           ) : null}
@@ -169,14 +164,14 @@ function ModeCard({
       aria-checked={on}
       onClick={onClick}
       className={cn(
-        'rounded-xl border p-1.5 text-left transition-all hover:border-foreground/30',
-        on && 'border-foreground ring-1 ring-foreground',
+        'border border-line-strong p-1.5 text-left transition-colors duration-150 hover:bg-bg',
+        on && 'outline-[2.5px] outline-offset-2 outline-selected outline-solid',
       )}
     >
-      <div className="aspect-[16/9] rounded-lg bg-muted p-1.5" aria-hidden>
+      <div className="aspect-[16/9] bg-bg p-1.5" aria-hidden>
         {children}
       </div>
-      <span className="mt-1.5 block px-1 pb-0.5 text-[13px] font-medium">{label}</span>
+      <span className="mt-1.5 block px-1 pb-0.5 text-[13px] font-medium text-ink">{label}</span>
     </button>
   );
 }

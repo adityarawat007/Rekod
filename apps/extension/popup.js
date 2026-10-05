@@ -24,7 +24,7 @@ const GATE = {
     title: 'Your session needs a refresh',
     note: 'You are still signed in. Only the dashboard can renew the token — open it once and come back.',
     cta: 'Open dashboard',
-    path: '/',
+    path: '/rekod',
   },
   none: {
     title: 'You are not signed in',
@@ -125,7 +125,7 @@ const openDash = (path) => {
 };
 
 $('login').onclick = () => openDash(gatePath);
-$('dash').onclick = () => openDash('/');   // the grid IS the list; /reports is gone
+$('dash').onclick = () => openDash('/rekod');   // the grid; / is the public landing page
 
 // Ask the worker, not the cookie: it is the one with chrome.tabs, so it can
 // renew a stale session by loading the dashboard in a background tab. Only if

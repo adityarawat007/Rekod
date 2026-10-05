@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Camera, Loader2, Play, SearchX, Trash2, Video, X } from 'lucide-react';
+import { Camera, Check, Loader2, Play, Trash2, Video, X } from 'lucide-react';
 import { ago, clock } from '@/lib/format';
 import { GRID } from '@/components/skeletons';
 import { Shortcut } from '@/components/home/shortcut';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { deleteReports, moreReports } from '@/app/(dash)/actions';
-import type { PageQuery } from '@/app/(dash)/(home)/rows';
+import type { PageQuery } from '@/app/(dash)/rekod/rows';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -35,11 +38,11 @@ function Thumb({ row }: { row: ListRow }) {
   const Icon = shot ? Camera : Video;
 
   return (
-    <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
+    <div className="relative aspect-video overflow-hidden border-b bg-cell">
       {url ? (
         shot ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="size-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.015]" loading="lazy" />
+          <img src={url} alt="" className="size-full object-cover object-top" loading="lazy" />
         ) : (
           <video
             src={`${url}#t=0.5`}
@@ -47,7 +50,7 @@ function Thumb({ row }: { row: ListRow }) {
             playsInline
             preload="metadata"
             aria-hidden
-            className="size-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.015]"
+            className="size-full object-cover object-top"
           />
         )
       ) : (
@@ -55,54 +58,26 @@ function Thumb({ row }: { row: ListRow }) {
           <Icon className="size-6 text-muted-foreground" aria-hidden />
         </div>
       )}
-      <span aria-hidden className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-black/[0.06] ring-inset transition-shadow group-hover:ring-black/15" />
-      <span className="absolute bottom-2.5 right-2.5 inline-flex h-6 items-center gap-1 rounded-md bg-black/70 px-1.5 text-xs font-medium text-white backdrop-blur-sm">
+      <span className="mono absolute bottom-2 right-2 inline-flex h-6 items-center gap-1.5 bg-chrome px-2 text-xs text-on-chrome">
         {shot ? (
-          <Camera className="size-3.5" aria-label="Screenshot" />
+          <><Camera className="size-3.5" aria-hidden /> Shot</>
         ) : (
-          <><Play className="size-3 fill-current" aria-hidden /> <span className="tabular-nums">{row.durationMs ? clock(row.durationMs / 1000) : 'Video'}</span></>
+          <><Play className="size-3 fill-current" aria-hidden /> {row.durationMs ? clock(row.durationMs / 1000) : 'Video'}</>
         )}
       </span>
     </div>
   );
 }
 
-/** A workspace with nothing in it yet: one picture, one line, one action. */
+/** §6.16: text only, inside a panel. The title block's "New rekod" is the
+ *  view's one primary button, so this one points at the hotkey instead. */
 function FirstRun() {
   return (
-    <div className="flex flex-col items-center gap-5 px-5 pt-20 text-center">
-      <div className="relative h-28 w-72" aria-hidden>
-        {[-6, 0, 6].map((deg, i) => (
-          <div
-            key={deg}
-            style={{ transform: `translateX(${(i - 1) * 64}px) rotate(${deg}deg)` }}
-            className={cn(
-              'absolute inset-x-12 aspect-video rounded-xl border bg-muted shadow-sm',
-              i === 1 ? 'top-0 z-10 bg-card p-1.5' : 'top-2',
-            )}
-          >
-            {i === 1 ? (
-              <>
-                <div className="relative h-[62%] space-y-1.5 rounded-lg bg-zinc-900 p-2.5">
-                  <div className="h-1.5 w-12 rounded bg-white/25" />
-                  <div className="h-1.5 w-20 rounded bg-white/15" />
-                  <span className="absolute bottom-1.5 right-1.5 inline-flex h-4 items-center gap-1 rounded bg-black/70 px-1 text-[10px] font-medium text-white">
-                    <Play className="size-2 fill-current" /> 0:34
-                  </span>
-                </div>
-                <div className="mt-2 space-y-1.5 px-0.5">
-                  <div className="h-2 w-24 rounded bg-muted" />
-                  <div className="h-2 w-14 rounded bg-muted/70" />
-                </div>
-              </>
-            ) : null}
-          </div>
-        ))}
-      </div>
-      <div className="space-y-1.5">
-        <p className="text-base font-semibold">Record your first Rekod</p>
-        <p className="text-sm text-muted-foreground">On any tab, with the extension installed:</p>
-      </div>
+    <div className="space-y-3 border bg-panel px-[26px] py-6">
+      <h2 className="text-xl">No rekods yet</h2>
+      <p className="text-muted-foreground">
+        With the extension installed, press the hotkey on any tab. The five minutes before it come too.
+      </p>
       <Shortcut />
     </div>
   );
@@ -161,6 +136,7 @@ export function ReportList({
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
 
   const toggle = (id: string) =>
     setSel((prev) => {
@@ -177,6 +153,7 @@ export function ReportList({
       // Pages past the first live only here, so they are pruned here.
       setItems((xs) => xs.filter((r) => !sel.has(r.id)));
       setSel(new Set());
+      setConfirm(false);
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -186,73 +163,44 @@ export function ReportList({
   }
 
   if (!items.length) {
-    return empty ? (
-      <div className="flex flex-col items-center gap-3 px-5 pt-28 text-center">
-        <span className="grid size-10 place-items-center rounded-xl bg-muted">
-          <SearchX className="size-5 text-muted-foreground" />
-        </span>
-        {empty}
-      </div>
-    ) : (
-      <FirstRun />
-    );
+    return empty ? <div className="space-y-3 border bg-panel px-[26px] py-6">{empty}</div> : <FirstRun />;
   }
 
-  return (
-    <div className="space-y-3">
-      {sel.size > 0 && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border bg-card p-2 pl-4 shadow-lg shadow-black/5">
-          <span className="text-sm font-medium">
-            {sel.size} selected
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>
-            <X /> Clear
-          </Button>
-          <Button size="sm" variant="destructive" className="ml-auto" onClick={remove} disabled={busy}>
-            {busy ? <Loader2 className="animate-spin" /> : <Trash2 />}
-            Delete {sel.size === 1 ? 'Rekod' : 'Rekods'}
-          </Button>
-          {err ? (
-            <p role="alert" className="w-full text-xs text-destructive">
-              {err}
-            </p>
-          ) : null}
-        </div>
-      )}
+  const picked = items.filter((r) => sel.has(r.id));
+  const shots = picked.filter((r) => r.shot).length;
 
+  return (
+    <div className="space-y-4">
       <ul className={GRID}>
         {items.map((r) => {
           const on = sel.has(r.id);
           return (
             // The checkbox is the link's sibling: inside an <a>, a click navigates.
-            <li key={r.id} className="group relative">
-              <Link
-                href={`/reports/${r.id}`}
-                className={cn(
-                  'block space-y-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4',
-                  on && '[&_.aspect-video]:ring-2 [&_.aspect-video]:ring-foreground',
-                )}
-              >
+            <li
+              key={r.id}
+              className={cn(
+                'group relative border bg-panel transition-colors duration-150 hover:border-line-strong',
+                on && 'outline-[2.5px] outline-offset-2 outline-selected outline-solid',
+              )}
+            >
+              <Link href={`/reports/${r.id}`} className="block outline-none">
                 <Thumb row={r} />
                 {/* Two rows held open, so cards with and without titles align. */}
-                <div className="min-h-11 space-y-0.5 px-1">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm font-medium underline-offset-2 group-hover:underline">
-                      {r.title || r.project || '—'}
-                    </p>
-                    <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground" suppressHydrationWarning>
-                      {ago(r.created_at)}
-                    </span>
-                  </div>
-                  {r.title && r.project ? (
-                    <p className="truncate text-[13px] text-muted-foreground">{r.project}</p>
-                  ) : null}
+                <div className="min-h-[68px] space-y-1 px-3.5 py-3">
+                  <p className="truncate font-medium text-ink group-hover:underline underline-offset-2">
+                    {r.title || r.project || '—'}
+                  </p>
+                  <p className="mono flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                    <span className="min-w-0 truncate">{r.title && r.project ? r.project : shotOrVideo(r)}</span>
+                    <span className="shrink-0" suppressHydrationWarning>{ago(r.created_at)}</span>
+                  </p>
                 </div>
               </Link>
 
+              {/* §6.11 checkbox, 17px square; shown on hover, focus or once ticked. */}
               <label
                 className={cn(
-                  'absolute left-2.5 top-2.5 z-10 grid size-6 cursor-pointer place-items-center rounded-md bg-white/90 shadow-sm ring-1 ring-black/10 backdrop-blur transition-opacity',
+                  'absolute left-2 top-2 z-10 grid size-8 cursor-pointer place-items-center transition-opacity duration-150',
                   !on && 'opacity-0 focus-within:opacity-100 group-hover:opacity-100',
                 )}
               >
@@ -260,9 +208,18 @@ export function ReportList({
                   type="checkbox"
                   checked={on}
                   onChange={() => toggle(r.id)}
-                  aria-label={`Select the Rekod from ${r.project ?? 'an unknown project'}`}
-                  className="size-3.5 accent-foreground"
+                  aria-label={`Select ${r.title || r.project || 'this rekod'}`}
+                  className="peer sr-only"
                 />
+                <span
+                  aria-hidden
+                  className={cn(
+                    'grid size-[17px] place-items-center border-[1.5px] border-line-strong bg-panel peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus',
+                    on && 'border-ink bg-ink text-panel',
+                  )}
+                >
+                  {on ? <Check className="size-3 [stroke-width:3]" /> : null}
+                </span>
               </label>
             </li>
           );
@@ -272,19 +229,70 @@ export function ReportList({
       {loading ? (
         <ul className={GRID} aria-hidden>
           {[0, 1, 2].map((n) => (
-            <li key={n} className="space-y-3">
-              <Skeleton className="aspect-video w-full rounded-xl" />
-              <Skeleton className="h-4 w-36" />
+            <li key={n} className="border bg-panel">
+              <Skeleton className="aspect-video w-full" />
+              <div className="space-y-2 px-3.5 py-3">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-24" />
+              </div>
             </li>
           ))}
         </ul>
       ) : null}
       {failed ? (
         <div className="flex justify-center py-6">
-          <Button variant="outline" size="sm" onClick={load}>Couldn&apos;t load more — retry</Button>
+          <Button variant="outline" size="sm" onClick={load}>Couldn&apos;t load more. Retry</Button>
         </div>
       ) : null}
       {next ? <div ref={sentinel} aria-hidden className="h-px" /> : null}
+
+      {/* §6.10: solid --primary, white text; pinned to the bottom of the view
+          so it stays in reach on a long grid. */}
+      {sel.size > 0 && (
+        <div role="region" aria-label="Selection" className="sticky bottom-4 z-20 flex items-center gap-3 bg-primary py-2.5 pl-4 pr-3 text-on-primary">
+          <button
+            type="button"
+            aria-label="Clear the selection"
+            onClick={() => setSel(new Set())}
+            className="grid size-8 shrink-0 place-items-center hover:bg-on-primary/10"
+          >
+            <X className="size-4" />
+          </button>
+          <span className="shrink-0 font-medium">{sel.size} selected</span>
+          <span className="mono min-w-0 flex-1 truncate text-xs text-on-primary/75">
+            {plural(sel.size - shots, 'video')} · {plural(shots, 'screenshot')}
+          </span>
+          <Button
+            size="sm"
+            onClick={() => setConfirm(true)}
+            className="shrink-0 border-on-primary/45 bg-transparent text-on-primary hover:bg-on-primary/10"
+          >
+            <Trash2 /> Delete
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={confirm} onOpenChange={setConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {plural(sel.size, 'rekod')}?</DialogTitle>
+            <DialogDescription>
+              The recordings, their console and network logs and their comments all go, and any share link stops
+              working. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {err ? <p role="alert" className="text-sm text-error">{err}</p> : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirm(false)}>Cancel</Button>
+            <Button variant="destructive-solid" onClick={remove} disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : <Trash2 />} Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+const shotOrVideo = (r: ListRow) => (r.shot ? 'Screenshot' : 'Video');
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;

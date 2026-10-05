@@ -36,7 +36,8 @@ export type ListFilters = {
   after?: string;
 };
 
-export const PAGE_SIZE = 24;
+/** 16: the dashboard's first screen is a full 4×4 grid. */
+export const PAGE_SIZE = 16;
 
 export type ListRow = {
   id: string;
@@ -85,6 +86,25 @@ export async function listReports(
     }))),
     next: rows.length > PAGE_SIZE ? page.at(-1)!.id : null,
   };
+}
+
+/** The title block's numbers: all ready rekods, how many match the filters,
+ *  and the split by type. One aggregate, run beside listReports(). */
+export async function countReports(ws: string, f: Omit<ListFilters, 'after'> = {}) {
+  const match = [sql`true`];
+  const q = f.q?.trim();
+  if (q) match.push(or(ilike(R.title, likeable(q)), ilike(R.description, likeable(q)))!);
+  if (f.types?.length) match.push(inArray(R.type, f.types));
+  const [c] = await db()
+    .select({
+      total: sql<number>`count(*)::int`,
+      match: sql<number>`(count(*) filter (where ${and(...match)}))::int`,
+      videos: sql<number>`(count(*) filter (where ${R.type} = 'video'))::int`,
+      shots: sql<number>`(count(*) filter (where ${R.type} = 'screenshot'))::int`,
+    })
+    .from(R)
+    .where(and(eq(R.workspaceId, ws), eq(R.status, 'ready')));
+  return c;
 }
 
 // ── one report ──────────────────────────────────────────────────────────────

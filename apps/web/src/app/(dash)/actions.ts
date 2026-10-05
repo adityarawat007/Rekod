@@ -5,7 +5,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/server/auth';
 import { requireActor } from '@/lib/server/session';
 import * as reports from '@/lib/server/reports';
-import { reportPage, type PageQuery } from '@/app/(dash)/(home)/rows';
+import { reportPage, type PageQuery } from '@/app/(dash)/rekod/rows';
 import { createWorkspace as create } from '@/lib/server/workspaces';
 
 // Server actions are public POST endpoints: each re-derives the actor from the

@@ -1,74 +1,82 @@
-# ReKod
+# rekod
 
-Personal bug reporter. A Chrome extension records a tab —
-video or screenshot — with the last 5 minutes of console + network already
-captured, redacts secrets, and uploads it to your own server — a Next.js app
-on any Postgres and any S3-compatible bucket — which plays it back next to a
-synced log timeline. See [`ROADMAP.md`](ROADMAP.md) for where this is going.
+Bug reports that already know what happened. A Chrome extension keeps the last
+five minutes of a tab's console and network in memory; press record and that
+history is attached to the video. A Next.js app plays it all back on one
+timeline.
 
-## Run it
+## What it does
 
-**Dashboard** — the Next.js app in [`apps/web/`](apps/web/README.md):
+- **Chrome extension (MV3).** Records a tab (video) or takes a screenshot, with
+  the previous 5 minutes of console and network traffic already captured.
+  Secrets are redacted in the page before anything leaves the tab. Nothing is
+  uploaded until you press Send.
+- **Web app (Next.js).** The dashboard and the whole backend. Plays the video
+  and the log on one timeline, and shares a rekod by read-only link. Runs on any
+  Postgres (Drizzle) and any S3-compatible bucket, with Better Auth and Google
+  sign-in.
 
-```
-pnpm install && pnpm dev                  # → http://localhost:3100
-```
+The extension has no sign-in of its own; it reads the dashboard's session
+cookie.
 
-Needs Postgres, a bucket, `.env.local` and `pnpm -C apps/web db:migrate` once —
-[`apps/web/README.md`](apps/web/README.md) has the steps. Sign up there first:
-the extension uses the same session.
+## Repo layout
 
-**Extension:** `chrome://extensions` → Developer mode → **Load unpacked** →
-[`apps/extension/`](apps/extension/), **not** the repo root. No build step; the source is
-what ships.
+| Path | What it is |
+|---|---|
+| [`apps/extension/`](apps/extension/) | Vanilla JS, MV3. No build step, no dependencies: the source is what ships. |
+| [`apps/web/`](apps/web/) | Next.js 16, React 19, Tailwind 4. The only pnpm workspace package. |
 
-Everything under the folder you point Chrome at gets read and packaged. The
-repo root holds `.env` files and a 1.1 GB `node_modules`, so the extension lives in its own folder — the isolation
-is the point, not the tidiness.
+The two share no code. The lockfile and `node_modules` live at the repo root.
 
-Sign in on the dashboard once — the extension reads that session from its
-cookie, so there is nothing to sign into on the extension's side. Then capture with `Alt+Shift+J` (starts/stops video), or
-the popup for screenshot vs. record. The on-page widget takes over from there —
-title, project, send. Video is capped at 3 minutes.
+## Quick start
 
-## Layout
+Requires Node, pnpm and Docker.
 
-| File | Context | Job |
-|---|---|---|
-| `apps/extension/worker.js` | service worker | Only holder of `chrome.tabs`/`tabCapture`/`scripting`. Routes everything, keeps no state. Re-injects content scripts on reload. |
-| `apps/extension/offscreen.js` | offscreen doc | The durable one. Owns the log buffer, `MediaRecorder`, the blob, and the upload. Survives navigation and worker death. |
-| `apps/extension/capture.js` | MAIN world | Patches the page's `console`/`fetch`/XHR into a rolling 5-min buffer. Uploads nothing. |
-| `apps/extension/redact.js` | MAIN world | Runs before `capture.js`. Nothing leaves the tab unredacted. |
-| `apps/extension/widget.js` | ISOLATED world | Shadow-DOM widget; UI plus the MAIN↔offscreen bridge. Stateless by design. |
-| `apps/extension/popup.js` / `popup.html` | popup | One button — record this tab — or the expired card that sends you to the dashboard to log in. The widget does the rest. |
-| `apps/extension/auth.js` | worker + popup | Reads the dashboard's `rekod.session_token` cookie via `chrome.cookies`; the uploader sends it back as a Bearer. The extension never signs in; nothing is stored on its side. |
-| `apps/web/` | next.js | **The dashboard and the backend.** Grid, report viewer, share links, auth, the upload API. Every query scoped by workspace in `src/lib/server`. |
+```sh
+# 1. dependencies
+pnpm install
 
-## Redaction
+# 2. local Postgres (:5432) and S3 (:8333)
+docker compose -f docker-compose.dev.yml up
 
-`apps/extension/redact.js` is the ship gate. Denylisted headers (`authorization`, `cookie`,
-…), denylisted keys by name (`password`, `token`, `api_key`, `ssn`, …) in
-objects *and* URL query params, and pattern matches for JWTs, Bearer tokens,
-Stripe/OpenAI/GitHub/AWS keys. Emails are masked to `[email]@domain` —
-`FJ_REDACT_EMAILS` flips that off. It also strips NULs and lone surrogates,
-which Postgres jsonb cannot hold (PostgREST 22P05).
+# 3. config: copy and fill in
+cp apps/web/.env.example apps/web/.env.local
 
-## Tests
+# 4. create the bucket once, then apply migrations
+curl -X PUT http://localhost:8333/rekod
+pnpm -C apps/web db:migrate
 
-```
-pnpm test    # apps/web: timeline logic and the tenant-isolation test
+# 5. dashboard on http://localhost:3100
+pnpm dev
 ```
 
-No framework, no runner. The extension has no automated tests.
+In `.env.local`, set `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) and
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Google is the only sign-in, so
+without both nobody can log in. Google's redirect URI is
+`<BETTER_AUTH_URL>/api/auth/callback/google`.
 
-## Plan
+**Extension:** open `chrome://extensions`, turn on Developer mode, click
+**Load unpacked** and pick [`apps/extension/`](apps/extension/). Never pick the
+repo root: Chrome loads everything under the folder, and the root holds
+`node_modules` and `.env` files. Sign in on the dashboard first.
 
-[`PLAN.md`](PLAN.md) — the full build plan, the three feature tiers, every
-hard-coded limit and why it's there, and a status column showing which of the
-six build steps have landed.
+## Checks
 
-## Known ceilings
+```sh
+pnpm test        # timeline logic and the tenant-isolation test
+pnpm typecheck
+pnpm lint
+pnpm build
+```
 
-- 2000 log entries per tab, 100 KB per body.
-- No retention job yet (ROADMAP Phase 4); a report whose upload never completed
-  stays `processing` and unlisted until then.
+CI runs exactly these. The tenancy test needs no database or bucket; it runs
+against PGlite with a fake S3.
+
+## Docs
+
+| File | Contents |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | How the system works today: server boundary, upload flow, extension invariants. |
+| [`ROADMAP.md`](ROADMAP.md) | The plan and a progress log of what has landed. |
+| [`REKOD_DESIGN_SYSTEM.md`](REKOD_DESIGN_SYSTEM.md) | The UI's authority: tokens, type, components. |
+| [`apps/extension/README.md`](apps/extension/README.md) | Installing and using the extension. |

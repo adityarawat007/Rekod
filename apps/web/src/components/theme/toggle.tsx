@@ -2,35 +2,27 @@
 
 import { useSyncExternalStore } from 'react';
 import { useTheme } from 'next-themes';
-import { Monitor, Moon, Sun } from 'lucide-react';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-
-const OPTIONS = [
-  { v: 'light', Icon: Sun, label: 'Light' },
-  { v: 'dark', Icon: Moon, label: 'Dark' },
-  { v: 'system', Icon: Monitor, label: 'System' },
-] as const;
+import { Moon, Sun } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 // "Hydrated yet?" without a setState-in-effect.
 const NEVER = () => () => {};
 const useHydrated = () => useSyncExternalStore(NEVER, () => true, () => false);
 
-export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  const ready = useHydrated();
-
+/** §6.1: 38×38, 1px border. Follows the system until clicked; the choice is
+ *  then kept per browser (next-themes' localStorage). */
+export function ThemeToggle({ className }: { className?: string }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const dark = useHydrated() && resolvedTheme === 'dark';
   return (
-    <ToggleGroup
-      size="sm"
-      value={ready && theme ? [theme] : []}
-      onValueChange={(v) => v.length && setTheme(v[v.length - 1])}
-      className="w-full"
+    <Button
+      variant="outline"
+      size="icon-lg"
+      className={className}
+      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+      onClick={() => setTheme(dark ? 'light' : 'dark')}
     >
-      {OPTIONS.map(({ v, Icon, label }) => (
-        <ToggleGroupItem key={v} value={v} aria-label={label} className="flex-1">
-          <Icon className="size-4" />
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+      {dark ? <Sun /> : <Moon />}
+    </Button>
   );
 }

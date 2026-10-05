@@ -112,6 +112,8 @@ assert.equal(await repo.completeReport('wb', id, { title: 'pwned' }), false, 'B 
 assert.equal(await repo.completeReport('wa', id, { title: '100% broken_login', env: { host: 'app.test' } }), true);
 assert.equal(await repo.getReport('wb', id), null, 'B reads A');
 assert.equal((await repo.listReports('wb')).rows.length, 0, 'B lists A');
+assert.equal((await repo.countReports('wb')).total, 0, 'B counts A');
+assert.deepEqual(await repo.countReports('wa', { types: ['screenshot'] }), { total: 1, match: 0, videos: 1, shots: 0 }, 'A counts its own');
 assert.equal((await repo.listReports('wb', { types: ['video'] })).rows.length, 0, 'B lists A by type');
 assert.equal((await repo.listReports('wa', { types: ['video'] })).rows.length, 1, 'the type filter keeps a video');
 assert.equal((await repo.listReports('wa', { types: ['screenshot'] })).rows.length, 0, 'and drops it for screenshots');
@@ -133,6 +135,7 @@ assert.equal((await repo.listReports('wa')).rows.length, 1);
 // ── search treats % and _ literally
 assert.equal((await repo.listReports('wa', { q: '100%' })).rows.length, 1);
 assert.equal((await repo.listReports('wa', { q: '1%0' })).rows.length, 0, '% is not a wildcard');
+assert.equal((await repo.countReports('wa', { q: '1%0' })).match, 0, 'nor in the count');
 assert.equal((await repo.listReports('wa', { q: 'k_n' })).rows.length, 0, '_ is not a wildcard');
 
 // ── comments: only in-workspace, only your own to delete

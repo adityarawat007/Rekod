@@ -31,15 +31,15 @@ const RTYPE_LABEL: Record<string, string> = {
 };
 
 /** One grid for the heads and the rows. Docked right, `data-wide` columns hide. */
-const COLS = 'grid items-center gap-3 px-4';
+const COLS = 'grid items-center gap-3 px-4 narrow:px-6';
 const cols = (narrow: boolean) =>
   cn(COLS, narrow ? 'grid-cols-[2.75rem_minmax(0,1fr)] [&>[data-wide]]:hidden' : 'grid-cols-[2.75rem_minmax(0,1fr)_3.5rem_3rem_4.5rem_3.5rem]');
 
-/** Only failures are coloured: green 200s drowned the one 500. */
+/** §2.6: 2xx --success, 4xx/5xx/failed --error, always with the code written. */
 function statusClass(status: number) {
-  if (status === 0 || status >= 400) return 'font-medium text-crit';
+  if (status === 0 || status >= 400) return 'font-medium text-error';
   if (status >= 300) return 'text-muted-foreground';
-  return '';
+  return 'text-success';
 }
 
 /** The request table, with the selected request in a resizable panel laid
@@ -119,13 +119,23 @@ export function NetworkPane({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PaneToolbar query={query} onQuery={setQuery} placeholder="Filter by URL">
-        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+        <label className="flex h-8 shrink-0 cursor-pointer items-center gap-2 text-muted-foreground">
           <input
             type="checkbox"
             checked={errorsOnly}
             onChange={(e) => setErrorsOnly(e.target.checked)}
-            className="size-3.5 accent-foreground"
+            className="peer sr-only"
           />
+          {/* §6.11: 17px, square. */}
+          <span
+            aria-hidden
+            className={cn(
+              'grid size-[17px] place-items-center border-[1.5px] border-line-strong bg-panel peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus',
+              errorsOnly && 'border-ink bg-ink text-panel',
+            )}
+          >
+            {errorsOnly ? <Check className="size-3 [stroke-width:3]" /> : null}
+          </span>
           Errors only
         </label>
       </PaneToolbar>
@@ -137,20 +147,21 @@ export function NetworkPane({
         size="sm"
         spacing={1.5}
         aria-label="Request type"
-        className="w-full shrink-0 flex-wrap border-b px-4 py-2"
+        className="w-full shrink-0 flex-wrap border-b px-4 py-2.5 narrow:px-6"
       >
         {types.map((t) => (
           <ToggleGroupItem
             key={t}
             value={t}
-            className="rounded-md bg-muted text-xs text-foreground/80 aria-pressed:bg-foreground aria-pressed:text-background"
+            // §6.3 chips: pressed is the active state.
+            className="h-[38px] border border-line-strong bg-bg px-3 text-[13px] text-muted-foreground hover:bg-tint-soft aria-pressed:border-ink aria-pressed:bg-panel aria-pressed:font-medium aria-pressed:text-ink"
           >
             {t === 'all' ? 'All' : (RTYPE_LABEL[t] ?? t)}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
 
-      <div className={cn(cols(narrow), 'shrink-0 border-b bg-muted/40 py-1.5 text-xs font-medium text-muted-foreground')}>
+      <div className={cn(cols(narrow), 'label shrink-0 border-b py-2 text-muted-foreground')}>
         <span>At</span>
         <span>Name</span>
         <span data-wide>Method</span>
@@ -169,33 +180,34 @@ export function NetworkPane({
                 onClick={() => setSel(e.uid)}
                 className={cn(
                   cols(narrow),
-                  'w-full border-b py-1.5 text-left text-[13px] hover:bg-muted/50',
-                  netFailed(e) && 'bg-crit/4',
-                  sel === e.uid && 'bg-accent hover:bg-accent',
+                  'w-full border-b py-2 text-left text-[13px] transition-colors duration-150 hover:bg-bg',
+                  netFailed(e) && 'bg-error/5',
+                  // §6.8 selected row: --bg and a 3px --ink bar on the left.
+                  sel === e.uid && 'bg-bg shadow-[inset_3px_0_0_var(--ink)]',
                 )}
                 title={e.url}
               >
                 <span className="mono text-xs text-muted-foreground">{stamp(off(e))}</span>
-                <span className={cn('min-w-0 truncate', netFailed(e) && 'text-crit')}>
+                <span className={cn('mono min-w-0 truncate text-xs', netFailed(e) ? 'text-error' : 'text-ink')}>
                   {name}
                   <span className="ml-1.5 text-muted-foreground">{host}</span>
                 </span>
                 <span data-wide className="mono text-xs">{e.method ?? '—'}</span>
-                <span data-wide className={cn('mono text-xs', statusClass(e.status))}>{e.status || 'ERR'}</span>
+                <span data-wide className={cn('mono text-xs', statusClass(e.status))}>{e.status || 'failed'}</span>
                 <span data-wide className="truncate text-xs text-muted-foreground">{RTYPE_LABEL[e.rtype] ?? e.rtype}</span>
                 <span data-wide className="mono text-right text-xs text-muted-foreground">{ms(e.ms)}</span>
               </button>
             );
           })}
           {!visible.length && (
-            <p className="p-8 text-center text-sm text-muted-foreground">No requests match this filter.</p>
+            <p className="p-8 text-center text-muted-foreground">No requests match this filter.</p>
           )}
         </ScrollArea>
 
         {active && (
           <div
             className={cn(
-              'absolute z-10 flex bg-card shadow-[0_0_24px_-12px_rgba(0,0,0,.55)]',
+              'absolute z-10 flex bg-panel',
               right ? 'inset-y-0 right-0 flex-row border-l' : 'inset-x-0 bottom-0 flex-col border-t',
             )}
             style={right ? { width: `${split * 100}%` } : { height: `${split * 100}%` }}
@@ -209,13 +221,13 @@ export function NetworkPane({
               onPointerDown={drag}
               onKeyDown={nudge}
               className={cn(
-                'group flex shrink-0 items-center justify-center bg-muted/40 hover:bg-foreground/10 focus-visible:bg-foreground/15 focus-visible:outline-none',
+                'group flex shrink-0 items-center justify-center bg-bg transition-colors duration-150 hover:bg-cell focus-visible:bg-cell',
                 right ? 'h-full w-2 cursor-col-resize' : 'h-2 w-full cursor-row-resize',
               )}
             >
               <span
                 className={cn(
-                  'rounded-full bg-border group-hover:bg-foreground/50',
+                  'bg-line-strong group-hover:bg-ink',
                   right ? 'h-8 w-0.5' : 'h-0.5 w-8',
                 )}
                 aria-hidden
@@ -264,18 +276,18 @@ function Detail({
 
   return (
     <Tabs defaultValue="headers" className="flex min-h-0 min-w-0 flex-1 flex-col gap-0">
-      <div className="flex flex-wrap items-center gap-1 border-b bg-muted/30 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5">
         <Button size="icon-xs" variant="ghost" onClick={onClose} aria-label="Close request detail">
           <X />
         </Button>
-        <TabsList variant="line" className="h-7">
-          <TabsTrigger value="headers" className="text-xs">
+        <TabsList variant="line" className="h-8! gap-4 px-1">
+          <TabsTrigger value="headers" className="text-[13px] group-data-horizontal/tabs:after:bottom-[-7px]">
             Headers
           </TabsTrigger>
-          <TabsTrigger value="request" className="text-xs">
+          <TabsTrigger value="request" className="text-[13px] group-data-horizontal/tabs:after:bottom-[-7px]">
             Request
           </TabsTrigger>
-          <TabsTrigger value="response" className="text-xs">
+          <TabsTrigger value="response" className="text-[13px] group-data-horizontal/tabs:after:bottom-[-7px]">
             Response
           </TabsTrigger>
         </TabsList>
@@ -285,6 +297,7 @@ function Detail({
             variant="ghost"
             onClick={() => onSeek(e)}
             title="Jump the player to this request"
+            className="mono"
           >
             <Crosshair /> {stamp(off(e))}
           </Button>
@@ -309,9 +322,9 @@ function Detail({
         <TabsContent value="headers">
           <Section title="General">
             <KV k="Request URL" v={e.url} />
-            <KV k="Request Method" v={e.method ?? RTYPE_LABEL[e.rtype]} />
+            <KV k="Request method" v={e.method ?? RTYPE_LABEL[e.rtype]} />
             <KV
-              k="Status Code"
+              k="Status code"
               v={
                 <span className={statusClass(e.status)}>
                   {e.status || `failed${e.error ? ` — ${e.error}` : ''}`}
@@ -327,8 +340,8 @@ function Detail({
             </Section>
           ) : (
             <>
-              <Headers title="Response Headers" h={e.resHeaders} />
-              <Headers title="Request Headers" h={e.reqHeaders} />
+              <Headers title="Response headers" h={e.resHeaders} />
+              <Headers title="Request headers" h={e.reqHeaders} />
             </>
           )}
         </TabsContent>
@@ -348,9 +361,9 @@ function Detail({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details open className="group border-b last:border-b-0">
-      <summary className="flex cursor-pointer list-none items-center justify-between bg-muted/40 px-3 py-2 text-xs font-semibold">
+      <summary className="label flex cursor-pointer list-none items-center justify-between bg-bg px-3 py-2 text-ink">
         {title}
-        <ChevronDown className="size-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
+        <ChevronDown className="size-3.5 text-muted-foreground group-open:rotate-180" />
       </summary>
       <div className="divide-y">{children}</div>
     </details>
@@ -364,7 +377,7 @@ function Headers({ title, h }: { title: string; h?: Record<string, string> | nul
       {rows.length ? (
         rows.map(([k, v]) => <KV key={k} k={k} v={v} />)
       ) : (
-        <p className="px-3 py-2 text-[11px] text-muted-foreground">Not captured.</p>
+        <p className="px-3 py-2 text-[13px] text-muted-foreground">Not captured.</p>
       )}
     </Section>
   );
@@ -372,9 +385,10 @@ function Headers({ title, h }: { title: string; h?: Record<string, string> | nul
 
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[minmax(0,7.5rem)_1fr] gap-3 px-3 py-1.5 text-[11px]">
-      <span className="mono wrap-break-word text-muted-foreground">{k}:</span>
-      <span className="mono wrap-anywhere">{v}</span>
+    <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-3 px-3 py-2">
+      {/* §6.15: keys in mono `label`, values in mono `data`. */}
+      <span className="label wrap-break-word text-muted-foreground">{k}</span>
+      <span className="mono wrap-anywhere text-xs">{v}</span>
     </div>
   );
 }
@@ -383,21 +397,21 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 function WsFrames({ frames, off }: { frames?: Net[]; off: (e: Entry) => number }) {
   if (!frames?.length) {
     return (
-      <p className="px-3 py-2 text-[11px] text-muted-foreground">No frames after the handshake.</p>
+      <p className="px-3 py-2 text-[13px] text-muted-foreground">No frames after the handshake.</p>
     );
   }
   return (
     <ul className="divide-y">
       {frames.map((f) => (
-        <li key={f.uid} className="flex gap-2 px-3 py-1.5 text-[11px]">
+        <li key={f.uid} className="flex gap-2 px-3 py-1.5 text-xs">
           <span className="mono shrink-0 text-muted-foreground">{stamp(off(f))}</span>
           <span
             className={cn(
               'mono w-3 shrink-0',
               f.ev === 'error'
-                ? 'text-crit'
+                ? 'text-error'
                 : f.dir === 'out'
-                  ? 'text-good'
+                  ? 'text-success'
                   : 'text-muted-foreground',
             )}
           >

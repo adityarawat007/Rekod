@@ -1,9 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import {
-  AlertTriangle, ArrowUpRight, ChevronRight, Info, MousePointerClick, PanelRightClose, XCircle,
-} from 'lucide-react';
+import { ArrowUpRight, MousePointerClick, PanelRightClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -62,25 +60,25 @@ export function DevtoolsPane({
   const netErrN = netRows.filter(netFailed).length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 flex-col bg-panel">
       <Tabs defaultValue="info" className="flex min-h-0 flex-1 flex-col gap-0">
-        <div className="hidden h-16 shrink-0 items-center justify-between gap-3 border-b px-4 xl:flex">
-          <span className="rounded-lg bg-muted px-3 py-1.5 text-[15px] font-medium">DevTools</span>
-          {/* Stacked below xl, the row has nothing to do. */}
-          <Button variant="outline" size="icon" aria-label="Close DevTools" onClick={onClose}>
+        {/* §6.15: header tabs, 64px like the bar beside it, 2px --primary under the active one. */}
+        <div className="flex h-16 shrink-0 items-stretch gap-3 border-b px-4 narrow:px-6">
+          <TabsList
+            variant="line"
+            aria-label="DevTools"
+            className="h-full! min-w-0 flex-1 justify-start gap-6 overflow-x-auto p-0"
+          >
+            <Tab value="info">Info</Tab>
+            <Tab value="console" count={consoleRows.length} alert={errN > 0}>Console</Tab>
+            <Tab value="network" count={netRows.length} alert={netErrN > 0}>Network</Tab>
+            <Tab value="steps" count={events.length}>Steps</Tab>
+          </TabsList>
+          {/* Stacked below xl, closing has nothing to give back. */}
+          <Button variant="outline" size="icon-lg" className="hidden self-center wide:inline-flex" aria-label="Close DevTools" onClick={onClose}>
             <PanelRightClose />
           </Button>
         </div>
-        <TabsList
-          variant="line"
-          aria-label="DevTools"
-          className="w-full shrink-0 justify-start gap-6 rounded-none border-b p-0 px-4 group-data-horizontal/tabs:h-11"
-        >
-          <Tab value="info">Info</Tab>
-          <Tab value="console" count={consoleRows.length} alert={errN > 0}>Console</Tab>
-          <Tab value="network" count={netRows.length} alert={netErrN > 0}>Network</Tab>
-          <Tab value="steps" count={events.length}>Steps</Tab>
-        </TabsList>
 
         <TabsContent value="info" className="min-h-0">
           <ScrollArea className="h-full">
@@ -104,9 +102,9 @@ export function DevtoolsPane({
                   <li key={e.uid}>
                     <button
                       onClick={() => onSeek(e)}
-                      className="flex w-full items-center gap-3 border-b px-4 py-2.5 text-left text-sm hover:bg-muted/50"
+                      className="flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors duration-150 hover:bg-bg narrow:px-6"
                     >
-                      <span className="mono w-11 shrink-0 text-xs text-muted-foreground">{stamp(offsetOf(e))}</span>
+                      <span className="mono w-12 shrink-0 text-xs text-muted-foreground">{stamp(offsetOf(e))}</span>
                       <MousePointerClick className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                       <span className="min-w-0 truncate">{e.msg}</span>
                     </button>
@@ -136,12 +134,12 @@ function Tab({
   children: React.ReactNode;
 }) {
   return (
-    <TabsTrigger value={value} className="h-full flex-none px-0 text-[15px] group-data-horizontal/tabs:after:-bottom-px!">
+    <TabsTrigger value={value} className="h-full flex-none px-0 group-data-horizontal/tabs:after:-bottom-px!">
       {children}
-      {count ? <span className="text-xs font-normal text-muted-foreground tabular-nums">{count}</span> : null}
+      {count ? <span className="mono text-xs font-normal text-muted-foreground">{count}</span> : null}
       {alert ? (
         <>
-          <i className="size-1.5 rounded-full bg-crit" aria-hidden />
+          <i className="size-2 rounded-full bg-error" aria-hidden />
           <span className="sr-only">has failures</span>
         </>
       ) : null}
@@ -150,7 +148,7 @@ function Tab({
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="p-8 text-center text-sm text-muted-foreground">{children}</p>;
+  return <p className="p-8 text-center text-muted-foreground">{children}</p>;
 }
 
 // ── Info ───────────────────────────────────────────────────────────────────
@@ -162,10 +160,10 @@ function InfoTab({ env, info, dur }: { env: Env; info: ReportInfo; dur: number }
   const ua = uaSummary(env.ua);
 
   return (
-    <div className="space-y-1 p-4">
+    <div className="p-4 narrow:p-6">
       {page ? (
-        <div className="mb-3 flex items-center gap-4 rounded-xl border px-4 py-3 text-sm">
-          <span className="w-24 shrink-0 text-muted-foreground">URL</span>
+        <div className="mb-2 flex items-center gap-4 border border-line-strong px-4 py-3">
+          <span className="label w-24 shrink-0 text-muted-foreground">Page</span>
           {href ? (
             <a
               href={href}
@@ -173,7 +171,7 @@ function InfoTab({ env, info, dur }: { env: Env; info: ReportInfo; dur: number }
               rel="noreferrer"
               className="group flex min-w-0 items-center gap-1 text-link hover:underline"
             >
-              <span className="truncate">{page}</span>
+              <span className="mono truncate text-[13px]">{page}</span>
               <ArrowUpRight className="size-3.5 shrink-0 opacity-60 group-hover:opacity-100" aria-hidden />
             </a>
           ) : (
@@ -181,7 +179,7 @@ function InfoTab({ env, info, dur }: { env: Env; info: ReportInfo; dur: number }
           )}
         </div>
       ) : null}
-      <dl className="px-4 text-sm">
+      <dl className="divide-y px-4">
         <Row label="Recorded" value={new Date(info.createdAt).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })} />
         <Row label="Length" value={dur ? clock(dur) : null} />
         <Row label="Project" value={info.project} />
@@ -200,8 +198,8 @@ function InfoTab({ env, info, dur }: { env: Env; info: ReportInfo; dur: number }
 function Row({ label, value, title }: { label: string; value?: string | null; title?: string }) {
   if (!value) return null;
   return (
-    <div className="flex items-baseline gap-4 py-2.5">
-      <dt className="w-24 shrink-0 text-muted-foreground">{label}</dt>
+    <div className="flex items-baseline gap-4 py-3">
+      <dt className="label w-24 shrink-0 text-muted-foreground">{label}</dt>
       <dd className="min-w-0 flex-1 wrap-break-word" title={title}>{value}</dd>
     </div>
   );
@@ -211,6 +209,9 @@ function Row({ label, value, title }: { label: string; value?: string | null; ti
 
 type Level = 'all' | 'error' | 'warn' | 'info';
 const LEVELS: Record<Level, string> = { all: 'All levels', error: 'Errors', warn: 'Warnings', info: 'Info & logs' };
+
+const TAG = { error: 'Err', warn: 'Warn', info: 'Log', step: 'Step' } as const;
+const TAG_CLASS = { error: 'text-error', warn: 'text-warning', info: 'text-muted-foreground', step: 'text-faint' } as const;
 
 const levelOf = (e: Entry): Exclude<Level, 'all'> | null =>
   isError(e) ? 'error' : isWarn(e) ? 'warn' : isConsole(e) ? 'info' : null;
@@ -237,7 +238,7 @@ function ConsoleTab({
     <>
       <PaneToolbar query={query} onQuery={setQuery} placeholder="Filter messages">
         <Select value={level} onValueChange={(v) => setLevel(v as Level)}>
-          <SelectTrigger size="sm" className="h-7 border-0 bg-transparent shadow-none" aria-label="Log level">
+          <SelectTrigger className="border-line-strong bg-panel" aria-label="Log level">
             <SelectValue>{(v: Level) => LEVELS[v]}</SelectValue>
           </SelectTrigger>
           <SelectContent align="end">
@@ -250,21 +251,20 @@ function ConsoleTab({
       <ScrollArea className="min-h-0 flex-1">
         {visible.map((e) => {
           const lvl = levelOf(e);
-          const Icon = lvl === 'error' ? XCircle : lvl === 'warn' ? AlertTriangle : lvl ? ChevronRight : Info;
           return (
             <button
               key={e.uid}
               onClick={() => onSeek(e)}
               className={cn(
-                'flex w-full items-start gap-3 border-b px-4 py-2 text-left hover:bg-muted/50',
-                lvl === 'error' && 'bg-crit/4 text-crit',
-                lvl === 'warn' && 'bg-warn/6 text-warn',
+                'flex w-full items-start gap-3 border-b px-4 py-2 text-left transition-colors duration-150 hover:bg-bg narrow:px-6',
+                lvl === 'error' && 'bg-error/5',
               )}
             >
-              <span className="mono w-11 shrink-0 pt-px text-xs text-muted-foreground">{stamp(offsetOf(e))}</span>
-              <Icon className={cn('mt-0.5 size-3.5 shrink-0', !lvl || lvl === 'info' ? 'text-muted-foreground' : '')} aria-hidden />
+              <span className="mono w-12 shrink-0 pt-px text-xs text-muted-foreground">{stamp(offsetOf(e))}</span>
+              {/* §2.6: the level is written, never colour alone. */}
+              <span className={cn('label w-10 shrink-0 pt-px', TAG_CLASS[lvl ?? 'step'])}>{TAG[lvl ?? 'step']}</span>
               <span className="min-w-0 flex-1">
-                <span className={cn('mono block whitespace-pre-wrap wrap-break-word text-[13px]', lvl === 'info' && 'text-foreground')}>
+                <span className={cn('mono block whitespace-pre-wrap wrap-break-word text-[13px]', lvl === 'error' ? 'text-error' : 'text-ink')}>
                   {'msg' in e ? e.msg : null}
                 </span>
                 {isConsole(e) && e.stack ? (

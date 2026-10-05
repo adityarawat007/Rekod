@@ -5,8 +5,8 @@ function Key({ children, small }: { children: React.ReactNode; small?: boolean }
   return (
     <kbd
       className={cn(
-        'grid place-items-center rounded-lg border border-b-2 bg-background font-semibold shadow-[0_1px_0_rgba(0,0,0,.04)]',
-        small ? 'size-7 text-[13px] [&_svg]:size-3.5' : 'size-9 text-[15px] [&_svg]:size-4',
+        'mono grid place-items-center border border-line-strong bg-panel font-medium text-ink',
+        small ? 'size-7 text-xs [&_svg]:size-3.5' : 'size-9 text-sm [&_svg]:size-4',
       )}
     >
       {children}
@@ -15,7 +15,7 @@ function Key({ children, small }: { children: React.ReactNode; small?: boolean }
 }
 
 /** ⌥⇧J as keycaps — the extension's one hotkey. Icons, not glyphs: ⇧ falls
- *  back to a half-size glyph in Inter. */
+ *  back to a half-size glyph in some faces. */
 export function Shortcut({ small }: { small?: boolean }) {
   return (
     <span className="flex gap-1" aria-label="Option Shift J">

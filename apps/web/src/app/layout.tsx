@@ -1,19 +1,15 @@
 import type { Metadata } from 'next';
-import { Inter, Roboto_Mono } from 'next/font/google';
+import { IBM_Plex_Mono, Inter_Tight } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme/provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import './globals.css';
 
-// Inter's metrics are adjusted against this fallback stack while it loads.
-const sans = Inter({
-  variable: '--font-body',
-  subsets: ['latin'],
-  fallback: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'],
-});
-const data = Roboto_Mono({ variable: '--font-data', subsets: ['latin'] });
+// §3: sans for work, mono for machine.
+const sans = Inter_Tight({ variable: '--font-inter-tight', subsets: ['latin'], weight: ['300', '400', '500', '600', '700'] });
+const mono = IBM_Plex_Mono({ variable: '--font-plex-mono', subsets: ['latin'], weight: ['400', '500'] });
 
 export const metadata: Metadata = {
-  title: 'Rekod',
+  title: 'rekod',
   description: 'Your own bug reports, captured from the browser.',
 };
 
@@ -22,7 +18,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${sans.variable} ${data.variable} h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <ThemeProvider>

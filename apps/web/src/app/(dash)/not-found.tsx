@@ -1,18 +1,16 @@
 import Link from 'next/link';
-import { FileQuestion, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PanelFrame } from '@/components/shell/panel-frame';
 
 export default function DashNotFound() {
   return (
-    <PanelFrame className="items-center justify-center gap-3 p-6 text-center">
-      <span className="grid size-10 place-items-center rounded-xl bg-muted">
-        <FileQuestion className="size-5 text-muted-foreground" />
-      </span>
-      <p className="font-medium">This Rekod doesn&apos;t exist, or isn&apos;t in this workspace.</p>
-      <Button render={<Link href="/" />}>
-        <LayoutGrid /> All Rekods
-      </Button>
+    <PanelFrame className="items-center justify-center p-4">
+      {/* §6.16: text only, in a panel. */}
+      <div className="max-w-md space-y-3 border bg-panel px-[26px] py-6">
+        <h2 className="text-xl">Rekod not found</h2>
+        <p className="text-muted-foreground">It was deleted, or it belongs to another workspace. Switch workspace and try again.</p>
+        <Button render={<Link href="/rekod" />}>Back to rekods</Button>
+      </div>
     </PanelFrame>
   );
 }

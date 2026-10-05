@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Rekod",
-  "version": "0.3.0",
+  "name": "rekod",
+  "version": "0.3.1",
   "description": "Records a tab with the last 5 minutes of console and network already captured.",
   "permissions": [
     "tabCapture",
@@ -57,7 +57,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Rekod",
+    "default_title": "rekod",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png",

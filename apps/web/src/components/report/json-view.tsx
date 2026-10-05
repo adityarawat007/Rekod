@@ -6,9 +6,9 @@ const TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?
 
 const CLASS = {
   key: 'text-link',
-  str: 'text-good',
+  str: 'text-success',
   lit: 'text-muted-foreground',
-  num: 'text-warn',
+  num: 'text-warning',
 };
 
 /** Pretty-prints JSON. A body capture.js cut at 4 KB will not parse, so it is
@@ -62,9 +62,9 @@ export function JsonView({ text, pretty = true }: { text?: string | null; pretty
   return (
     <div className="space-y-1">
       {partial && (
-        <p className="text-[11px] text-warn">Incomplete JSON — indented as captured, not re-parsed.</p>
+        <p className="text-xs text-warning">Incomplete JSON: indented as captured, not re-parsed.</p>
       )}
-      <pre className="mono max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted/60 p-3 text-xs leading-relaxed">
+      <pre className="mono max-h-72 overflow-auto whitespace-pre-wrap break-all border bg-bg p-3 text-xs leading-relaxed">
         {out.map((n, k) => (
           <Fragment key={k}>{n}</Fragment>
         ))}

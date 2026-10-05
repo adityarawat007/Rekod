@@ -11,7 +11,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "set-plan": "node --env-file=.env.local --conditions=react-server --experimental-strip-types --no-warnings scripts/set-plan.ts"
+    "set-plan": "node --env-file=.env.local --conditions=react-server --experimental-strip-types --no-warnings scripts/set-plan.ts",
+    "ext:zip": "node scripts/ext-zip.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -22,6 +23,7 @@
     "cn": "^0.2.5",
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.35.0",
+    "motion": "^14.0.0",
     "next": "16.3.3",
     "next-themes": "^0.4.6",
     "postgres": "^3.4.9",

@@ -24,96 +24,117 @@
   host.style.cssText = CENTERED;
   const root = host.attachShadow({ mode: 'closed' });
   // This bar sits on somebody else's page, so it is built to read as an
-  // instrument rather than as part of the site: near-black zinc (#18181B) on
-  // every background, light or dark. The dashboard's light palette is for our
-  // own surfaces — the composer card below, and popup.html.
+  // instrument rather than as part of the site: chrome midnight (#00022F) with a
+  // white hairline, square, on every background, light or dark. The
+  // dashboard's light palette is for our own surfaces — the composer card
+  // below, and popup.html.
   //
   // No webfont. A content script's @font-face is fetched under the HOST page's
   // CSP, so on any site with a font-src policy it silently falls back — a bar
   // that renders in a different face per site is worse than one honest stack.
-  // Inter where it is installed, else the platform grotesque; the clock is the
-  // platform mono with tabular figures so digits do not jitter.
+  // The brand faces where they are installed, else the platform grotesque; the
+  // clock is the platform mono with tabular figures so digits do not jitter.
+  //
+  // The tokens live on #ui, not :host — a page cannot reach inside a closed
+  // root, but its `*{--ink:…}` would reach the host element.
   root.innerHTML = `<style>
     *{box-sizing:border-box}
-    #ui{user-select:none;-webkit-font-smoothing:antialiased;letter-spacing:-.006em;font-size:13px;line-height:1.4;
-        font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
-    /* The pill stays near-black: it sits ON somebody else's page and has to read
-       as an instrument against any background. A hairline of white inside and a
-       single soft shadow outside is all the lift it needs. */
-    .bar{background:#18181B;color:#FAFAFA;border-radius:12px;border:1px solid #09090B;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 8px 24px -8px rgba(0,0,0,.45);
+    #ui{--bg:#ECECEC;--panel:#FFFFFF;--line:#DEDEE3;--line-strong:#8C8C98;
+        --ink:#00022F;--muted:#4F4F5C;--faint:#6E6E78;
+        --primary:#060CBE;--primary-hover:#0A12E0;--on-primary:#FFFFFF;--focus:#060CBE;
+        --error:#C8341F;--warning:#9A6400;--success:#2E7D3A;
+        --chrome:#00022F;--on-chrome:#FFFFFF;--on-chrome-muted:#B4B6D6;--on-chrome-warning:#F2C25A;
+        --chrome-line:rgba(255,255,255,.22);--chrome-fill:rgba(255,255,255,.10);--chrome-fill-hover:rgba(255,255,255,.18);
+        --scrim:rgba(0,2,47,.42);
+        --font-sans:"Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif;
+        --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+        user-select:none;-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.4;
+        font-family:var(--font-sans)}
+    /* §2.3 for the card's tokens. The pill, the tip and the scrim use the
+       chrome tokens, which stay midnight in both. */
+    @media (prefers-color-scheme:dark){
+      #ui{--bg:#07081C;--panel:#11132B;--line:#23264A;--line-strong:#4A4D78;
+          --ink:#EEEEF6;--muted:#A6A8C2;--faint:#7A7D99;
+          --primary:#4A50F0;--primary-hover:#5D63FF;--on-primary:#FFFFFF;--focus:#9EA2FF;
+          --error:#FF8A73;--warning:#F2C25A;--success:#6FCF8E}
+    }
+    /* The pill stays dark: it sits ON somebody else's page and has to read as
+       an instrument against any background. A light hairline is all the
+       separation it needs — no shadow. */
+    .bar{background:var(--chrome);color:var(--on-chrome);border-radius:0;border:1px solid var(--chrome-line);
       display:inline-flex;align-items:center;gap:2px;padding:4px;cursor:grab}
     .bar:active{cursor:grabbing}
     .bar.msg{gap:8px;padding:8px 13px 8px 11px;font-size:12.5px;font-weight:500}
 
     /* Red is the record light and nothing else: a dot that breathes beside the
-       clock. The stop button is a plain white square, the universal glyph. */
+       clock. The stop button is a plain square, the universal glyph. */
     .rec{display:inline-flex;align-items:center;gap:8px;padding:0 6px 0 9px}
-    .rdot{position:relative;width:8px;height:8px;border-radius:50%;background:#DC2626;flex:0 0 auto}
+    .rdot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--error);flex:0 0 auto}
     .rdot::after{content:"";position:absolute;inset:0;border-radius:inherit;
-      box-shadow:0 0 0 0 rgba(229,0,30,.55);animation:live 1.8s cubic-bezier(.2,.6,.3,1) infinite}
-    @keyframes live{to{box-shadow:0 0 0 7px rgba(229,0,30,0)}}
-    @media (prefers-reduced-motion:reduce){.rdot::after{animation:none}}
+      box-shadow:0 0 0 0 rgba(200,52,31,.55);animation:live 1.8s cubic-bezier(.2,.6,.3,1) infinite}
+    @keyframes live{to{box-shadow:0 0 0 7px rgba(200,52,31,0)}}
 
-    .stop{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;border:0;padding:0;
-          background:rgba(255,255,255,.08);cursor:pointer;transition:background .12s}
-    .stop::before{content:"";width:10px;height:10px;border-radius:2.5px;background:#FAFAFA}
-    .stop:hover{background:rgba(255,255,255,.16)}
-    .ico{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;padding:0;
-         background:none;border:0;color:#A1A1AA;cursor:pointer;transition:background .12s,color .12s}
-    .ico:hover{background:rgba(255,255,255,.08);color:#FAFAFA}
-    .sep{width:1px;height:16px;background:rgba(255,255,255,.12);margin:0 3px}
-    .t{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;
+    .stop{display:grid;place-items:center;width:32px;height:32px;border-radius:0;border:0;padding:0;
+          background:var(--chrome-fill);cursor:pointer;transition:background .12s}
+    .stop::before{content:"";width:10px;height:10px;border-radius:0;background:var(--on-chrome)}
+    .stop:hover{background:var(--chrome-fill-hover)}
+    .ico{display:grid;place-items:center;width:32px;height:32px;border-radius:0;padding:0;
+         background:none;border:0;color:var(--on-chrome-muted);cursor:pointer;transition:background .12s,color .12s}
+    .ico:hover{background:var(--chrome-fill);color:var(--on-chrome)}
+    .sep{width:1px;height:16px;background:var(--chrome-line);margin:0 3px}
+    .t{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
        font-size:12.5px;font-weight:500;letter-spacing:.01em;min-width:40px}
-    .t.warn{color:#F07800}
-    .dot{width:7px;height:7px;border-radius:50%;background:#71717A;flex:0 0 auto}
-    .dot.ok{background:#00A862}.dot.bad{background:#DC2626}
+    /* The dark amber is for white; on midnight the warning is the light one (§2.3). */
+    .t.warn{color:var(--on-chrome-warning)}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--on-chrome-muted);flex:0 0 auto}
+    .dot.ok{background:var(--success)}.dot.bad{background:var(--error)}
 
     /* The card is a form, not chrome, so it wears the dashboard's light palette
-       — same as popup.html. It floats over a page, so it keeps one soft shadow. */
-    .card{width:356px;padding:14px;cursor:grab;background:#FFFFFF;color:#18181B;
-          border:1px solid #E4E4E7;border-radius:12px;
-          box-shadow:0 12px 32px -12px rgba(0,0,0,.22),0 2px 6px -2px rgba(0,0,0,.08)}
-    .card h4{margin:0 0 10px;font-size:13.5px;font-weight:600;letter-spacing:-.012em}
+       — same as popup.html. Square, and a 1px border instead of a shadow. */
+    .card{width:356px;padding:14px;cursor:grab;background:var(--panel);color:var(--ink);
+          border:1px solid var(--line-strong);border-radius:0}
+    .card h4{margin:0 0 10px;font-size:14px;font-weight:600;letter-spacing:-.015em}
     /* Two fields — a title and a write-up, both optional. Same skin, so the
        card reads as one form rather than two controls that met by accident. */
-    textarea,input{display:block;width:100%;background:#FFFFFF;border:1px solid #E4E4E7;
-             border-radius:8px;color:#18181B;padding:8px 10px;font:inherit;font-size:13px;letter-spacing:-.006em;
-             user-select:text;cursor:auto;transition:border-color .12s,box-shadow .12s}
+    textarea,input{display:block;width:100%;background:var(--panel);border:1px solid var(--line-strong);
+             border-radius:0;color:var(--ink);padding:8px 10px;font:inherit;font-size:13px;
+             user-select:text;cursor:auto;transition:border-color .12s}
     input{font-weight:500}
     textarea{height:72px;resize:none;margin-top:6px;line-height:1.45}
     /* 400, not the input's 500: a heavy placeholder reads as a value somebody
        already typed. */
-    ::placeholder{color:#A1A1AA;font-weight:400}
-    :is(textarea,input):hover{border-color:#D4D4D8}
-    :is(textarea,input):focus{outline:none;border-color:#71717A}
+    ::placeholder{color:var(--muted);font-weight:400}
+    :is(textarea,input):hover{border-color:var(--ink)}
+    :is(textarea,input):focus{outline:2px solid var(--focus);outline-offset:2px;border-color:var(--ink)}
     .facts{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0 12px;
-           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#52525B}
-    .facts span{background:#F4F4F5;border-radius:6px;padding:3px 7px}
+           font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .facts span{background:var(--bg);border:1px solid var(--line);border-radius:0;padding:2px 6px}
+    .facts .warn{color:var(--warning);text-transform:none;letter-spacing:0}
     .row{display:flex;gap:6px}
-    .btn{border:1px solid #18181B;border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;font-weight:500;
-         background:#18181B;color:#FFFFFF;cursor:pointer;transition:background .12s,border-color .12s}
-    .btn:hover{background:#27272A;border-color:#27272A}
-    .btn.ghost{background:#FFFFFF;color:#18181B;border-color:#E4E4E7}
-    .btn.ghost:hover{background:#F4F4F5;border-color:#E4E4E7}
-    :is(.ico,.stop,.btn):focus-visible{outline:2px solid #A1A1AA;outline-offset:2px}
+    .btn{border:1px solid var(--primary);border-radius:0;padding:7px 14px;font:inherit;font-size:13px;font-weight:500;
+         background:var(--primary);color:var(--on-primary);cursor:pointer;transition:background .12s,border-color .12s}
+    .btn:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+    .btn.ghost{background:var(--panel);color:var(--ink);border-color:var(--line-strong)}
+    .btn.ghost:hover{background:var(--bg);border-color:var(--line-strong)}
+    :is(.ico,.stop,.btn):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+    :is(.ico,.stop):focus-visible{outline-color:var(--on-chrome)}
 
     /* The selection overlay. The picture was already taken when this appears —
        it dims the live page, it is never in the capture. Before the first drag
        the shade itself is the dim; once dragging starts the shade goes clear
        and the selection's 9999px box-shadow does the dimming instead, which is
        how the hole in the middle stays a real hole. */
-    .shade{position:absolute;inset:0;cursor:crosshair;touch-action:none;background:rgba(9,9,11,.42)}
+    .shade{position:absolute;inset:0;cursor:crosshair;touch-action:none;background:var(--scrim)}
     .shade.live{background:transparent}
-    .sel{display:none;position:absolute;border:1.5px solid #FFFFFF;border-radius:2px;
-         box-shadow:0 0 0 1px rgba(9,9,11,.5),0 0 0 9999px rgba(9,9,11,.42)}
+    .sel{display:none;position:absolute;border:1.5px solid var(--on-chrome);border-radius:0;
+         box-shadow:0 0 0 1px var(--chrome),0 0 0 9999px var(--scrim)}
     .tip{position:absolute;top:14px;left:50%;transform:translateX(-50%);white-space:nowrap;
-         background:#18181B;color:#FAFAFA;border:1px solid #09090B;border-radius:10px;padding:7px 12px;
-         font-size:12.5px;font-weight:500;
-         box-shadow:inset 0 0 0 1px rgba(255,255,255,.06),0 8px 24px -8px rgba(0,0,0,.5)}
-    .tip span{color:#A1A1AA;margin:0 4px}
-    .tip kbd{font:500 10.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#FAFAFA;
-             background:rgba(255,255,255,.1);border-radius:5px;padding:3px 5px;margin-right:2px}
+         background:var(--chrome);color:var(--on-chrome);border:1px solid var(--chrome-line);border-radius:0;padding:7px 12px;
+         font-size:12.5px;font-weight:500}
+    .tip span{color:var(--on-chrome-muted);margin:0 4px}
+    .tip kbd{font:500 11px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--on-chrome);
+             background:var(--chrome-fill);border:1px solid var(--chrome-line);border-radius:0;padding:3px 5px;margin-right:2px}
+    @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   </style><div id="ui"></div>`;
   const ui = root.getElementById('ui');
 
@@ -239,8 +260,8 @@
       <button class="stop" id="s" title="Stop and write it up"
               aria-label="Stop recording and write it up"></button>
       <span class="sep"></span>
-      <button class="ico" id="c" title="Discard this Rekod"
-              aria-label="Discard this Rekod">${X}</button></div>`;
+      <button class="ico" id="c" title="Discard this rekod"
+              aria-label="Discard this rekod">${X}</button></div>`;
     const tm = root.getElementById('tm');
     root.getElementById('s').onclick = () => send({ t: 'stop' });
     root.getElementById('c').onclick = () => send({ t: 'discard' });
@@ -340,16 +361,16 @@
     // a mic that was asked for and refused is the one capture failure nothing
     // else shows — the video looks fine and is silent where a voice should be.
     const audio = m.mic === 'on' ? '<span>mic</span>'
-      : m.mic === 'denied' ? '<span style="color:#B45309">⚠ no mic — permission refused</span>' : '';
+      : m.mic === 'denied' ? '<span class="warn">⚠ no mic — permission refused</span>' : '';
     // Both fields are optional and neither is a comment: the title and the
     // description are the report's own, editable later on the dashboard. The
     // comment thread only ever grows there. See schema-comments.sql.
-    ui.innerHTML = `<div class="card"><h4>Save this Rekod</h4>
+    ui.innerHTML = `<div class="card"><h4>Save this rekod</h4>
       <input id="ti" placeholder="Title (optional)">
       <textarea id="t" placeholder="What happened? Optional — you can write this later."></textarea>
       <div class="facts"><span>${media}</span>${audio}<span>${m.logs} logs</span>
         <span>${m.net} requests</span><span>redacted</span></div>
-      <div class="row"><button class="btn" id="go" style="flex:1">Save Rekod</button>
+      <div class="row"><button class="btn" id="go" style="flex:1">Save rekod</button>
         <button class="btn ghost" id="no">Discard</button></div></div>`;
     const name = root.getElementById('ti');
     const box = root.getElementById('t');

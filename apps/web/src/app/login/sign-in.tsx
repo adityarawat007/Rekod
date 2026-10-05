@@ -17,8 +17,8 @@ export function SignIn({ google }: { google: boolean }) {
   const params = useSearchParams();
   // Same-origin paths only, or ?next= is an open redirect. `//host` and
   // `/\host` are protocol-relative, so a leading slash is not enough.
-  const raw = params.get('next') || '/';
-  const next = raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\') ? raw : '/';
+  const raw = params.get('next') || '/rekod';
+  const next = raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\') ? raw : '/rekod';
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(errorText(params.get('error')));
@@ -35,13 +35,13 @@ export function SignIn({ google }: { google: boolean }) {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-heading text-3xl font-extrabold">Sign in</h1>
+      <h1 className="text-2xl">Sign in to rekod</h1>
       {google ? (
         <Button
           type="button"
           size="lg"
           variant="outline"
-          className="h-11 w-full gap-2.5 bg-card text-[15px]"
+          className="w-full gap-2.5"
           onClick={withGoogle}
           disabled={busy}
         >
@@ -50,13 +50,13 @@ export function SignIn({ google }: { google: boolean }) {
         </Button>
       ) : (
         // Said to whoever runs the instance, since nobody else can fix it.
-        <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+        <p className="border border-line-strong bg-bg px-3 py-2 text-sm text-muted-foreground">
           Sign-in is not set up on this instance: it needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.
         </p>
       )}
 
       {error && (
-        <p role="alert" className="rounded-lg bg-destructive/8 px-3 py-2 text-sm text-destructive">
+        <p role="alert" className="border border-error px-3 py-2 text-sm text-error">
           {error}
         </p>
       )}

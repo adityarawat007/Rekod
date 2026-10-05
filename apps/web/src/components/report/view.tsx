@@ -20,13 +20,15 @@ type Props = {
   showLog?: boolean;
   /** The bar above the player. */
   toolbar: React.ReactNode;
+  /** §6.15 title block, above the player. */
+  heading?: React.ReactNode;
   /** Under the player: editable on the owner's page, flat on a share link. */
   children?: React.ReactNode;
 };
 
 /** Below xl the columns stack and the page scrolls as one, hence the
- *  xl:-prefixed height rules. */
-export function ReportView({ entries, t0, env, media, info, showLog = true, toolbar, children }: Props) {
+ *  wide:-prefixed height rules. */
+export function ReportView({ entries, t0, env, media, info, showLog = true, toolbar, heading, children }: Props) {
   const playhead = usePlayhead();
   const [devtools, setDevtools] = useState(true);
   const pane = showLog && devtools;
@@ -41,22 +43,21 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, tool
   }, [entries, t0, playhead.dur]);
 
   return (
-    <PanelFrame className="xl:flex-row">
-      <section className="flex min-w-0 flex-1 flex-col xl:min-h-0">
-        <header className="flex h-16 shrink-0 items-center gap-1.5 border-b px-3 sm:px-4">
+    <PanelFrame fill className="wide:flex-row">
+      <section className="flex min-w-0 flex-1 flex-col wide:min-h-0">
+        <header className="flex h-16 shrink-0 items-center gap-2 overflow-x-auto border-b bg-panel px-4 narrow:px-7">
           {toolbar}
           {showLog && !devtools ? (
             // A closed pane must not hide that the page failed: the dot stays.
-            <Button variant="outline" size="icon" className="relative" aria-label="Open DevTools" onClick={() => setDevtools(true)}>
+            <Button variant="outline" size="icon-lg" className="relative" aria-label={failed ? 'Open DevTools (has errors)' : 'Open DevTools'} onClick={() => setDevtools(true)}>
               <PanelRightOpen />
-              {failed ? (
-                <i className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-crit ring-2 ring-background" aria-label="has errors" role="img" />
-              ) : null}
+              {failed ? <i className="absolute -right-1 -top-1 size-2.5 rounded-full bg-error ring-2 ring-panel" aria-hidden /> : null}
             </Button>
           ) : null}
         </header>
-        <div className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-          <div className={cn('mx-auto w-full space-y-6 p-4 sm:p-6', pane ? 'max-w-5xl' : 'max-w-4xl')}>
+        <div className="wide:min-h-0 wide:flex-1 wide:overflow-y-auto">
+          <div className={cn('mx-auto w-full space-y-6 p-4 narrow:p-7', pane ? 'max-w-5xl' : 'max-w-4xl')}>
+            {heading}
             <ReportPlayer media={media} playhead={playhead} entries={entries} offsetOf={offsetOf} span={span} />
             {children}
           </div>
@@ -65,7 +66,7 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, tool
 
       {pane && (
         // Stacked, it needs a definite height or it grows to the log's length.
-        <aside className="flex h-[80svh] min-w-0 flex-col border-t xl:h-auto xl:w-[min(44%,720px)] xl:shrink-0 xl:border-l xl:border-t-0">
+        <aside className="flex h-[80svh] min-w-0 flex-col border-t bg-panel wide:h-auto wide:w-[min(44%,720px)] wide:shrink-0 wide:border-l wide:border-t-0">
           <DevtoolsPane
             entries={entries}
             env={env}

@@ -1,4 +1,6 @@
-# ReKod Design System — v1.1 (Electric blue + pink)
+# ReKod Design System — v1.2 (Electric blue + pink)
+
+> **v1.2:** the marketing gradient is a left-to-right dusk (midnight → blue → pink → peach), ordered-dithered into pixels (§2.4); no outer frame — the app runs edge to edge on `--bg`; no display-size page titles — pages open on a summary row, and a rekod's title is `h1` size; the wordmark is four pixels (a 2×2 block) then "rekod"; the dashboard grid is four across.
 
 > **For Claude (or any developer) implementing this:** this file is the single source of truth for ReKod's UI. Follow the tokens and rules exactly. When something isn't covered, choose the option that is quieter, flatter and more data-first, and never invent new colours — derive from the tokens below. Read the whole file before writing code, then follow the **Implementation checklist** at the end.
 
@@ -22,7 +24,7 @@ ReKod is a bug-reporting tool: a **Chrome extension** that records what went wro
 
 1. **Data first.** Tables, grids and charts are the product. Chrome stays quiet: thin 1px borders, no decorative shadows inside the app, square corners.
 2. **Colour carries meaning.** Midnight = *open / text / selected*. Electric blue = *primary action / active / links*. Pink = *in review / highlight*. Everything else is neutral grey.
-3. **Flat, never gradient, in the product.** All UI colours are solid. A blue gradient is allowed only on marketing surfaces (§2.4). **Never on headings, text, numbers, icons or buttons.**
+3. **Flat, never gradient, in the product.** All UI colours are solid. The dusk gradient is allowed only on marketing surfaces (§2.4). **Never on headings, text, numbers, icons or buttons.**
 4. **Sans for work, mono for machine.** Inter Tight for headings and UI text; IBM Plex Mono for labels, IDs, timestamps, URLs, logs and numeric table cells.
 5. **Status is always written.** Colour is never the only signal — every status has a label, a dot/shape or both.
 6. **Calm motion.** Short, functional transitions only (≤150 ms). No decorative animation.
@@ -31,7 +33,7 @@ ReKod is a bug-reporting tool: a **Chrome extension** that records what went wro
 
 | Do | Don't |
 |---|---|
-| Solid colours for all text, including the lighter second word of page titles | **Gradient text anywhere** (no `background-clip: text`) |
+| Solid colours for all text | **Gradient text anywhere** (no `background-clip: text`) |
 | Square corners (`radius: 0`) on panels, chips, cells, buttons, inputs | Rounded "card" corners inside the app (only avatars, dots and toggles are round) |
 | 1px borders to separate | Drop shadows on panels or cards |
 | Mono uppercase labels for metadata keys (`STATUS`, `PAGE`) | Mono for sentences or body copy |
@@ -49,14 +51,13 @@ All colours are CSS custom properties. Components must reference **tokens**, nev
 | Name | Hex | Notes |
 |---|---|---|
 | midnight | `#00022F` | Primary text, "open" status, tooltips, toasts, selection outline |
-| electric-blue | `#060CBE` | Primary buttons, active tab underline, links, focus, selection bar, outer frame |
+| electric-blue | `#060CBE` | Primary buttons, active tab underline, links, focus, selection bar |
 | electric-blue-hover | `#0A12E0` | Hover on electric blue |
 | lavender | `#C4C4F6` | Soft blue tint: info backgrounds, hover on chips, chart highlight band |
 | pink | `#F1B0E1` | "In review", highlights, secondary CTA on dark |
 | pink-soft | `#FADDF2` | In review outside filter, soft highlight backgrounds |
 | pink-ring | `#C774B0` | Ring/outline on pink elements |
 | grey-100 | `#ECECEC` | App canvas |
-| grey-800 | `#3B3B3B` | Secondary part of page titles |
 
 ### 2.2 Semantic tokens — Light
 
@@ -72,7 +73,6 @@ All colours are CSS custom properties. Components must reference **tokens**, nev
   --ink:           #00022F;  /* primary text */
   --muted:         #4F4F5C;  /* secondary text (6.8:1 on --bg) */
   --faint:         #6E6E78;  /* tertiary meta (5:1 on white) */
-  --title-2:       #3B3B3B;  /* second part of page title */
 
   /* brand / status */
   --primary:       #060CBE;  /* primary button, active tab, links */
@@ -107,9 +107,6 @@ All colours are CSS custom properties. Components must reference **tokens**, nev
   --chrome:        #00022F;
   --on-chrome:     #FFFFFF;
   --on-chrome-muted:#B4B6D6;
-
-  /* frame */
-  --frame:         #060CBE;  /* outer frame behind the app container */
 }
 ```
 
@@ -126,7 +123,6 @@ Apply under `[data-theme="dark"]` and `@media (prefers-color-scheme: dark)` guar
   --ink:           #EEEEF6;
   --muted:         #A6A8C2;
   --faint:         #7A7D99;
-  --title-2:       #9A9CB8;
   --primary:       #4A50F0;  /* lighter electric blue, white text 5.7:1 */
   --primary-hover: #5D63FF;
   --on-primary:    #FFFFFF;
@@ -153,7 +149,6 @@ Apply under `[data-theme="dark"]` and `@media (prefers-color-scheme: dark)` guar
   --chrome:        #00022F;
   --on-chrome:     #FFFFFF;
   --on-chrome-muted:#B4B6D6;
-  --frame:         #00022F;
 }
 ```
 
@@ -161,15 +156,38 @@ Apply under `[data-theme="dark"]` and `@media (prefers-color-scheme: dark)` guar
 
 The product UI uses **no gradients**. For marketing surfaces only (landing-page hero, onboarding welcome, top band of the extension popup) you may use:
 
+A left-to-right dusk, **ordered-dithered**: midnight `#00022F` → `#0C1942` → `#142581` → `#2539B8` → `#395AD3` → cornflower `#5B80EF` → lavender `#9091EB` → pink `#F1B0E1` → peach `#F4CDBE` (stops at 0, 8, 24, 36, 44, 54, 66, 80, 100%). Every pixel is one of the two stops around it, picked by a 4×4 Bayer threshold, so each band is a checker of two flat colours, like pixel art. These stops are marketing-only raw values; nothing in the app uses them.
+
+CSS cannot do that per-pixel choice (blend-mode tricks grey the colours out), so it ships as an image: `apps/web/scripts/dusk.mjs` writes a 4-row strip (`apps/web/public/dusk.png`, `apps/extension/dusk.png`), sized so one dither pixel is about 3px on its surface. Edit the stops there and re-run it.
+
 ```css
---gradient-electric: linear-gradient(120deg, #060CBE 0%, #00022F 100%);
+--gradient-electric: url("/dusk.png") 0 0 / 100% 12px repeat-y, #142581;
+/* with */ image-rendering: pixelated;
 ```
+
+**How the dither works** (so it can be rebuilt anywhere, e.g. a canvas or a shader):
+
+1. For a pixel at column `x` of `w` and row `y`, take `t = x / (w − 1)`.
+2. Find the two stops around `t` and the local fraction `f` between them (0 at the left stop, 1 at the right).
+3. Look up the 4×4 Bayer threshold `B[y mod 4][x mod 4]`:
+   ```
+   B = [[ 0,  8,  2, 10],
+        [12,  4, 14,  6],
+        [ 3, 11,  1,  9],
+        [15,  7, 13,  5]]
+   ```
+4. The pixel is the **right** stop's colour if `f > (B + 0.5) / 16`, else the **left** stop's. No blending: only palette colours ever appear.
+5. Scale up with nearest-neighbour (`image-rendering: pixelated`) so one pixel is about 3px. Larger reads more retro, smaller reads smoother. Don't go below 2px, or it turns into a muddy blend.
+
+Do **not** fake it with a dot or checker overlay on a smooth `linear-gradient`, or with `mix-blend-mode` tricks. Those grey the colours out, and that was tried and rejected.
+
+Text on it is `--on-chrome` from the left edge to the middle; anything over the pink end is `--on-accent`.
 
 Never use it on text, headings, buttons, charts, table rows or app backgrounds.
 
-### 2.5 Outer frame
+### 2.5 No outer frame
 
-On desktop web the app container sits on a solid `--frame` (electric blue in light, midnight in dark) with 24px padding and shadow `0 30px 80px rgba(0,2,47,.35)`. On ≤760px the frame is removed.
+The app runs edge to edge on `--bg`: no coloured frame, no padding around it, no container shadow. The header spans the full width.
 
 ### 2.6 Status colours (rekods)
 
@@ -187,7 +205,7 @@ Console/network levels: **ERR** `--error`, **WARN** `--warning`, **INFO/LOG** `-
 ### 2.7 Contrast (verified)
 
 - `--muted` on `--bg` 6.8:1, on white 8.1:1. `--faint` on white 5.0:1 (meta only).
-- White on electric blue 11.6:1; midnight on pink 11.5:1; `--title-2` on `--bg` 9.5:1.
+- White on electric blue 11.6:1; midnight on pink 11.5:1.
 - Dark mode: white on `--primary` 5.7:1; `--muted` on panel 7.8:1.
 - `--cell-text` on `--cell` is low contrast by design (inactive/decorative labels). Interactive, matching cells always use status colours.
 
@@ -210,8 +228,7 @@ All fonts are free (Google Fonts, SIL Open Font License) and safe for commercial
 
 | Role | Font | Size / line-height | Weight | Tracking | Use |
 |---|---|---|---|---|---|
-| `display` | Sans | `clamp(42px, 5.6vw, 76px)` / 1.05 | 700 | -0.045em | Page title first part ("Rekods") in `--ink` |
-| `display-secondary` | Sans | same as display | 300 | -0.045em | Second part ("app.talk-dev") in solid `--title-2` — **no gradient** |
+| `h1` | Sans | 24 / 30 | 600 | -0.015em | A rekod's title on its page. No display-size titles anywhere. |
 | `h2` | Sans | 20 / 26 | 600 | -0.015em | Panel titles ("Rekods × day") |
 | `stat` | Sans | 28 / 32 | 600 | -0.02em | Big counters ("13 of 27 match") |
 | `tooltip-value` | Sans | 26 / 30 | 600 | -0.02em | Tooltip headline number |
@@ -220,7 +237,7 @@ All fonts are free (Google Fonts, SIL Open Font License) and safe for commercial
 | `small` | Sans | 13 / 18 | 400 | 0 | Secondary info |
 | `label` | Mono | 11 / 16 | 400–500 | 0.08em, UPPERCASE | Chip keys, table headers, section eyebrows |
 | `data` | Mono | 12–13 / 18 | 400 | 0 | IDs, timestamps, URLs, numeric cells, logs |
-| `wordmark` | Sans | 22 | 700 | -0.02em | "rekod" lowercase, preceded by a 12px electric-blue dot |
+| `wordmark` | Sans | 22 | 700 | -0.02em | A 2×2 block of four 6px square pixels (2px gaps) in `--primary`, 8px gap, then "rekod" lowercase in `--ink`. On dark bands both turn `--on-chrome`. No dot. |
 
 Rules:
 - Numbers in tables use mono and are right-aligned.
@@ -234,25 +251,22 @@ Rules:
 - **Base unit 4 px.** Scale: 4, 8, 12, 16, 20, 24, 28, 32, 40, 48.
 - **Radius:** `0` everywhere in the app (panels, chips, inputs, buttons, cells, tooltips, menus, selection bar). Exceptions: avatars, status dots, toggle switches, checkboxes (0 as well — square).
 - **Borders:** 1px `--line` for panels and dividers; 1px `--line-strong` for chips, inputs, secondary buttons.
-- **Shadows:** none inside the app. Only the app container on the outer frame gets `0 30px 80px rgba(0,2,47,.35)`.
+- **Shadows:** none, anywhere in the app.
 
 ### Page layout (dashboard, desktop)
 
 ```
-┌ outer frame (solid --frame, 24px padding) ─────────────────────────────────┐
-│ ┌ app container (max-width 1440px, bg --bg) ─────────────────────────────┐ │
-│ │ Header 64px, bg --panel, bottom border                                   │ │
-│ │ main: padding 28px                                                       │ │
-│ │   Page title (display) + summary line + legend dots                      │ │
-│ │   Filter row (chips · Clear filters · "N of M match" right-aligned)      │ │
-│ │   Content grid: two columns (0.9fr / 1fr), gap 20px                      │ │
-│ │     left: big data panel        right: stacked panels (chart, table)     │ │
-│ └──────────────────────────────────────────────────────────────────────────┘ │
+┌ app (full width, bg --bg, no frame) ────────────────────────────────────────┐
+│ Header 64px, bg --panel, bottom border                                       │
+│ main: padding 28px                                                           │
+│   Summary row: summary line + legend dots · primary button right-aligned     │
+│   Filter row (chips · Clear filters · "N of M match" right-aligned)          │
+│   Content: the grid of rekods (or panels, two columns 0.9fr / 1fr, gap 20px) │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - Panels: `--panel` bg, 1px `--line` border, padding `24px 26px`.
-- Breakpoints: `≤1100px` → content grid becomes one column. `≤760px` → remove frame padding, header scrolls horizontally, hide secondary header controls, filter "match" counter wraps to its own line.
+- Breakpoints: `≤1100px` → content grid becomes one column. `≤760px` → header scrolls horizontally, hide secondary header controls, filter "match" counter wraps to its own line.
 
 ---
 
@@ -270,13 +284,14 @@ Every component below lists anatomy, tokens and states. Build each as a reusable
 
 ### 6.1 App header
 - Height 64px, `--panel`, bottom border `--line`, horizontal padding 28px, gap 28px.
-- Left: **wordmark** "rekod" (sans 700, 22px, lowercase) with a 12px `--primary` dot before it.
+- Left: **wordmark**: four pixels (2×2, `--primary`) then "rekod" (sans 700, 22px, lowercase).
 - Nav tabs: sans 500, `--muted`; active = `--ink` with **2px solid `--primary` underline** flush with the header's bottom border.
 - Right: "Updated today, 15:58" (`--faint`), **Select buttons** (`PROJECT` and `PERIOD`, see §6.3), theme toggle (38×38, 1px border).
 
-### 6.2 Page title block
-- `display`: **"Rekods"** (700, `--ink`) + space + **"app.talk-dev"** (`display-secondary`, 300, `--title-2`). **Both solid colours. No gradient.**
-- Summary line below (14px, `--muted`): "Flam · 27 unresolved of 72 · 1,006 errors captured", followed by legend items: ● 14 open · ● 12 in review · ⊘ 1 snoozed (counts in `--ink`).
+### 6.2 Summary row
+- No page title: the header's active tab already names the page. A page opens on one row.
+- Left: summary line (14px, `--muted`): "27 rekods captured", followed by legend items: ● 21 videos · ○ 6 screenshots (counts in `--ink`, 500).
+- Right: the view's one primary button ("New rekod").
 
 ### 6.3 Filter chip / select
 - Height 38px, padding 0 12px, 1px border, radius 0, gap 8px.
@@ -346,7 +361,7 @@ All: radius 0, focus = 2px `--focus` outline, 2px offset. Disabled = 50% opacity
 - 10px circle. Open: `--primary`. In review: `--accent` + inset 1.5px `--accent-ring`. Snoozed: outlined circle with a diagonal slash. Resolved: `--cell`.
 
 ### 6.15 Rekod detail page (apply the same system)
-- Header + title block as above; title = rekod title (`display`), second part = page host in `display-secondary` (`--title-2`).
+- Header bar (64px): "← All rekods" back link, then ⋯ menu and Share on the right. No wordmark on this page. Above the video: the rekod title in `h1` (24px, editable in place), the page host under it in mono `data` 12px `--muted`, then the description.
 - Left: video in a panel (radius 0), playback bar with mono timestamps; error markers on the timeline as small squares in `--error`.
 - Right: DevTools panel with tabs **Info / Console 9 / Network 46 / Steps 4** styled as header tabs (2px `--primary` underline), counts in mono. Console/Network rows use the table spec (§6.8) with level labels coloured per §2.6. Request details open as a right-side drawer panel with collapsible sections (General, Response headers, Request headers), keys in mono `label`, values in mono `data`.
 - Actions: primary "Copy link", secondary "Send to…" menu (Linear, Jira, Slack).
@@ -355,6 +370,21 @@ All: radius 0, focus = 2px `--focus` outline, 2px offset. Disabled = 50% opacity
 - Text only, inside the panel: `h2` headline ("No rekods yet"), one `--muted` sentence, one primary button ("Record a bug"). No illustrations.
 
 ---
+
+### 6.17 Landing page (`/`)
+The public page is a marketing surface, so §2.4's dither is allowed here. It stays short on purpose: five parts, no product replicas, no animated "videos".
+
+**Type.** Headings on this page only are **Newsreader** (Google Fonts, display optical size, weight 400), the free stand-in for the commercial Flecha the brief referenced. Emphasis is the same family's *italic*, never a second face; italic display lines use leading 1.1 and `pb-1` so descenders keep clear. Body, buttons and labels stay Inter Tight and IBM Plex Mono.
+
+1. **Hero.** A full-bleed photo rendered as a **two-colour Bayer dither** on a `<canvas>` (`components/marketing/dither.tsx`): `--primary` on `--panel` in light, `--link` on `--bg` in dark, with the picture inverted so bright stays bright. No pink in the photos: a full pink midtone ink and a lighter pink accent were both tried and rejected. Pixels are 3px, tone curve `gamma` 0.6 (mostly paper, ink for the shapes). Still: no animation and no hover effect. The title sits **top-left** on a solid `--panel` block with a 1px `--line` border, so text never sits on pixels: a 72px serif headline (product marketing, not technical; never the word "bug"), subtext of 20 words or fewer, then the one primary ("Download the extension") and one secondary ("Open dashboard"). No reveal animation in the hero.
+2. **What it catches.** A square dithered photo beside a 2×2 list of product benefits in plain words (no technical terms; those live in Install only): 17px semibold term, 15px muted line, each with a 1px `--ink` top rule.
+3. **Sharing.** Mirrors section 2: words left, a tall dithered photo right, on `--panel` between hairlines. Who the link is for (engineers get the full recording, everyone else just the video) as a two-row list under a 1px `--ink` rule.
+4. **Install.** A `--chrome` band with the dusk strip (`.bg-electric-wide`) behind it on wide screens, the download button and version, a one-line self-host note linking the README, and the steps on a `--panel` card with a hard offset `--chrome` block behind it.
+5. **Footer.** A short dithered strip of a third photo, then the links on midnight.
+
+**Hover.** None: the dithered photos are still. (The component has opt-in `develop`, `sweep` and `lens` modes; the landing page uses none of them.)
+
+Photos come from `apps/web/scripts/photos.mjs` (Unsplash via picsum, Unsplash License, credits in the script) into `public/dither/`; the page only ever shows them dithered. Below the hero, blocks may rise 24px into place once (`Reveal`, 0.7s ease-out-expo, instant under reduced motion). Page-wide: no rubber-band overscroll (`overscroll-behavior: none` on `html` and `body`).
 
 ## 7. Interaction & motion
 
@@ -406,8 +436,8 @@ module.exports = {
     extend: {
       colors: {
         bg: 'var(--bg)', panel: 'var(--panel)', line: 'var(--line)', 'line-strong': 'var(--line-strong)',
-        ink: 'var(--ink)', muted: 'var(--muted)', faint: 'var(--faint)', 'title-2': 'var(--title-2)',
-        primary: 'var(--primary)', 'on-primary': 'var(--on-primary)', open: 'var(--open)', tint: 'var(--tint)', frame: 'var(--frame)',
+        ink: 'var(--ink)', muted: 'var(--muted)', faint: 'var(--faint)',
+        primary: 'var(--primary)', 'on-primary': 'var(--on-primary)', open: 'var(--open)', tint: 'var(--tint)',
         accent: 'var(--accent)', 'accent-soft': 'var(--accent-soft)', 'accent-ring': 'var(--accent-ring)',
         link: 'var(--link)', cell: 'var(--cell)', 'cell-out': 'var(--cell-out)', 'open-dim': 'var(--open-dim)',
         error: 'var(--error)', warning: 'var(--warning)', success: 'var(--success)', chrome: 'var(--chrome)',
@@ -440,8 +470,8 @@ The interactive HTML prototype of this direction is the "Rekods overview" page �
 - [ ] `tokens.css` created with light + dark tokens and fonts; no hex values in components
 - [ ] Fonts loaded: Inter Tight, IBM Plex Mono
 - [ ] All corners square (except avatars/dots/toggles)
-- [ ] **No gradients anywhere in the app UI**; `--gradient-electric` only on marketing surfaces
-- [ ] Page title: sans 700 `--ink` + second part sans 300 in solid `--title-2`
+- [ ] **No gradients anywhere in the app UI**; `--gradient-electric` (the dithered dusk) only on marketing surfaces
+- [ ] No outer frame and no display-size titles; pages open on the summary row
 - [ ] Primary buttons/active tabs electric blue; open status midnight; in review pink
 - [ ] Filter chips with active/inactive states, Clear filters, match counter
 - [ ] Heat grid with all status states, hatch for snoozed, legend

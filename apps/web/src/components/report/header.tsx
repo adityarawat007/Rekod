@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { House, LayoutGrid } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 import { ShareButton } from '@/components/report/share-button';
 import { ReportMenu } from '@/components/report/menu';
 
@@ -8,14 +7,14 @@ import { ReportMenu } from '@/components/report/menu';
 export function ReportHeader({ id, shareToken }: { id: string; shareToken: string | null }) {
   return (
     <>
-      <Button variant="outline" size="icon" aria-label="Home" render={<Link href="/" />}>
-        <House />
-      </Button>
-      <Button variant="ghost" className="text-[15px] text-muted-foreground" render={<Link href="/" />}>
-        <LayoutGrid /> All Rekods
-      </Button>
-      <ReportMenu id={id} />
-      <div className="ml-auto">
+      <Link
+        href="/rekod"
+        className="-ml-2 flex h-[38px] items-center gap-1.5 px-2 font-medium text-muted-foreground transition-colors duration-150 hover:bg-bg hover:text-ink"
+      >
+        <ArrowLeft className="size-4" /> All rekods
+      </Link>
+      <div className="ml-auto flex items-center gap-2">
+        <ReportMenu id={id} />
         <ShareButton id={id} shareToken={shareToken} />
       </div>
     </>

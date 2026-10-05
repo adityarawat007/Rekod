@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeftRight, Check, ChevronDown, Loader2, Lock, LogOut, Plus } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronDown, Loader2, Lock, Plus } from 'lucide-react';
 import { createWorkspace, switchWorkspace } from '@/app/(dash)/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import type { Workspace } from '@/lib/server/workspaces';
 import type { Plan } from '@/lib/plans';
 import { cn } from '@/lib/utils';
@@ -34,7 +33,7 @@ function Tile({ name, className }: { name: string; className?: string }) {
     <span
       aria-hidden
       className={cn(
-        'grid size-6 shrink-0 place-items-center rounded-md bg-link/10 text-[11px] font-semibold text-link',
+        'grid size-6 shrink-0 place-items-center bg-tint-soft text-[11px] font-semibold text-primary',
         className,
       )}
     >
@@ -68,73 +67,60 @@ export function WorkspaceSwitcher({
     });
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<SidebarMenuButton size="lg" className="gap-2.5 px-2 data-popup-open:bg-sidebar-accent" />}
-          >
-            <Tile name={name} />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{name}</span>
-            {pending ? (
-              <Loader2 className="animate-spin text-muted-foreground" />
-            ) : (
-              <ChevronDown className="text-muted-foreground" />
-            )}
-          </DropdownMenuTrigger>
+    <>
+      <DropdownMenu>
+        {/* §6.3 select chip: KEY, value, ▾. */}
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              className="flex h-[38px] max-w-64 items-center gap-2 border border-line-strong bg-bg px-3 text-muted-foreground transition-colors duration-150 hover:bg-tint-soft data-popup-open:border-ink data-popup-open:bg-panel data-popup-open:text-ink"
+            />
+          }
+        >
+          <span className="label font-normal text-faint">Workspace</span>
+          <span className="min-w-0 truncate font-medium text-ink">{name}</span>
+          {pending ? <Loader2 className="size-4 animate-spin" /> : <ChevronDown className="size-4" />}
+        </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="start" sideOffset={6} className="w-72 p-1.5">
-            <div className="flex items-center gap-3 px-2 py-2">
-              <Tile name={name} className="size-9 text-sm" />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</span>
-              <span className="rounded-md border px-1.5 py-0.5 text-[11px] font-medium capitalize text-muted-foreground">
-                {plan}
-              </span>
-            </div>
-            <DropdownMenuSeparator />
+        <DropdownMenuContent align="end" sideOffset={6} className="w-72 p-1">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <Tile name={name} className="size-9 text-sm" />
+            <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
+            <span className="label border border-line-strong px-1.5 text-muted-foreground">{plan}</span>
+          </div>
+          <DropdownMenuSeparator />
 
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="gap-2.5 py-2">
-                <ArrowLeftRight /> Switch workspace
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-60 p-1.5">
-                {workspaces.map((w) => (
-                  <DropdownMenuItem
-                    key={w.id}
-                    onClick={() => w.id !== current?.id && switchTo(w.id)}
-                    className="gap-2.5 py-2"
-                  >
-                    <Tile name={w.name} className="size-6 text-[11px]" />
-                    <span className="min-w-0 flex-1 truncate">{w.name}</span>
-                    {w.id === current?.id ? <Check /> : null}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={!canCreate} onClick={() => setOpen(true)} className="gap-2.5 py-2">
-                  <span className="grid size-6 place-items-center rounded-md border border-dashed">
-                    {canCreate ? <Plus className="size-3.5" /> : <Lock className="size-3.5" />}
-                  </span>
-                  <span className="flex-1">New workspace</span>
-                  {canCreate ? null : (
-                    <span className="rounded-md bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background">
-                      PRO
-                    </span>
-                  )}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="gap-2.5 py-2">
+              <ArrowLeftRight /> Switch workspace
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-60 p-1">
+              {workspaces.map((w) => (
+                <DropdownMenuItem
+                  key={w.id}
+                  onClick={() => w.id !== current?.id && switchTo(w.id)}
+                  className="gap-2.5 py-2"
+                >
+                  <Tile name={w.name} className="size-6 text-[11px]" />
+                  <span className="min-w-0 flex-1 truncate">{w.name}</span>
+                  {w.id === current?.id ? <Check /> : null}
                 </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-
-            <form action="/auth/signout" method="post">
-              <DropdownMenuItem render={<button type="submit" className="w-full" />} className="gap-2.5 py-2">
-                <LogOut /> Log out
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={!canCreate} onClick={() => setOpen(true)} className="gap-2.5 py-2">
+                <span className="grid size-6 place-items-center border border-dashed border-line-strong">
+                  {canCreate ? <Plus className="size-3.5" /> : <Lock className="size-3.5" />}
+                </span>
+                <span className="flex-1">New workspace</span>
+                {canCreate ? null : <span className="label bg-pink px-1.5 text-on-pink">Pro</span>}
               </DropdownMenuItem>
-            </form>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <NewWorkspace open={open} onOpenChange={setOpen} />
-      </SidebarMenuItem>
-    </SidebarMenu>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <NewWorkspace open={open} onOpenChange={setOpen} />
+    </>
   );
 }
 
@@ -167,7 +153,7 @@ function NewWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
           <DialogHeader>
             <DialogTitle>New workspace</DialogTitle>
             <DialogDescription>
-              A separate place for a team&apos;s Rekods. You can switch between workspaces from the sidebar.
+              A separate place for a team&apos;s rekods. You can switch between workspaces from the header.
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -178,9 +164,9 @@ function NewWorkspace({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
             maxLength={80}
             aria-label="Workspace name"
           />
-          {err ? <p role="alert" className="text-sm text-destructive">{err}</p> : null}
+          {err ? <p role="alert" className="text-sm text-error">{err}</p> : null}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={pending || !name.trim()}>
               {pending ? <Loader2 className="animate-spin" /> : null}
               Create workspace

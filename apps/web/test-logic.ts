@@ -2,6 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
+import { existsSync, readFileSync } from 'node:fs';
 import { offset, stamp, clock, ms, urlParts, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
@@ -161,5 +162,14 @@ assert.equal(olderThan('0.3', '0.3.0'), false, 'a missing part is 0');
 assert.equal(olderThan('0.3.0', '0.3.0'), false, 'the minimum itself passes');
 assert.equal(olderThan(null, '0.1.0'), true, 'no header is too old');
 assert.equal(olderThan('1.0-beta', '0.1.0'), true, 'garbage is too old');
+
+// ── the downloadable zip matches the extension it was built from ────────────
+// `pnpm ext:zip` writes both; a manifest bump without a re-run fails here.
+{
+  const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
+  const release = JSON.parse(readFileSync(new URL('./src/lib/extension-release.json', import.meta.url), 'utf8'));
+  assert.equal(release.version, manifest.version, 'public/rekod-extension.zip is stale: run `pnpm ext:zip`');
+  assert.ok(existsSync(new URL('./public/rekod-extension.zip', import.meta.url)), 'public/rekod-extension.zip is missing: run `pnpm ext:zip`');
+}
 
 console.log('viewer logic ok');

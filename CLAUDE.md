@@ -125,7 +125,7 @@ it is a render choice on one token, not a second permission — anyone holding a
 `/v/` link can type `/c/`. Old `/s/<token>[?view=media]` links redirect. A share
 link is read-only: no action accepts a token.
 
-**The grid is paged by id.** `listReports()` returns 24 rows and a `next`
+**The grid is paged by id.** `listReports()` returns 16 rows (a full 4×4 first screen) and a `next`
 cursor — the last id — and keysets on `id < after`, newest first. Ids are
 UUIDv7 minted at create, so id order is creation order; a timestamp cursor
 would drop Postgres's microseconds in a JS Date and skip rows. Page one renders
@@ -234,10 +234,11 @@ can open anywhere else. `active: false` — nothing is torn away from whatever
 was being reported on. It fires after the insert returns, never before, because
 a tab onto a row that was never written is a 404 that reads as data loss.
 
-**In the UI the thing is called a Rekod** — that casing, everywhere (1 Oct
-2026). Every user-facing label — the grid, the sidebar, the delete and share
-controls, the extension's composer — says Rekod / Rekods. The one exception is
-the `X-ReKod-Version` header, which is protocol, not copy. The code, the database and these notes still say report: the
+**In the UI the product is ReKod and the thing is a rekod** (4 Oct 2026,
+`REKOD_DESIGN_SYSTEM.md` §0, replacing "Rekod everywhere"): ReKod in prose,
+rekod / rekods lowercase mid-sentence, capitalised only to start a label
+("Rekods" tab, "Delete rekod"). The wordmark is lowercase "rekod".
+`X-ReKod-Version` is protocol, not copy. The code, the database and these notes still say report: the
 table is `reports`, the route is `/reports/[id]`, and renaming those buys
 nothing. Keep the two apart; do not rename the column.
 
@@ -314,10 +315,13 @@ no errors. Keep it that way.
 ## The dashboard streams
 
 Every route under `apps/web/src/app/(dash)/` has a `loading.tsx`, and the segment
-shares one error component and one `not-found.tsx`. The sidebar lives in
+shares one error component and one `not-found.tsx`. There is no sidebar: the
+64px header (`components/shell/app-header.tsx` — wordmark, the Rekods tab, the
+workspace chip, the theme toggle, the account menu) lives in
 `(dash)/(home)/layout.tsx`, not `(dash)/layout.tsx`: **the report page has no
-sidebar** — it is edge to edge, Jam-style. `(home)/error.tsx` re-exports the
-shared one so an error on `/` keeps the sidebar. A page is a **static shell plus
+app header** — it has its own bar, and the DevTools pane holds the viewport
+height. `(home)/error.tsx` re-exports the shared one so an error on `/` keeps
+the header. A page is a **static shell plus
 a Suspense'd async child** — never an `async` component that awaits before
 returning its layout, which blocks first paint on a database round trip. The
 skeletons live together in `components/skeletons.tsx` so they stay the same
@@ -339,12 +343,14 @@ its title, or the site when there is none** — both of the extension's compose
 inputs are optional, and a card with no text under its thumbnail broke the
 grid's rhythm (1 Oct 2026, reversing "no line at all"). Never a placeholder
 like "Untitled". A title is filled in later on the report page, where it and
-the description are edited in place — under the player, in the scrolling left
+the description are edited in place — above the player (`heading` on
+`ReportView`), at `h1` size, never display size, in the scrolling left
 column, with the DevTools pane (`components/report/devtools-pane.tsx`) holding the full viewport
 height on the right. `ReportView` takes that column's
 contents as `children`, so the owner's page passes editable fields and the
 share page passes the same thing flat and read-only. The header above it is a
-bar with nothing but the way back, the ⋯ menu (delete) and the Share button:
+bar with nothing but the way back ("All rekods" — no wordmark), the ⋯ menu
+(delete) and the Share button:
 **the page, the project, the clock and the machine all live in the DevTools
 pane's `Info` tab**, which leaves out a row that was not captured rather than
 dashing it,
@@ -375,32 +381,38 @@ the bucket unplayable. There is ONE transport, the custom one: the native
 `controls` scrubbed only the video while the track spans the rolling buffer too,
 and the two disagreed about where the start is.
 
-**The dashboard is light only, for now.** `ThemeProvider` passes
-`forcedTheme="light"`; the `.dark` block in `globals.css` and
-`components/theme/toggle.tsx` are both still there and both inert, and `<ThemeToggle />`
-is commented out in `components/shell/app-sidebar.tsx` rather than deleted. Dark comes back by
-dropping the prop and uncommenting that one line — but the `.dark` block was
-re-done in zinc with the light one on 1 Oct 2026 and has **not** been checked
-for contrast, so check it before shipping it.
+**`REKOD_DESIGN_SYSTEM.md` is the UI's authority** (v1.2, 4 Oct 2026). Midnight
+ink, electric-blue primary, pink for highlight, Inter Tight + IBM Plex Mono,
+radius 0, no shadows, no gradients in the app (only the login welcome panel and
+the popup's top band), no outer frame, no display-size titles, a text-only
+wordmark. Its tokens are copied verbatim into `src/styles/tokens.css` (the only
+file with hex, with `marketing.css`); `globals.css` maps shadcn's colours onto
+them and zeroes every radius and shadow utility in `@theme`. Two spec names
+collide with shadcn's: the spec's text `--muted` is Tailwind's
+`text-muted-foreground`, and the spec's pink `--accent` is `bg-pink` /
+`text-pink` (Tailwind's `accent` stays the neutral menu hover). Focus is one
+global `:focus-visible` outline in `globals.css`, not per-component rings.
 
-**No pink, no purple.** The palette is zinc greys; the only hues are
-functional — `crit` (#DC2626, a red with no pink in it), `warn`, `good`, and
-`link` (blue). The old `jam` / `grape` / `zest` / `chart-*` tokens are deleted,
-not hidden; the primary button is near-black. The extension's `popup.html` and
-`widget.js` carry the same values by hand. The extension's composer card is light for
-the same reason; **the on-page pill and the crop tip stay near-black on
-purpose** — they sit on somebody else's page and have to read as an instrument
-against any background.
+**Light and dark both ship.** `ThemeProvider` follows the system with
+`attribute="data-theme"`, and `ThemeToggle` (38×38, in the header) stores an
+override per browser. `tokens.css` also keys dark on `prefers-color-scheme`
+for the moment before next-themes runs.
+
+The extension's `popup.html` and `widget.js` carry the same token values by
+hand. **The on-page pill and the crop tip are `--chrome` midnight on
+purpose** — they sit on somebody else's page and have to read as an
+instrument against any background. The widget loads no webfont (host CSP).
 
 Components are grouped by surface: `components/report/` (the report page),
-`components/home/` (the grid and its header), `components/shell/` (sidebar,
-brand, workspace switcher), `components/theme/`; `skeletons.tsx` stays at the
+`components/home/` (the grid and its filters), `components/shell/` (header,
+frame, brand, workspace switcher, account menu), `components/theme/`; `skeletons.tsx` stays at the
 root because it mirrors all of them.
 
 `components/ui/` is shadcn (`base-nova` style, Base UI underneath, so the slot
 prop is `render`, not `asChild`). Compose those primitives — do not hand-roll a
-nav or a raw `<button>`. `hooks/use-mobile.ts` is edited from shadcn's version;
-re-running `shadcn add sidebar` reverts it.
+nav or a raw `<button>`. The primitives were restyled in place (button
+variants per §6.4 incl. `destructive-solid` for confirm dialogs, 38px inputs,
+no zoom/slide entrances); re-running `shadcn add` on one reverts it.
 
 ## Next.js 16 is not the Next.js you know
 

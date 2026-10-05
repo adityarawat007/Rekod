@@ -1,10 +1,11 @@
 import 'server-only';
 import { requireActor } from '@/lib/server/session';
-import { listReports, type ReportType } from '@/lib/server/reports';
+import { countReports, listReports, type ReportType } from '@/lib/server/reports';
 import type { ListRow } from '@/components/home/report-list';
 
 export type Page = { rows: ListRow[]; next: string | null };
 export type PageQuery = { q?: string; types: ReportType[]; after?: string };
+export type Counts = Awaited<ReturnType<typeof countReports>>;
 
 /** One page of the grid, in the card's shape. The first page renders on the
  *  server; the rest come through the moreReports() action as you scroll. */
@@ -19,3 +20,10 @@ export async function reportPage({ q, types, after }: PageQuery): Promise<Page> 
     })),
   };
 }
+
+/** The title block's numbers and the match counter. */
+export async function reportCounts({ q, types }: Omit<PageQuery, 'after'>): Promise<Counts> {
+  const { workspaceId } = await requireActor();
+  return countReports(workspaceId, { q, types });
+}
+

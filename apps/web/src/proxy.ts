@@ -11,6 +11,10 @@ import { olderThan } from './lib/version';
  * here and is sent to /login from there.
  *
  * Open without a cookie:
+ *  - / exactly: the landing page (static, never reads the session). The
+ *    dashboard is /rekod, behind the gate like everything else.
+ *  - /rekod-extension.zip, its README (.txt) and other static files: excluded
+ *    by the matcher
  *  - /login, and /api/auth (Better Auth's own routes, the Google callback too)
  *  - /api/v1: the extension's API, which authenticates by Bearer itself
  *  - /c/, /v/ (and the legacy /s/) <token>: share pages — the token is the credential
@@ -31,7 +35,7 @@ export function proxy(req: NextRequest) {
     }, { status: 426 });
   }
 
-  const open = OPEN.some((p) => path.startsWith(p));
+  const open = path === '/' || OPEN.some((p) => path.startsWith(p));
   const signedIn = !!getSessionCookie(req, { cookiePrefix: 'rekod' });
 
   if (!signedIn && !open) {
@@ -48,5 +52,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)'],
+  matcher: ['/((?!api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp|zip|txt)$).*)'],
 };

@@ -106,17 +106,17 @@ export function ReportPlayer({
       aria-label={full ? 'Rekod' : undefined}
       onClick={full ? (e) => e.target === stage.current && setFull(false) : undefined}
       className={cn(
-        'flex shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-black/5',
-        full && 'fixed inset-0 z-50 rounded-none p-4 md:p-8',
+        'flex shrink-0 flex-col overflow-hidden border bg-panel',
+        full && 'fixed inset-0 z-50 border-0 bg-chrome p-4 narrow:p-8',
       )}
     >
       <div
         onDoubleClick={media ? () => setFull((v) => !v) : undefined}
-        className={cn('group/stage relative', full ? 'min-h-0 flex-1' : 'aspect-video')}
+        className={cn('group/stage relative bg-chrome', full ? 'min-h-0 flex-1' : 'aspect-video')}
       >
         {!media ? (
-          <div className="grid size-full place-items-center text-sm text-zinc-400">
-            No media on this Rekod
+          <div className="grid size-full place-items-center text-sm text-on-chrome-muted">
+            No media on this rekod
           </div>
         ) : media.kind === 'shot' ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -150,7 +150,7 @@ export function ReportPlayer({
         )}
 
         {media && !ready && !broken && (
-          <div className="absolute inset-0 animate-pulse bg-white/5" aria-hidden />
+          <div className="absolute inset-0 animate-pulse bg-on-chrome/5" aria-hidden />
         )}
 
         {media && (
@@ -159,21 +159,21 @@ export function ReportPlayer({
             onClick={() => setFull((v) => !v)}
             aria-label={full ? 'Close the large player' : 'Open the large player'}
             title={full ? 'Close (Esc)' : 'Expand — or double-click the picture'}
-            className="absolute right-3 top-3 z-20 border-0 bg-black/60 text-white backdrop-blur transition-opacity hover:bg-black/80 focus-visible:opacity-100 md:opacity-0 md:group-hover/stage:opacity-100"
+            className="absolute right-3 top-3 z-20 border-0 bg-chrome text-on-chrome transition-opacity duration-150 hover:bg-primary focus-visible:opacity-100 narrow:opacity-0 narrow:group-hover/stage:opacity-100"
           >
             {full ? <Minimize /> : <Maximize />}
           </Button>
         )}
 
         {broken && (
-          <div className="absolute inset-0 grid place-content-center justify-items-center gap-2 bg-zinc-950 p-6 text-center text-white">
-            <AlertTriangle className="size-5 text-warn" aria-hidden />
-            <p className="text-sm font-medium">This Rekod would not load</p>
-            <p className="max-w-xs text-xs text-zinc-400">
+          <div className="absolute inset-0 grid place-content-center justify-items-center gap-2 bg-chrome p-6 text-center text-on-chrome">
+            <AlertTriangle className="size-5 text-on-chrome" aria-hidden />
+            <p className="text-sm font-medium">This rekod would not load</p>
+            <p className="max-w-xs text-xs text-on-chrome-muted">
               Media links are signed for an hour. Reload the page for a fresh one — the log is
               unaffected.
             </p>
-            <Button size="sm" variant="secondary" onClick={() => location.reload()}>
+            <Button size="sm" variant="outline" onClick={() => location.reload()}>
               Reload
             </Button>
           </div>
@@ -183,23 +183,23 @@ export function ReportPlayer({
       {/* Not native controls: those scrub the video only, while this track
           spans the pre-roll too. */}
       {media?.kind === 'video' && (
-        <div className="flex shrink-0 items-center gap-3 px-3 py-2.5 text-white">
+        <div className={cn('flex shrink-0 items-center gap-3 border-t px-3 py-2', full ? 'border-on-chrome/20 text-on-chrome' : 'text-ink')}>
           <Button
             size="icon-sm"
             variant="ghost"
             onClick={toggle}
             disabled={broken}
             aria-label={playing ? 'Pause' : 'Play'}
-            className="text-white hover:bg-white/10 hover:text-white"
+            className={full ? 'text-on-chrome hover:bg-on-chrome/10' : undefined}
           >
             {playing ? <Pause className="fill-current" /> : <Play className="fill-current" />}
           </Button>
-          <span className="mono shrink-0 text-xs text-white/90">{clock(now)}</span>
+          <span className="mono shrink-0 text-xs">{clock(now)}</span>
 
           <div className="relative h-6 flex-1">
-            <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15" />
+            <div className={cn('absolute inset-x-0 top-1/2 h-1 -translate-y-1/2', full ? 'bg-on-chrome/20' : 'bg-cell')} />
             <div
-              className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/60"
+              className={cn('absolute top-1/2 h-1 -translate-y-1/2', full ? 'bg-on-chrome' : 'bg-primary')}
               style={{ left: `${pct(0)}%`, width: `${Math.max(0, pct(now) - pct(0))}%` }}
             />
 
@@ -222,19 +222,22 @@ export function ReportPlayer({
                 key={e.uid}
                 onClick={() => playFrom(offsetOf(e))}
                 aria-label={`Jump to ${stamp(offsetOf(e))}`}
-                className="absolute top-1/2 h-3 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-crit ring-2 ring-zinc-950"
+                // ponytail: 16×24 hit area, not §9's 32 — markers sit close together on a short track.
+                className="absolute inset-y-0 grid w-4 -translate-x-1/2 place-items-center"
                 style={{ left: `${pct(offsetOf(e))}%` }}
-              />
+              >
+                <span className="size-2 bg-error" />
+              </button>
             ))}
 
             <div
-              className="pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow peer-focus-visible:ring-2 peer-focus-visible:ring-white/50"
+              className={cn('pointer-events-none absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus', full ? 'bg-on-chrome' : 'bg-ink')}
               style={{ left: `${pct(now)}%` }}
               aria-hidden
             />
           </div>
 
-          <span className="mono shrink-0 text-xs text-white/60">{dur ? clock(dur) : '—:—'}</span>
+          <span className={cn('mono shrink-0 text-xs', full ? 'text-on-chrome-muted' : 'text-muted-foreground')}>{dur ? clock(dur) : '—:—'}</span>
         </div>
       )}
     </div>

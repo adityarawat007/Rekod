@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { asc, eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.ts';
 import { uuidv7 } from '../db/ids.ts';
@@ -10,15 +11,16 @@ const { member: M, organization: O, user: U } = schema;
 export type Workspace = { id: string; name: string };
 
 /** Every workspace this user is a member of, the personal one first. Scoped by
- *  the user, not a workspace: this is the list you switch between. */
-export async function workspacesOf(userId: string): Promise<Workspace[]> {
-  return db()
+ *  the user, not a workspace: this is the list you switch between. cache()d:
+ *  the header and the page title both ask. */
+export const workspacesOf = cache(async (userId: string): Promise<Workspace[]> =>
+  db()
     .select({ id: O.id, name: O.name })
     .from(M)
     .innerJoin(O, eq(O.id, M.organizationId))
     .where(eq(M.userId, userId))
-    .orderBy(asc(M.createdAt));
-}
+    .orderBy(asc(M.createdAt)),
+);
 
 /** How many more workspaces this user may create. Owned ones count, the
  *  personal one included, so free (limit 1) starts at 0. */

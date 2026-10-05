@@ -93,7 +93,7 @@ function fjRenew(origin) {
   return (renewing ??= (async () => {
     let tab;
     try {
-      tab = await chrome.tabs.create({ url: origin, active: false });
+      tab = await chrome.tabs.create({ url: origin + '/rekod', active: false });
       await tabLoaded(tab.id);
       return await fjSession();
     } catch {
@@ -140,7 +140,7 @@ async function route(msg, sender) {
     // DASH_ORIGINS (auth.js), else it falls back to DASH. So a message can pick
     // prod or the dev server — where the upload landed — and nothing else.
     const origin = DASH_ORIGINS.includes(msg.origin) ? msg.origin : DASH;
-    chrome.tabs.create({ url: origin + (msg.path || '/'), active: false });
+    chrome.tabs.create({ url: origin + (msg.path || '/rekod'), active: false });
     return { ok: true };
   }
 

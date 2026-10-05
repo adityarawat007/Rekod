@@ -1,0 +1,125 @@
+/* REKOD_DESIGN_SYSTEM.md §2.2–2.3, verbatim. The only file with hex values
+   besides marketing.css. Components use these through Tailwind (globals.css). */
+
+:root {
+  /* surfaces */
+  --bg:            #ECECEC;  /* app canvas */
+  --panel:         #FFFFFF;  /* panels, header, table */
+  --line:          #DEDEE3;  /* hairlines, row dividers */
+  --line-strong:   #8C8C98;  /* chip/input/button borders (≥3:1 on white) */
+
+  /* text */
+  --ink:           #00022F;  /* primary text */
+  --muted:         #4F4F5C;  /* secondary text (6.8:1 on --bg) */
+  --faint:         #6E6E78;  /* tertiary meta (5:1 on white) */
+
+  /* brand / status */
+  --primary:       #060CBE;  /* primary button, active tab, links */
+  --primary-hover: #0A12E0;
+  --on-primary:    #FFFFFF;
+  --open:          #00022F;  /* "open" status fill */
+  --on-open:       #FFFFFF;
+  --accent:        #F1B0E1;  /* in review, highlight */
+  --accent-soft:   #FADDF2;
+  --accent-ring:   #C774B0;
+  --on-accent:     #00022F;
+  --tint:          #C4C4F6;  /* lavender info/hover tint */
+  --tint-soft:     #E6E6FB;
+  --link:          #060CBE;
+  --focus:         #060CBE;
+  --selected:      #00022F;  /* selection outlines */
+
+  /* data cells (grids/heatmaps) */
+  --cell:          #E7E7EC;  /* resolved / empty */
+  --cell-out:      #F2F2F5;  /* outside current filter */
+  --cell-text:     #9A9AA6;  /* inactive cell label (decorative) */
+  --open-dim:      #585A8C;  /* open, but outside filter */
+  --accent-dim-text:#8A4A7E; /* text on --accent-soft */
+
+  /* feedback */
+  --error:         #C8341F;
+  --warning:       #9A6400;
+  --success:       #2E7D3A;
+  --info:          #060CBE;
+
+  /* dark chrome (tooltips, toasts) */
+  --chrome:        #00022F;
+  --on-chrome:     #FFFFFF;
+  --on-chrome-muted:#B4B6D6;
+
+}
+
+[data-theme="dark"] {
+  --bg:            #07081C;
+  --panel:         #11132B;
+  --line:          #23264A;
+  --line-strong:   #4A4D78;
+  --ink:           #EEEEF6;
+  --muted:         #A6A8C2;
+  --faint:         #7A7D99;
+  --primary:       #4A50F0;  /* lighter electric blue, white text 5.7:1 */
+  --primary-hover: #5D63FF;
+  --on-primary:    #FFFFFF;
+  --open:          #2B2F7A;  /* visible on dark panels */
+  --on-open:       #FFFFFF;
+  --accent:        #F1B0E1;
+  --accent-soft:   #4A2A44;
+  --accent-ring:   #E6A3D3;
+  --on-accent:     #00022F;
+  --tint:          #2C2F6E;
+  --tint-soft:     #1B1D45;
+  --link:          #9EA2FF;
+  --focus:         #9EA2FF;
+  --selected:      #EEEEF6;
+  --cell:          #1F2240;
+  --cell-out:      #171A33;
+  --cell-text:     #6C6F8E;
+  --open-dim:      #262955;
+  --accent-dim-text:#F1B0E1;
+  --error:         #FF8A73;
+  --warning:       #F2C25A;
+  --success:       #6FCF8E;
+  --info:          #9EA2FF;
+  --chrome:        #00022F;
+  --on-chrome:     #FFFFFF;
+  --on-chrome-muted:#B4B6D6;
+}
+
+/* Before next-themes sets data-theme (or with no JS), the system decides. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:            #07081C;
+    --panel:         #11132B;
+    --line:          #23264A;
+    --line-strong:   #4A4D78;
+    --ink:           #EEEEF6;
+    --muted:         #A6A8C2;
+    --faint:         #7A7D99;
+      --primary:       #4A50F0;  /* lighter electric blue, white text 5.7:1 */
+    --primary-hover: #5D63FF;
+    --on-primary:    #FFFFFF;
+    --open:          #2B2F7A;  /* visible on dark panels */
+    --on-open:       #FFFFFF;
+    --accent:        #F1B0E1;
+    --accent-soft:   #4A2A44;
+    --accent-ring:   #E6A3D3;
+    --on-accent:     #00022F;
+    --tint:          #2C2F6E;
+    --tint-soft:     #1B1D45;
+    --link:          #9EA2FF;
+    --focus:         #9EA2FF;
+    --selected:      #EEEEF6;
+    --cell:          #1F2240;
+    --cell-out:      #171A33;
+    --cell-text:     #6C6F8E;
+    --open-dim:      #262955;
+    --accent-dim-text:#F1B0E1;
+    --error:         #FF8A73;
+    --warning:       #F2C25A;
+    --success:       #6FCF8E;
+    --info:          #9EA2FF;
+    --chrome:        #00022F;
+    --on-chrome:     #FFFFFF;
+    --on-chrome-muted:#B4B6D6;
+    }
+}

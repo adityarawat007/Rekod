@@ -1,68 +1,86 @@
-<!doctype html><meta charset="utf-8"><title>Rekod</title>
+<!doctype html><meta charset="utf-8"><title>rekod</title>
 <style>
-  /* Our own surface, so it wears the dashboard's light palette — zinc greys,
-     hairline borders, a near-black primary — rather than the near-black the
-     on-page bar needs to stand apart from whatever site it lands on. Colour is
-     functional only: the red is the record light and errors, nothing else. */
-  :root{--bg:#FFFFFF;--subtle:#F7F7F8;--fill:#F4F4F5;--fill2:#E9E9EC;--ink:#18181B;--muted:#71717A;
-        --line:#E9E9EC;--line2:#E4E4E7;--ring:#A1A1AA;--rec:#DC2626;--crit:#DC2626}
+  /* Our own surface, so it wears the dashboard's light palette — a grey
+     canvas, white panels, hairline borders, midnight ink and an electric-blue
+     primary — square everywhere but the dots. The electric gradient is the top
+     band and nothing else (§2.4 lists it); inside, colour is functional: red is
+     the record light and errors. No webfont: the popup opens offline too, so
+     the stacks name the brand faces first and fall back to system. */
+  :root{--bg:#ECECEC;--panel:#FFFFFF;--line:#DEDEE3;--line-strong:#8C8C98;
+        --ink:#00022F;--muted:#4F4F5C;--faint:#6E6E78;
+        --primary:#060CBE;--primary-hover:#0A12E0;--on-primary:#FFFFFF;
+        --link:#060CBE;--focus:#060CBE;--tint:#C4C4F6;--error:#C8341F;--warning:#9A6400;--success:#2E7D3A;
+        --chrome:#00022F;--on-chrome:#FFFFFF;--on-chrome-muted:#B4B6D6;
+        /* A 4px checker over the sweep: the band reads slightly pixelated. */
+        --gradient-electric:url("dusk.png") 0 0 / 100% 12px repeat-y,#142581;
+        --font-sans:"Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif;
+        --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
+  /* §2.3. Chrome (and the band) stay midnight in both. */
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#07081C;--panel:#11132B;--line:#23264A;--line-strong:#4A4D78;
+          --ink:#EEEEF6;--muted:#A6A8C2;--faint:#7A7D99;
+          --primary:#4A50F0;--primary-hover:#5D63FF;--on-primary:#FFFFFF;
+          --link:#9EA2FF;--focus:#9EA2FF;--tint:#2C2F6E;--error:#FF8A73;--warning:#F2C25A;--success:#6FCF8E}
+  }
   *{box-sizing:border-box}
   [hidden]{display:none!important}   /* author display:grid below outranks the UA sheet */
-  body{margin:0;width:264px;background:var(--bg);color:var(--ink);letter-spacing:-.006em;
-       -webkit-font-smoothing:antialiased;
-       font:13px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
-  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
-  header{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 10px;
-         border-bottom:1px solid var(--line)}
-  /* The mark is the thing the product does: a record light, then the name. */
-  .brand{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:650;letter-spacing:-.02em}
-  .brand img{width:20px;height:20px;border-radius:5px}
-  .opts{display:grid;gap:6px;padding:12px 12px 10px}
-  button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--bg);
-         border:1px solid var(--line2);border-radius:10px;padding:9px 10px;color:var(--ink);
-         font:inherit;font-weight:550;letter-spacing:-.006em;cursor:pointer;
+  body{margin:0;width:264px;background:var(--bg);color:var(--ink);
+       -webkit-font-smoothing:antialiased;font:13px/1.4 var(--font-sans)}
+  .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 12px;
+         background:var(--gradient-electric);image-rendering:pixelated;color:var(--on-chrome)}
+  /* The wordmark: four pixels (2×2), then the name, lowercase. On the blue
+     band the pixels are on-chrome so they don't vanish into it. */
+  .brand{display:inline-flex;align-items:center;gap:8px;font:700 22px/1 var(--font-sans);letter-spacing:-.02em}
+  .opts{display:grid;gap:8px;padding:12px}
+  button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel);
+         border:1px solid var(--line-strong);border-radius:0;padding:9px 10px;color:var(--ink);
+         font:inherit;font-weight:500;cursor:pointer;
          transition:background .12s,border-color .12s}
-  button:hover{background:var(--subtle);border-color:#D4D4D8}
-  button:active{background:var(--fill)}
-  button:disabled{opacity:.55;cursor:default}
-  button:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+  button:hover{background:var(--bg);border-color:var(--ink)}
+  button:active{background:var(--line)}
+  button:disabled{opacity:.5;cursor:default}
+  button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
   button small{display:block;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:1px}
   /* The icon sits in its own tile so the two choices scan as two rows, not as
      two paragraphs. */
-  .opts button svg{box-sizing:content-box;padding:7px;border-radius:8px;background:var(--fill);color:var(--ink)}
-  #rec svg{color:var(--rec)}
+  .opts button svg{box-sizing:content-box;padding:7px;border-radius:0;background:var(--bg);
+                   border:1px solid var(--line);color:var(--ink)}
+  #rec svg{color:var(--error)}
   /* The mic switch wears the same skin as the buttons above it: it belongs to
      the recording, not to a settings screen this popup does not have. */
-  .toggle{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line2);
-          border-radius:10px;padding:9px 10px;font-weight:550;cursor:pointer}
+  .toggle{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line-strong);
+          border-radius:0;padding:9px 10px;font-weight:500;cursor:pointer;transition:background .12s,border-color .12s}
+  .toggle:hover{background:var(--bg);border-color:var(--ink)}
   .toggle span{flex:1}
   .toggle small{display:block;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:1px}
-  .toggle input{flex:0 0 auto;width:16px;height:16px;margin:0;accent-color:var(--ink);cursor:pointer}
-  .toggle:has(input:focus-visible){outline:2px solid var(--ring);outline-offset:2px}
+  .toggle input{flex:0 0 auto;width:16px;height:16px;margin:0;accent-color:var(--primary);cursor:pointer}
+  .toggle:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
   svg{flex:0 0 auto}
   .hint{padding:0 14px 12px;font-size:11.5px;color:var(--muted)}
-  .hint kbd{font:500 10.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);
-            background:var(--fill);border:1px solid var(--line2);border-radius:5px;padding:2px 5px;margin-right:2px}
+  .hint kbd{font:500 11px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);
+            background:var(--panel);border:1px solid var(--line-strong);border-radius:0;padding:3px 5px;margin-right:2px}
   #busy{padding:14px}
-  .err{margin:0 12px 12px;padding:8px 10px;border-radius:8px;font-size:12px;color:var(--crit);
-       background:#FEF2F2;border:1px solid #FDE2E2}
-  button.primary{justify-content:center;background:var(--ink);border-color:var(--ink);color:#fff;font-weight:550}
-  button.primary:hover{background:#27272A;border-color:#27272A}
+  .err{margin:0 12px 12px;padding:8px 10px;border-radius:0;font-size:12px;color:var(--error);
+       background:var(--panel);border:1px solid var(--error)}
+  button.primary{justify-content:center;background:var(--primary);border-color:var(--primary);color:var(--on-primary)}
+  button.primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
   /* Signed out, the gate's own mark is the brand; one is enough. */
   body:has(#gate:not([hidden])) header{display:none}
   .gate{display:grid;justify-items:center;text-align:center;gap:4px;padding:22px 16px 16px}
-  .gate img{border-radius:12px;margin-bottom:10px}
-  .gate h1{margin:0;font-size:14px;font-weight:650;letter-spacing:-.015em}
+  .gate img{border-radius:0;margin-bottom:10px}
+  .gate h1{margin:0;font-size:15px;font-weight:600;letter-spacing:-.015em}
   .gate p{margin:0 0 14px;font-size:12px;color:var(--muted)}
   .gate button{justify-content:center}
-  .who{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;font-size:11.5px;color:var(--muted);
-       border-top:1px solid var(--line);background:var(--subtle)}
+  .who{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;font:11px/1.4 var(--font-mono);color:var(--muted);
+       border-top:1px solid var(--line);background:var(--panel)}
   .who span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .who button{width:auto;flex:0 0 auto;gap:4px;padding:4px 8px;font-size:11.5px;font-weight:500;
-              background:none;border:1px solid transparent;border-radius:7px;color:var(--ink)}
-  .who button:hover{background:var(--fill2);border-color:transparent}
+  .who button{width:auto;flex:0 0 auto;gap:4px;padding:4px 8px;font:500 11.5px/1.4 var(--font-sans);
+              min-height:32px;background:none;border:1px solid transparent;border-radius:0;color:var(--link)}
+  .who button:hover{background:var(--bg);border-color:transparent;text-decoration:underline}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
-<header><span class="brand"><img src="icons/128.png" alt="">Rekod</span></header>
+<header><span class="brand">rekod</span></header>
 <div class="gate" id="gate" hidden>
   <img src="icons/128.png" alt="" width="44" height="44">
   <h1 id="gate-title"></h1>

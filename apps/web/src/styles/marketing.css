@@ -1,0 +1,44 @@
+/* §2.4: the login welcome panel and the landing page's bands (the extension popup's
+   top band carries the same thing by hand). Never in the app. The dusk —
+   midnight → electric blues → cornflower → lavender → pink → peach — as an
+   ordered (Bayer 4×4) dither: a 256×4 strip from scripts/dusk.mjs, stretched
+   across and repeated down at 3px a row. CSS can't pick between two palette
+   colours per pixel; blend-mode tricks grey them out, so it is an image. */
+:root {
+  --gradient-electric: url("/dusk.png") 0 0 / 100% 12px repeat-y, #142581;
+}
+
+.bg-electric {
+  background: var(--gradient-electric);
+  image-rendering: pixelated;
+}
+
+/* Full-bleed bands on the landing page: the same dusk from a 480-column strip
+   (scripts/dusk.mjs), so a dither pixel stays near 3px across ~1440px. */
+.bg-electric-wide {
+  background: url("/dusk-wide.png") 0 0 / 100% 12px repeat-y, #142581;
+  image-rendering: pixelated;
+}
+
+/* The landing hero's two-colour dither (components/marketing/dither.tsx reads
+   these at runtime). Light: electric blue on the panel white. Dark: the light
+   link blue on midnight, with the picture inverted so bright stays bright.
+   --dusk-stops is §2.4's dusk as "colour position" pairs, for the lens. */
+:root {
+  --dither-ink: var(--primary);
+  --dither-paper: var(--panel);
+  --dither-invert: 0;
+  --dusk-stops: #00022F 0, #0C1942 .08, #142581 .24, #2539B8 .36, #395AD3 .44, #5B80EF .54, #9091EB .66, #F1B0E1 .8, #F4CDBE 1;
+}
+[data-theme="dark"] {
+  --dither-ink: var(--link);
+  --dither-paper: var(--bg);
+  --dither-invert: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --dither-ink: var(--link);
+        --dither-paper: var(--bg);
+    --dither-invert: 1;
+  }
+}
