@@ -6,7 +6,8 @@ import { z } from 'zod';
  * with its name instead of a blank 500.
  */
 const list = z.string().optional().transform((s) =>
-  (s ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean));
+  // Strip quotes: a dashboard (Vercel) keeps `""` literally, which read as one domain named `""`.
+  (s ?? '').split(',').map((x) => x.trim().replace(/^["']|["']$/g, '').trim().toLowerCase()).filter(Boolean));
 const flag = z.string().optional().transform((s) => s === 'true' || s === '1');
 /** An optional value where `NAME=` (empty) means unset, as .env.example writes it. */
 const unsetIfEmpty = (t: z.ZodString) =>
