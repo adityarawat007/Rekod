@@ -1,9 +1,26 @@
-# rekod
+<p align="center">
+  <img src="docs/banner.png" alt="" width="100%">
+</p>
 
-Bug reports that already know what happened. A Chrome extension keeps the last
-five minutes of a tab's console and network in memory; press record and that
-history is attached to the video. A Next.js app plays it all back on one
-timeline.
+<h1 align="center">rekod</h1>
+
+<p align="center">
+  <b>Bug reports that already know what happened.</b><br>
+  Record a tab and rekod brings the five minutes before it: console, network and video on one timeline.
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="apps/extension/README.md">Extension</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="REKOD_DESIGN_SYSTEM.md">Design system</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/extension-popup-light.png" alt="The rekod extension popup" width="280">
+</p>
+
+---
 
 ## What it does
 
