@@ -137,7 +137,7 @@ export const reportAssets = rekod.table('report_assets', {
   id: uuid('id').primaryKey().$defaultFn(() => uuidv7()),
   reportId: uuid('report_id').notNull().references(() => reports.id, { onDelete: 'cascade' }),
   workspaceId: text('workspace_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
-  kind: text('kind', { enum: ['video', 'screenshot', 'logs', 'network'] }).notNull(),
+  kind: text('kind', { enum: ['video', 'screenshot', 'poster', 'logs', 'network'] }).notNull(),
   storageKey: text('storage_key').notNull(),
   sizeBytes: bigint('size_bytes', { mode: 'number' }),
   mimeType: text('mime_type').notNull(),

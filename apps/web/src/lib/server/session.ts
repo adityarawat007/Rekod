@@ -2,27 +2,18 @@ import 'server-only';
 import { cache } from 'react';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { asc, eq, sql } from 'drizzle-orm';
-import { db, schema } from '../db/index.ts';
 import { auth } from './auth.ts';
+import { store } from './store/index.ts';
 
 export type Actor = { userId: string; email: string; name: string; image: string | null; workspaceId: string };
 
 /** The workspace a request acts in: the session's active one if the user is
  *  still a member of it, else their oldest membership — the personal one. */
-export async function workspaceOf(userId: string, active: string | null | undefined) {
-  const m = schema.member;
-  const [row] = await db()
-    .select({ id: m.organizationId })
-    .from(m)
-    .where(eq(m.userId, userId))
-    .orderBy(sql`(${m.organizationId} = ${active ?? ''}) desc`, asc(m.createdAt))
-    .limit(1);
-  return row?.id ?? null;
-}
+export const workspaceOf = (userId: string, active: string | null | undefined) =>
+  store().workspaceOf(userId, active);
 
 async function actorFrom(h: Headers): Promise<Actor | null> {
-  const s = await auth().api.getSession({ headers: h });
+  const s = await (await auth()).api.getSession({ headers: h });
   if (!s) return null;
   const workspaceId = await workspaceOf(s.user.id, s.session.activeOrganizationId);
   return workspaceId
@@ -37,7 +28,7 @@ export const currentActor = cache(async () => actorFrom(await headers()));
  *  from the 5-minute signed cookie cache, so this makes no query. For display
  *  only — anything that reads or writes rows goes through requireActor(). */
 export const currentUser = cache(async () =>
-  (await auth().api.getSession({ headers: await headers() }))?.user ?? null);
+  (await (await auth()).api.getSession({ headers: await headers() }))?.user ?? null);
 
 /** For pages and server actions. proxy.ts only checks the cookie exists. */
 export async function requireActor(): Promise<Actor> {

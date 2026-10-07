@@ -18,6 +18,7 @@ export const LIMITS = {
     // overshoot. Moves with those two.
     video: 32 * 2 ** 20,
     screenshot: 25 * 2 ** 20,
+    poster: 1 * 2 ** 20,
     logs: 50 * 2 ** 20,
     network: 50 * 2 ** 20,
   },

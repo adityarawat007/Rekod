@@ -1,36 +1,24 @@
 import 'server-only';
 import { cache } from 'react';
-import { asc, eq, sql } from 'drizzle-orm';
-import { db, schema } from '../db/index.ts';
 import { uuidv7 } from '../db/ids.ts';
 import { isPlan, PLANS } from '../plans.ts';
 import { auth } from './auth.ts';
+import { store } from './store/index.ts';
+import type { Workspace } from './store/types.ts';
 
-const { member: M, organization: O, user: U } = schema;
-
-export type Workspace = { id: string; name: string };
+export type { Workspace };
 
 /** Every workspace this user is a member of, the personal one first. Scoped by
  *  the user, not a workspace: this is the list you switch between. cache()d:
  *  the header and the page title both ask. */
 export const workspacesOf = cache(async (userId: string): Promise<Workspace[]> =>
-  db()
-    .select({ id: O.id, name: O.name })
-    .from(M)
-    .innerJoin(O, eq(O.id, M.organizationId))
-    .where(eq(M.userId, userId))
-    .orderBy(asc(M.createdAt)),
+  store().workspacesOf(userId),
 );
 
 /** How many more workspaces this user may create. Owned ones count, the
  *  personal one included, so free (limit 1) starts at 0. */
 export async function workspacesLeft(userId: string) {
-  // One round trip: the count is a subquery, the way usageOf() does it.
-  const [u] = await db().select({
-    plan: U.plan,
-    owned: sql<number>`(select count(*)::int from rekod.member m
-      where m.user_id = rekod."user".id and m.role = 'owner')`,
-  }).from(U).where(eq(U.id, userId));
+  const u = await store().ownedWorkspaces(userId);
   const plan = u && isPlan(u.plan) ? u.plan : 'free';
   return { plan, left: Math.max(0, PLANS[plan].workspaces - (u?.owned ?? 0)) };
 }
@@ -50,7 +38,7 @@ export async function createWorkspace(userId: string, name: string): Promise<{ i
       ? { refused: 'plan', message: 'New workspaces are part of Pro. Free includes your personal workspace.' }
       : { refused: 'limit', message: `Your plan includes ${PLANS[plan].workspaces} workspaces, and you own that many.` };
   }
-  const org = await auth().api.createOrganization({
+  const org = await (await auth()).api.createOrganization({
     body: { name, slug: uuidv7(), userId, keepCurrentActiveOrganization: true },
   });
   if (!org) throw new Error('Could not create the workspace');

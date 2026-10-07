@@ -7,15 +7,19 @@ export const GRID = 'grid gap-5 sm:grid-cols-2 narrow:grid-cols-3 wide:grid-cols
 
 /** Each mirrors the padding and row heights of what replaces it. */
 
-/** The home page under the header: summary row, filter row, grid. */
+/** The header's site chip, before the site list arrives. */
+export function SiteFilterSkeleton() {
+  return <Skeleton className="h-[38px] w-40 shrink-0 self-center" />;
+}
+
+/** The home page under the header: filters beside New, then the grid. */
 export function HomeSkeleton() {
   return (
     <div className="space-y-7 p-4 narrow:p-7">
       <div className="flex items-center justify-between gap-6">
-        <Skeleton className="h-5 w-72" />
-        <Skeleton className="hidden h-[38px] w-32 narrow:block" />
+        <Skeleton className="h-[38px] w-full max-w-md" />
+        <Skeleton className="h-[38px] w-32 shrink-0" />
       </div>
-      <Skeleton className="h-[38px] w-full" />
       <ReportGridSkeleton />
     </div>
   );

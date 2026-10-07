@@ -20,6 +20,15 @@ services:
     ports: ["8333:8333"]
     volumes: [s3:/data]
 
+  # Off by default: `docker compose -f docker-compose.dev.yml --profile mongo up`
+  # then DATABASE_URL=mongodb://localhost:27017/rekod. Standalone is enough.
+  mongo:
+    image: mongo:8
+    profiles: [mongo]
+    ports: ["27017:27017"]
+    volumes: [mongo:/data/db]
+
 volumes:
   pg:
   s3:
+  mongo:

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "rekod",
-  "version": "0.3.1",
+  "version": "0.3.4",
   "description": "Records a tab with the last 5 minutes of console and network already captured.",
   "permissions": [
     "tabCapture",

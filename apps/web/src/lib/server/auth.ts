@@ -1,11 +1,10 @@
 import 'server-only';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer, organization } from 'better-auth/plugins';
 import { nextCookies } from 'better-auth/next-js';
-import { db, schema } from '../db/index.ts';
 import { serverEnv } from '../env.ts';
+import { authParts } from './store/index.ts';
 
 /**
  * Better Auth, built on first use (env is lazy — see lib/env.ts).
@@ -15,23 +14,17 @@ import { serverEnv } from '../env.ts';
  * bearer plugin turns that into a session. requireSignature: the cookie value
  * is always signed, so an unsigned bearer is never ours.
  */
-function build() {
+async function build() {
   const env = serverEnv();
   const google = env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
     ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } }
     : undefined;
 
+  const { database, options: extra } = await authParts();
   const instance = betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    database: drizzleAdapter(db(), {
-      provider: 'pg',
-      schema: {
-        user: schema.user, session: schema.session, account: schema.account,
-        verification: schema.verification, organization: schema.organization,
-        member: schema.member, invitation: schema.invitation,
-      },
-    }),
+    database,
     // Google only. Off here, not just hidden on /login: with it on, Better
     // Auth's /sign-up/email would still take accounts from a curl. Google
     // verifies the address, which also makes one person, one account, harder
@@ -49,7 +42,7 @@ function build() {
     // therefore outlive its revocation by up to that long.
     session: { cookieCache: { enabled: true, maxAge: 300 } },
     // `rekod.session_token` — apps/extension/auth.js reads it by this exact name.
-    advanced: { cookiePrefix: 'rekod' },
+    advanced: { cookiePrefix: 'rekod', ...extra?.advanced },
     databaseHooks: {
       user: {
         create: {
@@ -85,8 +78,13 @@ function build() {
   return instance;
 }
 
+// A promise, because the database adapter loads on first use: `(await auth()).api…`.
 let instance: ReturnType<typeof build> | undefined;
-export const auth = () => (instance ??= build());
+export const auth = () =>
+  (instance ??= build().catch((e) => {
+    instance = undefined;
+    throw e;
+  }));
 
 export const googleEnabled = () => {
   const e = serverEnv();

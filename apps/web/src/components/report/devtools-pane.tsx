@@ -9,6 +9,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { NetworkPane } from '@/components/report/network-pane';
+import { useReportMarkdown } from '@/components/report/markdown-context';
+import { CopyButton } from '@/components/report/copy-button';
 import { PaneToolbar } from '@/components/report/pane-toolbar';
 import { clock, httpUrl, stamp, uaSummary } from '@/lib/format';
 import {
@@ -16,7 +18,11 @@ import {
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-export type ReportInfo = { project: string | null; pageUrl: string | null; createdAt: string };
+export type ReportInfo = {
+  project: string | null;
+  pageUrl: string | null;
+  createdAt: string;
+};
 
 export function DevtoolsPane({
   entries,
@@ -158,9 +164,18 @@ function InfoTab({ env, info, dur }: { env: Env; info: ReportInfo; dur: number }
   const page = info.pageUrl ?? env.url;
   const href = httpUrl(page);
   const ua = uaSummary(env.ua);
+  // Owner page only: a share link has no provider, so no Copy row.
+  const md = useReportMarkdown();
 
   return (
     <div className="p-4 narrow:p-6">
+      {md ? (
+        <div className="mb-2 flex items-center gap-4 border border-line-strong px-4 py-2">
+          <span className="label w-24 shrink-0 text-muted-foreground">Issue text</span>
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">Title, link, environment and errors as Markdown</span>
+          <CopyButton text={md.markdown} label="as Markdown" />
+        </div>
+      ) : null}
       {page ? (
         <div className="mb-2 flex items-center gap-4 border border-line-strong px-4 py-3">
           <span className="label w-24 shrink-0 text-muted-foreground">Page</span>
@@ -184,23 +199,24 @@ function InfoTab({ env, info, dur }: { env: Env; info: ReportInfo; dur: number }
         <Row label="Length" value={dur ? clock(dur) : null} />
         <Row label="Project" value={info.project} />
         {/* The raw UA stays on hover: it is what gets pasted into a bug. */}
-        <Row label="Browser" value={ua?.browser ?? env.ua} title={env.ua} />
-        <Row label="OS" value={ua?.os} />
-        <Row label="Window size" value={env.viewport ? `${env.viewport}${env.dpr ? ` · ${env.dpr}×` : ''}` : null} />
+        <Row copy label="Browser" value={ua?.browser ?? env.ua} title={env.ua} />
+        <Row copy label="OS" value={ua?.os} />
+        <Row copy label="Window size" value={env.viewport ? `${env.viewport}${env.dpr ? ` · ${env.dpr}×` : ''}` : null} />
         <Row label="GPU" value={env.gpu} />
-        <Row label="Build" value={env.build} />
+        <Row copy label="Build" value={env.build} />
       </dl>
     </div>
   );
 }
 
 /** Uncaptured rows are omitted: dashes read as a broken capture. */
-function Row({ label, value, title }: { label: string; value?: string | null; title?: string }) {
+function Row({ label, value, title, copy }: { label: string; value?: string | null; title?: string; copy?: boolean }) {
   if (!value) return null;
   return (
     <div className="flex items-baseline gap-4 py-3">
       <dt className="label w-24 shrink-0 text-muted-foreground">{label}</dt>
       <dd className="min-w-0 flex-1 wrap-break-word" title={title}>{value}</dd>
+      {copy ? <CopyButton text={`${label}: ${value}`} label={label} className="self-center" /> : null}
     </div>
   );
 }
@@ -228,6 +244,7 @@ function ConsoleTab({
   const [query, setQuery] = useState('');
   const [level, setLevel] = useState<Level>('all');
   const q = query.toLowerCase();
+  const firstError = rows.find((e) => levelOf(e) === 'error');
   const visible = rows.filter(
     (e) =>
       (level === 'all' || levelOf(e) === level) &&
@@ -237,6 +254,22 @@ function ConsoleTab({
   return (
     <>
       <PaneToolbar query={query} onQuery={setQuery} placeholder="Filter messages">
+        {firstError ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 whitespace-nowrap text-error"
+            onClick={() => {
+              setQuery('');
+              setLevel('all');
+              onSeek(firstError); // a screenshot has no playhead; this is a no-op there
+              // After the filters reset has rendered: the row may have been hidden.
+              setTimeout(() => document.getElementById(`log-${firstError.uid}`)?.scrollIntoView({ block: 'center' }), 0);
+            }}
+          >
+            Jump to first error
+          </Button>
+        ) : null}
         <Select value={level} onValueChange={(v) => setLevel(v as Level)}>
           <SelectTrigger className="border-line-strong bg-panel" aria-label="Log level">
             <SelectValue>{(v: Level) => LEVELS[v]}</SelectValue>
@@ -254,6 +287,7 @@ function ConsoleTab({
           return (
             <button
               key={e.uid}
+              id={`log-${e.uid}`}
               onClick={() => onSeek(e)}
               className={cn(
                 'flex w-full items-start gap-3 border-b px-4 py-2 text-left transition-colors duration-150 hover:bg-bg narrow:px-6',

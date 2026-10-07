@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Ellipsis, Loader2, Trash2 } from 'lucide-react';
+import { Check, Ellipsis, FileText, Loader2, Trash2 } from 'lucide-react';
+import { useCopy } from '@/components/report/copy-button';
+import { useReportMarkdown } from '@/components/report/markdown-context';
 import { deleteReports } from '@/app/(dash)/actions';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +16,8 @@ import {
 
 /** On a successful delete there is no report left, so it leaves for the list. */
 export function ReportMenu({ id }: { id: string }) {
+  const { state, copy } = useCopy();
+  const md = useReportMarkdown();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,7 +42,12 @@ export function ReportMenu({ id }: { id: string }) {
         <DropdownMenuTrigger render={<Button variant="outline" size="icon-lg" aria-label="More actions" />}>
           <Ellipsis />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-52">
+          {/* Stays open so "Copied" can be seen. */}
+          <DropdownMenuItem closeOnClick={false} onClick={() => md && copy(md.markdown())}>
+            {state === 'copied' ? <Check /> : <FileText />}
+            {state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed' : 'Copy as Markdown'}
+          </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => setOpen(true)}>
             <Trash2 /> Delete rekod
           </DropdownMenuItem>
@@ -50,8 +59,8 @@ export function ReportMenu({ id }: { id: string }) {
           <DialogHeader>
             <DialogTitle>Delete this rekod?</DialogTitle>
             <DialogDescription>
-              The video, the console and network log and the comments all go. Any share link for it
-              stops working. This cannot be undone.
+              The recording, its console and network log and its comments all go. Any share link for
+              it stops working. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {err ? <p role="alert" className="text-sm text-error">{err}</p> : null}

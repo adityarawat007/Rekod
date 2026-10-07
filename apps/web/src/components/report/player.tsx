@@ -7,7 +7,7 @@ import { clock, stamp, trackPct } from '@/lib/format';
 import { isError, isNet, isWarn, netFailed, type TimelineEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-export type Media = { url: string; kind: 'video' | 'shot' };
+export type Media = { url: string; kind: 'video' | 'shot'; poster?: string };
 
 /** Shared by the player and the log pane: a log row seeks the video. */
 export function usePlayhead() {
@@ -131,6 +131,7 @@ export function ReportPlayer({
           <video
             ref={video}
             src={media.url}
+            poster={media.poster}
             playsInline
             muted={muted}
             preload="metadata"

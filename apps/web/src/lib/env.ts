@@ -10,11 +10,15 @@ const list = z.string().optional().transform((s) =>
   (s ?? '').split(',').map((x) => x.trim().replace(/^["']|["']$/g, '').trim().toLowerCase()).filter(Boolean));
 const flag = z.string().optional().transform((s) => s === 'true' || s === '1');
 /** An optional value where `NAME=` (empty) means unset, as .env.example writes it. */
-const unsetIfEmpty = (t: z.ZodString) =>
+const unsetIfEmpty = (t: z.ZodType<string, string | undefined>) =>
   z.string().optional().transform((s) => s || undefined).pipe(t.optional());
 
 const schema = z.object({
-  DATABASE_URL: z.url(),
+  // z.url() rejects a MongoDB seed list (mongodb://h1:27017,h2:27017/db).
+  DATABASE_URL: z.string().refine(
+    (u) => /^mongodb(\+srv)?:\/\/[^\s/]+/.test(u) || z.url().safeParse(u).success,
+    'must be a postgres:// or mongodb:// URL',
+  ),
 
   BETTER_AUTH_SECRET: z.string().min(32, 'at least 32 characters — `openssl rand -base64 32`'),
   BETTER_AUTH_URL: z.url(),
@@ -36,6 +40,8 @@ const schema = z.object({
   /** e.g. 0.3.0. Older extensions (or ones sending no version) get a 426
    *  "please update" from /api/v1. Unset: every version is accepted. */
   MIN_EXTENSION_VERSION: unsetIfEmpty(z.string().regex(/^\d+(\.\d+)*$/)),
+  /** Bucket adapter. s3 is the only one; any S3-compatible bucket works. */
+  STORAGE_DRIVER: unsetIfEmpty(z.enum(['s3'])),
 });
 
 export type ServerEnv = z.infer<typeof schema>;

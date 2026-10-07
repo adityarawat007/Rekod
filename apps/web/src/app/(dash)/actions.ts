@@ -39,6 +39,7 @@ export async function deleteComment(commentId: string) {
 
 const More = z.object({
   q: z.string().max(500).optional(),
+  project: z.string().max(255).optional(),
   types: z.array(z.enum(reports.REPORT_TYPES)).max(reports.REPORT_TYPES.length),
   after: z.string().uuid(),
 });
@@ -70,7 +71,7 @@ export async function revokeShare(id: string) {
  *  round trip but not headers(), which getSession() reads. */
 export async function switchWorkspace(id: string) {
   await requireActor();
-  await auth().api.setActiveOrganization({ headers: await headers(), body: { organizationId: z.string().min(1).parse(id) } });
+  await (await auth()).api.setActiveOrganization({ headers: await headers(), body: { organizationId: z.string().min(1).parse(id) } });
 }
 
 /** A refusal is returned as data with a `message` for people. */

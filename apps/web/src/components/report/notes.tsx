@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, SendHorizontal, Trash2 } from 'lucide-react';
 import { addComment, deleteComment, saveNotes } from '@/app/(dash)/actions';
+import { useReportMarkdown } from '@/components/report/markdown-context';
 import { Button } from '@/components/ui/button';
 import { ago } from '@/lib/format';
 import type { Comment } from '@/lib/types';
@@ -27,18 +28,31 @@ export function ReportNotes({
   description: string | null;
   host?: string | null;
 }) {
+  const md = useReportMarkdown();
   const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (!saved) return;
+    const t = setTimeout(() => setSaved(false), 2000);
+    return () => clearTimeout(t);
+  }, [saved]);
 
-  // Saved on blur, and only if it changed.
-  const commit = (field: 'title' | 'description', was: string) => async (
-    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
+  // Saved on blur, and only if it differs from what was last saved — not the
+  // first render's value, or changing a field and back would never save.
+  const last = useRef({ title: title.trim(), description: (description ?? '').trim() });
+  const commit = async (
+    field: 'title' | 'description', e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const value = e.currentTarget.value.trim();
-    if (value === was.trim()) return;
+    if (value === last.current[field]) return;
     setErr(null);
+    setSaved(false);
     // title is NOT NULL; description is nullable and an empty box means null.
     try {
       await saveNotes(id, field === 'title' ? { title: value } : { description: value || null });
+      last.current[field] = value;
+      md?.setNotes(field === 'title' ? { title: value } : { description: value || null });
+      setSaved(true);
     } catch (e) {
       setErr(failed(e));
     }
@@ -53,7 +67,7 @@ export function ReportNotes({
           placeholder="Add a title"
           aria-label="Rekod title"
           rows={1}
-          onBlur={commit('title', title)}
+          onBlur={(e) => commit('title', e)}
           // A title is one line; Enter saves instead of breaking it.
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -72,9 +86,10 @@ export function ReportNotes({
         aria-label="Rekod description"
         // field-sizing is Chrome-only; rows=2 is the fallback.
         rows={2}
-        onBlur={commit('description', description ?? '')}
+        onBlur={(e) => commit('description', e)}
         className={`${FIELD} mt-2 resize-none field-sizing-content text-[15px] leading-relaxed text-muted-foreground`}
       />
+      <p role="status" className="mono h-4 text-[11px] text-muted-foreground">{saved ? 'Saved' : ''}</p>
       {err ? (
         <p role="alert" className="px-0.5 text-xs text-error">
           Not saved: {err}. Try again.

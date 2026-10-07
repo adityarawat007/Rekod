@@ -6,4 +6,11 @@ packages:
 
 allowBuilds:
   esbuild: true
+  mongodb-memory-server: false
   unrs-resolver: true
+
+# Transitive highs in next's own deps (postcss -> source-map-js, sharp) that
+# next has not bumped yet; each pinned to the first patched release.
+overrides:
+  source-map-js: ^1.2.2
+  sharp: ^0.35.5

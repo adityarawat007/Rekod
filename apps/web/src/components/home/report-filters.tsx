@@ -15,7 +15,7 @@ const TYPES = [
 ] as const;
 
 /** Filters live in the URL, so a filtered list is a link you can paste. */
-export function ReportFilters({ counter }: { counter?: React.ReactNode }) {
+export function ReportFilters() {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, start] = useTransition();
@@ -27,6 +27,8 @@ export function ReportFilters({ counter }: { counter?: React.ReactNode }) {
     const sp = new URLSearchParams();
     const query = next.q ?? q;
     if (query) sp.set('q', query);
+    const project = params.get('project');
+    if (project) sp.set('project', project);
     for (const t of next.types ?? types) sp.append('type', t);
     start(() => router.replace(sp.size ? `/rekod?${sp}` : '/rekod'));
   };
@@ -141,8 +143,6 @@ export function ReportFilters({ counter }: { counter?: React.ReactNode }) {
         </button>
       ) : null}
 
-      {/* ≤760px the counter takes its own line (§4). */}
-      <div className="w-full narrow:ml-auto narrow:w-auto">{counter}</div>
     </div>
   );
 }
