@@ -1,10 +1,10 @@
 import 'server-only';
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, schema } from '../db/index.ts';
 import { shareToken, uuidv7 } from '../db/ids.ts';
-import { presignDownload, presignUpload, readJson, removeObject } from '../storage/index.ts';
+import { blob } from '../storage/index.ts';
 import { LIMITS, PLANS, type Plan } from '../plans.ts';
+import { store } from './store/index.ts';
+import type { BaseRow, CompleteSet, Kind } from './store/types.ts';
 
 /**
  * The scoped reports repo. EVERY function takes the workspace first and puts
@@ -15,15 +15,12 @@ import { LIMITS, PLANS, type Plan } from '../plans.ts';
  * The one unscoped write is purgeAbandoned(), a system job with no caller.
  * usageOf() and setPlan() are keyed by user, not workspace: a plan is a person's.
  */
-const { reports: R, reportAssets: A, comments: C, user: U } = schema;
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** A malformed id is "not found", not a 22P02 from Postgres. */
-const isId = (id: string) => UUID.test(id);
+const isId = (id: string) => typeof id === 'string' && UUID.test(id);
 
-type Kind = 'video' | 'screenshot' | 'logs' | 'network';
 const keyFor = (ws: string, id: string, kind: Kind) =>
-  `${ws}/${id}/${kind}.${kind === 'video' ? 'webm' : kind === 'screenshot' ? 'png' : 'json'}`;
+  `${ws}/${id}/${kind}.${kind === 'video' ? 'webm' : kind === 'screenshot' ? 'png' : kind === 'poster' ? 'webp' : 'json'}`;
 
 // ── list ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +29,8 @@ export type ReportType = (typeof REPORT_TYPES)[number];
 export type ListFilters = {
   q?: string;
   types?: ReportType[];
+  /** Exact site (reports.project). */
+  project?: string;
   /** The last id of the previous page. */
   after?: string;
 };
@@ -48,10 +47,9 @@ export type ListRow = {
   durationMs: number | null;
   /** Signed thumbnail source, or null when the report has no media. */
   preview: string | null;
+  /** Signed poster image (videos recorded by newer extensions), else null. */
+  poster: string | null;
 };
-
-/** LIKE treats % and _ as wildcards and \ as the escape; a search box does not. */
-const likeable = (q: string) => `%${q.replace(/[\\%_]/g, '\\$&')}%`;
 
 /** One page, newest first. Keyset on the id: ids are UUIDv7 minted at create,
  *  so id order IS creation order, and the cursor needs no timestamp — which
@@ -60,100 +58,55 @@ export async function listReports(
   ws: string,
   f: ListFilters = {},
 ): Promise<{ rows: ListRow[]; next: string | null }> {
-  const where = [eq(R.workspaceId, ws), eq(R.status, 'ready')];
-  const q = f.q?.trim();
-  if (q) where.push(or(ilike(R.title, likeable(q)), ilike(R.description, likeable(q)))!);
-  if (f.types?.length) where.push(inArray(R.type, f.types));
-  if (f.after && isId(f.after)) where.push(lt(R.id, f.after));
-
-  const rows = await db()
-    .select({
-      id: R.id, title: R.title, project: R.project, createdAt: R.createdAt, type: R.type,
-      durationMs: R.durationMs, key: A.storageKey,
-    })
-    .from(R)
-    .leftJoin(A, and(eq(A.reportId, R.id), inArray(A.kind, ['video', 'screenshot'])))
-    .where(and(...where))
-    .orderBy(desc(R.id))
+  const rows = await store().listReports(ws, {
+    q: f.q?.trim(), types: f.types, project: f.project || undefined, after: f.after && isId(f.after) ? f.after : undefined,
     // One extra row says whether there is a next page, without a count(*).
-    .limit(PAGE_SIZE + 1);
+    limit: PAGE_SIZE + 1,
+  });
 
   const page = rows.slice(0, PAGE_SIZE);
   return {
     // Signing is a local HMAC, not a round trip, so one per row costs nothing.
-    rows: await Promise.all(page.map(async ({ key, ...r }) => ({
-      ...r, preview: key ? await presignDownload(key, 3600) : null,
+    rows: await Promise.all(page.map(async ({ key, posterKey, ...r }) => ({
+      ...r,
+      preview: key ? await blob().presignDownload(key, 3600) : null,
+      poster: posterKey ? await blob().presignDownload(posterKey, 3600) : null,
     }))),
     next: rows.length > PAGE_SIZE ? page.at(-1)!.id : null,
   };
 }
 
-/** The title block's numbers: all ready rekods, how many match the filters,
- *  and the split by type. One aggregate, run beside listReports(). */
-export async function countReports(ws: string, f: Omit<ListFilters, 'after'> = {}) {
-  const match = [sql`true`];
-  const q = f.q?.trim();
-  if (q) match.push(or(ilike(R.title, likeable(q)), ilike(R.description, likeable(q)))!);
-  if (f.types?.length) match.push(inArray(R.type, f.types));
-  const [c] = await db()
-    .select({
-      total: sql<number>`count(*)::int`,
-      match: sql<number>`(count(*) filter (where ${and(...match)}))::int`,
-      videos: sql<number>`(count(*) filter (where ${R.type} = 'video'))::int`,
-      shots: sql<number>`(count(*) filter (where ${R.type} = 'screenshot'))::int`,
-    })
-    .from(R)
-    .where(and(eq(R.workspaceId, ws), eq(R.status, 'ready')));
-  return c;
-}
+/** The sites this workspace has recorded, for the filter: most used first. */
+export const projectsOf = (ws: string) => store().projectsOf(ws);
 
 // ── one report ──────────────────────────────────────────────────────────────
 
 export type CommentView = { id: string; body: string; at: string; by: string | null };
 
-const reportCols = {
-  id: R.id, title: R.title, description: R.description, type: R.type, pageUrl: R.pageUrl,
-  project: R.project, t0: R.t0, env: R.env, createdAt: R.createdAt,
-};
-
-async function assetsOf(reportId: string) {
-  return db().select({ kind: A.kind, key: A.storageKey }).from(A).where(eq(A.reportId, reportId));
-}
-
-async function commentsOf(reportId: string): Promise<CommentView[]> {
-  const rows = await db()
-    .select({ id: C.id, body: C.body, at: C.createdAt, by: U.email })
-    .from(C)
-    .leftJoin(U, eq(U.id, C.authorId))
-    .where(and(eq(C.reportId, reportId), isNull(C.deletedAt)))
-    .orderBy(asc(C.createdAt));
+async function commentsOf(ws: string, reportId: string): Promise<CommentView[]> {
+  const rows = await store().commentsOf(ws, reportId);
   return rows.map((c) => ({ ...c, at: c.at.toISOString() }));
 }
 
-async function baseRow(where: ReturnType<typeof and>) {
-  const [row] = await db().select(reportCols).from(R).where(where).limit(1);
-  return row;
-}
-type BaseRow = NonNullable<Awaited<ReturnType<typeof baseRow>>>;
-
 /** Everything the player needs: signed media, the two log files, the thread. */
-async function hydrate(row: BaseRow, withLogs = true) {
-  const assets = await assetsOf(row.id);
+async function hydrate(ws: string, row: BaseRow, assets: { kind: Kind; key: string }[], withLogs = true) {
   const key = (k: Kind) => assets.find((a) => a.kind === k)?.key;
   const mediaKey = key('video') ?? key('screenshot');
   const logsKey = withLogs ? key('logs') : undefined;
   const netKey = withLogs ? key('network') : undefined;
-  const [logs, network, comments, mediaUrl] = await Promise.all([
-    logsKey ? readJson<unknown[]>(logsKey) : [],
-    netKey ? readJson<unknown[]>(netKey) : [],
-    commentsOf(row.id),
+  const posterKey = key('poster');
+  const [logs, network, comments, mediaUrl, posterUrl] = await Promise.all([
+    logsKey ? blob().readJson<unknown[]>(logsKey) : [],
+    netKey ? blob().readJson<unknown[]>(netKey) : [],
+    commentsOf(ws, row.id),
     // An hour: a viewer who seeks after that re-opens the page.
-    mediaKey ? presignDownload(mediaKey, 3600) : null,
+    mediaKey ? blob().presignDownload(mediaKey, 3600) : null,
+    posterKey ? blob().presignDownload(posterKey, 3600) : null,
   ]);
   return {
     ...row,
     createdAt: row.createdAt.toISOString(),
-    media: mediaUrl ? { url: mediaUrl, kind: row.type === 'screenshot' ? 'shot' as const : 'video' as const } : null,
+    media: mediaUrl ? { url: mediaUrl, kind: row.type === 'screenshot' ? 'shot' as const : 'video' as const, poster: posterUrl ?? undefined } : null,
     logs, network, comments,
   };
 }
@@ -161,18 +114,10 @@ async function hydrate(row: BaseRow, withLogs = true) {
 export async function getReport(ws: string, id: string) {
   if (!isId(id)) return null;
   // The creator, owner side only: sharedReport() never names anyone.
-  const [row] = await db()
-    .select({ ...reportCols, shareToken: R.shareToken, byName: U.name, byEmail: U.email, byImage: U.image })
-    .from(R)
-    .leftJoin(U, eq(U.id, R.createdBy))
-    .where(and(eq(R.workspaceId, ws), eq(R.id, id))).limit(1);
+  const row = await store().getReport(ws, id);
   if (!row) return null;
-  const { shareToken: token, byName, byEmail, byImage, ...base } = row;
-  return {
-    ...(await hydrate(base)),
-    shareToken: token,
-    creator: byEmail ? { name: byName, email: byEmail, image: byImage } : null,
-  };
+  const { shareToken: token, creator, assets, ...base } = row;
+  return { ...(await hydrate(ws, base, assets)), shareToken: token, creator };
 }
 
 /** The whole anonymous surface. Explicit columns — no workspace, no creator,
@@ -181,9 +126,13 @@ export async function getReport(ws: string, id: string) {
 const SHARE_TOKEN = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[0-9a-f]{64})$/;
 
 export async function sharedReport(token: string, withLogs = true) {
-  if (!SHARE_TOKEN.test(token)) return null;
-  const row = await baseRow(and(eq(R.shareToken, token), eq(R.status, 'ready')));
-  return row ? hydrate(row, withLogs) : null;
+  // typeof: RegExp.test() coerces, and ['<a real token>'] would pass it.
+  if (typeof token !== 'string' || !SHARE_TOKEN.test(token)) return null;
+  const row = await store().sharedReport(token);
+  if (!row) return null;
+  // The row's own workspace scopes its comments; it goes no further.
+  const { assets, workspaceId, ...base } = row;
+  return hydrate(workspaceId, base, assets, withLogs);
 }
 
 // ── writes ──────────────────────────────────────────────────────────────────
@@ -205,6 +154,8 @@ export const CreateInput = z.object({
    *  refuses a body of any other length — that is the size cap. */
   sizes: z.object({
     media: z.number().int().positive().optional(),
+    /** A still of the first frame, videos only; absent from older extensions. */
+    poster: z.number().int().positive().optional(),
     logs: z.number().int().nonnegative(),
     network: z.number().int().nonnegative(),
   }),
@@ -216,26 +167,12 @@ export const CreateInput = z.object({
  *  limit: a discarded or abandoned upload never shows up, so it must not use
  *  a slot. Deleting a video frees one. Screenshots are not counted.
  *  `lastHour` counts every create, finished or not — that is the rate limit. */
-export async function usageOf(userId: string) {
-  const [u] = await db().select({
-    plan: U.plan,
-    limit: U.videoLimit,
-    // Raw and aliased: drizzle writes columns unqualified here, and a bare
-    // "id" inside the subquery would bind to reports.id, not the user's.
-    videos: sql<number>`(select count(*)::int from rekod.reports r
-      where r.created_by = rekod."user".id and r.type = 'video' and r.status = 'ready')`,
-    lastHour: sql<number>`(select count(*)::int from rekod.reports r
-      where r.created_by = rekod."user".id and r.created_at > now() - interval '1 hour')`,
-  }).from(U).where(eq(U.id, userId));
-  return u ?? null;
-}
+export const usageOf = (userId: string) => store().usageOf(userId);
 
 /** Moves a user to a plan, taking its video limit unless given one. The only
  *  way a plan changes today (`pnpm set-plan`); billing will call it too. */
 export async function setPlan(email: string, plan: Plan, videos: number = PLANS[plan].videos) {
-  const res = await db().update(U).set({ plan, videoLimit: videos })
-    .where(eq(U.email, email.toLowerCase())).returning({ id: U.id });
-  return res.length > 0;
+  return store().setPlan(email.toLowerCase(), plan, videos);
 }
 
 export type Refusal = { refused: 'videos' | 'rate' | 'size'; message: string };
@@ -251,10 +188,13 @@ const mb = (n: number) => `${Math.round(n / 2 ** 20)} MB`;
  *  is minted here so both inserts can name it. */
 export async function createReport(
   ws: string, userId: string, input: z.infer<typeof CreateInput>,
-): Promise<Refusal | { id: string; uploads: Partial<Record<'media' | 'logs' | 'network', string>> }> {
+): Promise<Refusal | { id: string; uploads: Partial<Record<'media' | 'poster' | 'logs' | 'network', string>> }> {
   const type = input.media?.startsWith('image/') ? 'screenshot' as const : 'video' as const;
   const files: { kind: Kind; mime: string; bytes: number }[] = [
     ...(input.media ? [{ kind: type, mime: input.media.split(';')[0], bytes: input.sizes.media ?? 0 }] : []),
+    // Best-effort, like its PUT: an oversize poster is left out, never a refusal.
+    ...(type === 'video' && input.sizes.poster && input.sizes.poster <= LIMITS.bytes.poster
+      ? [{ kind: 'poster' as const, mime: 'image/webp', bytes: input.sizes.poster }] : []),
     { kind: 'logs', mime: 'application/json', bytes: input.sizes.logs },
     { kind: 'network', mime: 'application/json', bytes: input.sizes.network },
   ];
@@ -279,19 +219,16 @@ export async function createReport(
 
   const id = uuidv7();
 
-  await db().insert(R).values({
+  await store().insertReport({
     id, workspaceId: ws, createdBy: userId, type,
     title: input.title, description: input.description || null,
     pageUrl: input.pageUrl ?? null, project: input.project ?? null,
     t0: input.t0, durationMs: input.durationMs ?? null, env: input.env,
-  });
-  await db().insert(A).values(files.map((f) => ({
-    reportId: id, workspaceId: ws, kind: f.kind, mimeType: f.mime, storageKey: keyFor(ws, id, f.kind),
-  })));
+  }, files.map((f) => ({ kind: f.kind, mimeType: f.mime, storageKey: keyFor(ws, id, f.kind) })));
 
-  const uploads: Partial<Record<'media' | 'logs' | 'network', string>> = {};
+  const uploads: Partial<Record<'media' | 'poster' | 'logs' | 'network', string>> = {};
   for (const f of files) {
-    uploads[f.kind === 'logs' || f.kind === 'network' ? f.kind : 'media'] = await presignUpload(keyFor(ws, id, f.kind), f.bytes);
+    uploads[f.kind === 'logs' || f.kind === 'network' || f.kind === 'poster' ? f.kind : 'media'] = await blob().presignUpload(keyFor(ws, id, f.kind), f.bytes);
   }
   return { id, uploads };
 }
@@ -318,29 +255,21 @@ export const CompleteInput = z.object({
  *  Phase 5), and that job can HEAD the objects in bulk. */
 export async function completeReport(ws: string, id: string, f: z.infer<typeof CompleteInput> = {}) {
   if (!isId(id)) return false;
-  const set: Partial<typeof R.$inferInsert> = { status: 'ready' };
+  const set: CompleteSet = {};
   if (f.title !== undefined) set.title = f.title;
   if (f.description !== undefined) set.description = f.description || null;
   if (f.pageUrl !== undefined) set.pageUrl = f.pageUrl;
   if (f.project !== undefined) set.project = f.project;
   if (f.env !== undefined) set.env = f.env;
-  // The video limit, in the same UPDATE: a video becomes ready only while its
-  // creator has fewer ready ones than their video_limit. An already-ready row
-  // passes, so a retried /complete stays idempotent. `mine` and `u` are
-  // aliased so that rekod.reports.created_by means the row being completed.
-  const underCap = sql`(${R.type} <> 'video' or ${R.status} = 'ready' or (
-    select count(*) from rekod.reports mine
-    where mine.created_by = rekod.reports.created_by and mine.type = 'video' and mine.status = 'ready'
-  ) < (select u.video_limit from rekod."user" u where u.id = rekod.reports.created_by))`;
-  const res = await db().update(R).set(set)
-    .where(and(eq(R.workspaceId, ws), eq(R.id, id), underCap)).returning({ id: R.id });
-  return res.length > 0;
+  // The video limit is enforced in the same UPDATE, inside the adapter: a
+  // video becomes ready only while its creator has fewer ready ones than their
+  // video_limit, and an already-ready row passes (idempotent retry).
+  return store().completeReport(ws, id, set);
 }
 
 export async function updateReport(ws: string, id: string, fields: { title?: string; description?: string | null }) {
   if (!isId(id)) return false;
-  const res = await db().update(R).set(fields).where(and(eq(R.workspaceId, ws), eq(R.id, id))).returning({ id: R.id });
-  return res.length > 0;
+  return store().updateReport(ws, id, fields);
 }
 
 /**
@@ -351,11 +280,9 @@ export async function updateReport(ws: string, id: string, fields: { title?: str
 export async function deleteReports(ws: string, ids: string[]) {
   const valid = ids.filter(isId);
   if (!valid.length) return 0;
-  const keys = await db().select({ key: A.storageKey }).from(A)
-    .where(and(eq(A.workspaceId, ws), inArray(A.reportId, valid)));
-  await Promise.allSettled(keys.map((k) => removeObject(k.key)));
-  const res = await db().delete(R).where(and(eq(R.workspaceId, ws), inArray(R.id, valid))).returning({ id: R.id });
-  return res.length;
+  const keys = await store().assetKeys(ws, valid);
+  await Promise.allSettled(keys.map((k) => blob().removeObject(k)));
+  return store().deleteReports(ws, valid);
 }
 
 /** Deletes `processing` reports older than LIMITS.abandonedAfterMs, files
@@ -364,12 +291,12 @@ export async function deleteReports(ws: string, ids: string[]) {
  *  crash, a client that only ever creates) would otherwise hold its files
  *  forever. Batched so one run stays inside a function's time limit. */
 export async function purgeAbandoned(batch = 200) {
-  const rows = await db().select({ id: R.id, ws: R.workspaceId }).from(R)
-    .where(and(eq(R.status, 'processing'), lt(R.createdAt, new Date(Date.now() - LIMITS.abandonedAfterMs))))
-    .limit(batch);
+  const rows = await store().abandoned(new Date(Date.now() - LIMITS.abandonedAfterMs), batch);
   const byWs = Map.groupBy(rows, (r) => r.ws);
   let n = 0;
   for (const [ws, rs] of byWs) n += await deleteReports(ws, rs.map((r) => r.id));
+  // Adapters with a per-user video counter (MongoDB) repair its drift here.
+  await store().recountVideos();
   return n;
 }
 
@@ -377,21 +304,14 @@ export async function purgeAbandoned(batch = 200) {
 
 export async function addComment(ws: string, userId: string, reportId: string, body: string): Promise<CommentView | null> {
   if (!isId(reportId)) return null;
-  const [owned] = await db().select({ id: R.id }).from(R).where(and(eq(R.workspaceId, ws), eq(R.id, reportId)));
-  if (!owned) return null;
-  const [c] = await db().insert(C).values({ reportId, workspaceId: ws, authorId: userId, body })
-    .returning({ id: C.id, body: C.body, at: C.createdAt });
-  const [u] = await db().select({ email: U.email }).from(U).where(eq(U.id, userId));
-  return { id: c.id, body: c.body, at: c.at.toISOString(), by: u?.email ?? null };
+  const c = await store().addComment(ws, userId, reportId, body);
+  return c && { ...c, at: c.at.toISOString() };
 }
 
 /** Soft delete, and only your own comment. */
 export async function deleteComment(ws: string, userId: string, commentId: string) {
   if (!isId(commentId)) return false;
-  const res = await db().update(C).set({ deletedAt: new Date() })
-    .where(and(eq(C.workspaceId, ws), eq(C.id, commentId), eq(C.authorId, userId)))
-    .returning({ id: C.id });
-  return res.length > 0;
+  return store().deleteComment(ws, userId, commentId);
 }
 
 // ── share ───────────────────────────────────────────────────────────────────
@@ -399,18 +319,16 @@ export async function deleteComment(ws: string, userId: string, commentId: strin
 /** The report's link token, minting one if it was revoked. Copyable any time. */
 export async function shareTokenFor(ws: string, id: string) {
   if (!isId(id)) return null;
-  const [row] = await db().select({ token: R.shareToken }).from(R).where(and(eq(R.workspaceId, ws), eq(R.id, id)));
-  if (!row) return null;
-  if (row.token) return row.token;
+  const current = await store().getShareToken(ws, id);
+  if (current === undefined) return null;
+  if (current) return current;
   const token = shareToken();
-  await db().update(R).set({ shareToken: token }).where(and(eq(R.workspaceId, ws), eq(R.id, id)));
+  await store().setShareToken(ws, id, token);
   return token;
 }
 
 /** Kills the current link. The next copy mints a new one. */
 export async function revokeShare(ws: string, id: string) {
   if (!isId(id)) return false;
-  const res = await db().update(R).set({ shareToken: null })
-    .where(and(eq(R.workspaceId, ws), eq(R.id, id))).returning({ id: R.id });
-  return res.length > 0;
+  return store().setShareToken(ws, id, null);
 }

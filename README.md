@@ -80,23 +80,39 @@ without both nobody can log in. Google's redirect URI is
 repo root: Chrome loads everything under the folder, and the root holds
 `node_modules` and `.env` files. Sign in on the dashboard first.
 
+## Choose your database
+
+Postgres is the default. MongoDB works too; the `DATABASE_URL` scheme picks it,
+and nothing else changes.
+
+| | `DATABASE_URL` | Setup |
+|---|---|---|
+| Postgres | `postgres://…` | `pnpm -C apps/web db:migrate` |
+| MongoDB 6+ | `mongodb://…` or `mongodb+srv://…` | None: collections and indexes are created on first use. A standalone server is enough. |
+
+For a local MongoDB: `docker compose -f docker-compose.dev.yml --profile mongo up`.
+There is no migration between the two; pick one before you have data. See
+[`ADAPTERS.md`](ADAPTERS.md). Any S3-compatible bucket works for files, GCS
+included (`S3_ENDPOINT=https://storage.googleapis.com`, `S3_REGION=auto`, HMAC keys).
+
 ## Checks
 
 ```sh
-pnpm test        # timeline logic and the tenant-isolation test
+pnpm test        # timeline logic and the tenant-isolation test, on both databases
 pnpm typecheck
 pnpm lint
 pnpm build
 ```
 
 CI runs exactly these. The tenancy test needs no database or bucket; it runs
-against PGlite with a fake S3.
+against PGlite and an in-memory MongoDB with a fake S3.
 
 ## Docs
 
 | File | Contents |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | How the system works today: server boundary, upload flow, extension invariants. |
+| [`ADAPTERS.md`](ADAPTERS.md) | The Postgres / MongoDB adapter design. |
 | [`ROADMAP.md`](ROADMAP.md) | The plan and a progress log of what has landed. |
 | [`REKOD_DESIGN_SYSTEM.md`](REKOD_DESIGN_SYSTEM.md) | The UI's authority: tokens, type, components. |
 | [`apps/extension/README.md`](apps/extension/README.md) | Installing and using the extension. |

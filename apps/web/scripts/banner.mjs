@@ -8,7 +8,7 @@ const STOPS = [[0, '#00022F'], [0.25, '#142581'], [0.5, '#395AD3'], [0.7, '#9091
 const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const bay = (x, y) => (BAYER[y % 4][x % 4] + 0.5) / 16;
-const INK = rgb('#00022F'), MID = rgb('#0C1942'), PAPER = rgb('#F4F1EC');
+const INK = rgb('#00022F'), MID = rgb('#0C1942');
 
 const ridge = (x, a, b, c) => a + Math.sin(x * 0.045 + c) * b + Math.sin(x * 0.11 + c * 2.3) * b * 0.45 + Math.sin(x * 0.02 + c * 4) * b * 1.2;
 

@@ -6,8 +6,15 @@ import nextTs from "eslint-config-next/typescript";
 // query inside its workspace. Nothing else may reach the raw handle.
 const noDb = {
   "no-restricted-imports": ["error", {
+    paths: [{
+      name: "mongodb",
+      message: "Only src/lib/server may import the database. Add a function there instead.",
+    }],
     patterns: [{
-      group: ["@/lib/db", "@/lib/db/*", "**/lib/db", "**/lib/db/*"],
+      group: [
+        "@/lib/db", "@/lib/db/*", "**/lib/db", "**/lib/db/*",
+        "**/server/store", "**/server/store/*", "mongodb/*",
+      ],
       message: "Only src/lib/server may import the database. Add a function there instead.",
     }],
   }],

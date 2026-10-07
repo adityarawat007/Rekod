@@ -24,17 +24,21 @@ export type ListRow = {
   shot: boolean;
   /** Signed media URL for the thumbnail; null falls back to an icon. */
   preview: string | null;
+  /** Signed poster still for videos; null on older recordings. */
+  poster: string | null;
   durationMs: number | null;
 };
 
 
 
-/** ponytail: the frame is the video's own (`preload="metadata"` + `#t=`), one
- *  range request per card — 24 a page. After many pages of scrolling that is a
- *  lot of <video> elements; upload a poster from offscreen.js at record time
- *  when it shows. */
+/** A video card shows its uploaded poster (offscreen.js, at record time) as a
+ *  lazy <img>. ponytail: recordings from before posters existed keep the old
+ *  <video preload="metadata" #t=0.5> — a range request per card, the webm has no
+ *  cues — until they are deleted; nothing backfills them. */
 function Thumb({ row }: { row: ListRow }) {
   const { shot, preview: url } = row;
+  // A poster row whose upload never landed 404s: drop to the <video> fallback.
+  const [poster, setPoster] = useState(row.poster);
   const Icon = shot ? Camera : Video;
 
   return (
@@ -43,6 +47,9 @@ function Thumb({ row }: { row: ListRow }) {
         shot ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt="" className="size-full object-cover object-top" loading="lazy" />
+        ) : poster ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={poster} alt="" className="size-full object-cover object-top" loading="lazy" decoding="async" onError={() => setPoster(null)} />
         ) : (
           <video
             src={`${url}#t=0.5`}

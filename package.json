@@ -8,6 +8,8 @@
     "lint": "pnpm -C apps/web lint",
     "typecheck": "pnpm -C apps/web typecheck",
     "test": "pnpm -C apps/web test",
+    "test:postgres": "pnpm -C apps/web test:postgres",
+    "test:mongo": "pnpm -C apps/web test:mongo",
     "ext:zip": "pnpm -C apps/web ext:zip"
   }
 }

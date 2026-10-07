@@ -245,6 +245,32 @@ async function discard() {
   if (tabId) toTab(tabId, { t: 'state', s: 'idle' });
 }
 
+/** A still of the recording's first frame, for the dashboard's grid: a webm
+ *  without cues makes every card pull much of its file just to paint one frame.
+ *  Never throws and never waits more than ~3s — a poster must not block or fail
+ *  an upload; null means "upload without". */
+function makePoster(video) {
+  if (!video) return Promise.resolve(null);
+  const url = URL.createObjectURL(video);
+  const el = document.createElement('video');
+  const frame = new Promise((res, rej) => {
+    el.muted = true; el.preload = 'auto'; el.playsInline = true;
+    el.onloadeddata = () => res();
+    el.onerror = () => rej(new Error('poster decode'));
+    el.src = url;
+  }).then(async () => {
+    const w = Math.min(640, el.videoWidth), h = Math.round(el.videoHeight * w / el.videoWidth);
+    if (!(w > 0 && h > 0)) return null;
+    const canvas = new OffscreenCanvas(w, h);
+    canvas.getContext('2d').drawImage(el, 0, 0, w, h);
+    return canvas.convertToBlob({ type: 'image/webp', quality: 0.7 });
+  });
+  const timeout = new Promise((res) => setTimeout(() => res(null), 3000));
+  return Promise.race([frame, timeout])
+    .catch(() => null)
+    .finally(() => { el.removeAttribute('src'); el.load(); URL.revokeObjectURL(url); });
+}
+
 const retry = async (fn) => { try { return await fn(); } catch { return fn(); } };
 
 /** A call to the dashboard that issued the session, as that session. */
@@ -300,9 +326,11 @@ function preupload(tabId, t0) {
     const json = (o) => new Blob([JSON.stringify(o)], { type: 'application/json' });
     const logs = json(entries.filter((e) => e.kind === 'console' || e.kind === 'event'));
     const network = json(entries.filter((e) => e.kind === 'net'));
+    // Videos only; the screenshot is its own thumbnail.
+    const poster = shot ? null : await makePoster(blob);
     const { id, uploads } = await retry(() => api(session, '/api/v1/reports', {
       t0, durationMs: shot ? null : Date.now() - t0, media: media ? media.type : null,
-      sizes: { media: media?.size, logs: logs.size, network: network.size },
+      sizes: { media: media?.size, poster: poster?.size || undefined, logs: logs.size, network: network.size },
     }));
 
     // The bytes, straight to the bucket.
@@ -312,6 +340,8 @@ function preupload(tabId, t0) {
     });
     await Promise.all([
       media && put(uploads.media, media, media.type),
+      // Best-effort: a poster that fails to land must not fail the upload; the card falls back.
+      poster && uploads.poster && put(uploads.poster, poster, 'image/webp').catch(() => {}),
       put(uploads.logs, logs, 'application/json'),
       put(uploads.network, network, 'application/json'),
     ]);

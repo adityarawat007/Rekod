@@ -30,6 +30,35 @@ caller sent. **Only `src/lib/server` may import `@/lib/db`** — an ESLint rule.
 Add a repo function there rather than querying from a page. A new repo function
 means a new cross-tenant assertion in `apps/web/test-tenancy.ts`.
 
+**Two databases, one `Store`.** `lib/server/store/` holds the seam
+([`ADAPTERS.md`](ADAPTERS.md) is the design). `store()` returns a lazy facade
+over the adapter that `DATABASE_URL`'s scheme picks (`postgres(ql)://` →
+`pg.ts`, `mongodb(+srv)://` → `mongo.ts`); each adapter is `import()`ed on first
+use, so an install never loads the other's driver. `reports.ts`, `workspaces.ts`,
+`session.ts` and `health.ts` keep the business rules (zod, plan limits,
+presigning, delete-objects-first) and call `store()` for data. **The rule: a new
+query is a method on `Store` (`store/types.ts`) implemented in `pg.ts` AND
+`mongo.ts`, plus a tenancy assertion that runs on both** (`test-tenancy.ts
+<adapter>`); every method that touches workspace data takes `ws` first. ESLint
+keeps `@/lib/db`, `mongodb` and `server/store*` inside `src/lib/server`.
+Adding an adapter is one file plus one registry line.
+
+Mongo specifics: Better Auth runs with `advanced.database.generateId: uuidv7`
+(an unset id is an ObjectId, `'uuid'` is BSON Binary; both break string
+lookups) and `transaction: false` (a standalone `mongod` refuses transactions).
+`ensureIndexes()` runs once per process and creates ours **and Better Auth's**,
+which its adapter never does (without them concurrent sign-ups duplicate a
+user). There are no migrations. The video cap is a `readyVideos` counter on the
+user doc, `$inc`ed conditionally, then the report flips `processing → ready`
+(undone if the flip matches nothing); `recountVideos` repairs drift and runs
+from the cleanup purge. Because `database` is loaded lazily, **`auth()` is
+async** — `await auth()`.
+
+**Storage is a registry too.** `lib/storage/types.ts` is `BlobStore`,
+`s3.ts` the only adapter, `index.ts` the lazy `blob()` chooser
+(`STORAGE_DRIVER`, default `s3`). Callers use `blob().presignUpload(…)` etc.
+A new bucket API is one file plus one entry.
+
 **Every table lives in the `rekod` Postgres schema, never `public`.** On
 Supabase, `public` is served to the publishable key by the Data API, and with no
 RLS a table there would be world-readable.
@@ -74,7 +103,10 @@ run while the composer is open.** The moment a recording stops (or a screenshot
 is cropped), `preupload()` in `offscreen.js` calls `POST /api/v1/reports` (just
 `t0`, duration, media type) — which creates the row in `processing` and returns
 one presigned PUT per file — and PUTs the media, `logs.json` and `network.json`
-straight to the bucket. Send only calls `POST /api/v1/reports/<id>/complete`
+straight to the bucket. A video also sends a `poster.webp` (its first frame, ≤640px,
+made in the offscreen document with a 3s bound; `sizes.poster` is optional, so old
+extensions and failed posters upload without one, and a screenshot never has one) —
+the grid shows it as an `<img>` instead of pulling the webm for a frame. Send only calls `POST /api/v1/reports/<id>/complete`
 with the title, description and page, which names the row and flips it to
 `ready` in one UPDATE. If the background upload failed, Send retries it whole
 once. Discard calls `DELETE /api/v1/reports/<id>`. The logs are taken at the end
@@ -90,7 +122,7 @@ lookup. `apps/web/vercel.json` pins functions to `icn1` (Seoul) so production
 queries are same-region. Move the database, move that line with it; a mismatch
 multiplies every page and every upload. **Logs and network are files, not columns**: five minutes of
 them does not fit a serverless request body. Only `ready` reports are listed or
-shareable. Keys are `<workspace>/<report>/<kind>.<ext>`. Presigning is a local
+shareable. Keys are `<workspace>/<report>/<kind>.<ext>` (`poster.webp` among them). Presigning is a local
 HMAC, so signing one URL per row costs nothing.
 
 **A plan is a person's, and its limit is a number on the user row.**
@@ -289,16 +321,19 @@ someone drops them.
 ## Checks
 
 ```
-pnpm test                        # apps/web: timeline merge, pre-roll signs, and the tenancy test
+pnpm test                        # apps/web: timeline merge, pre-roll signs, and the tenancy test on both adapters
+pnpm test:postgres / test:mongo  # one adapter each (PGlite / mongodb-memory-server)
 pnpm typecheck                   # runs `next typegen` first — PageProps is generated, a clean tree has none
 pnpm lint
 pnpm build
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these. Local Postgres + S3:
+CI (`.github/workflows/ci.yml`) runs these, with `test` as a matrix over both
+adapters, plus `pnpm audit --prod --audit-level=high` and gitleaks;
+`security.yml` adds CodeQL, dependency review, zizmor and Scorecard. Local Postgres + S3:
 `docker compose -f docker-compose.dev.yml up`, then `apps/web/.env.example`.
 
-`test-tenancy.ts` needs neither: it runs the real repo, the real postgres-js
+`test-tenancy.ts` needs neither: given `postgres` it runs the real repo, the real postgres-js
 client and the real migrations against PGlite (Postgres in WASM) behind
 `@electric-sql/pglite-socket`, with a fake S3 in-process, under
 `--conditions=react-server` so `import 'server-only'` resolves. That is also why
@@ -306,7 +341,8 @@ client and the real migrations against PGlite (Postgres in WASM) behind
 **relative path with `.ts`** — node's type stripping does not read tsconfig
 paths. PGlite multiplexes connections into one engine, so concurrent queries
 from a pool can interleave there; the test is sequential. Real Postgres has no
-such problem.
+such problem. Given `mongo` it runs the same assertions against
+`mongodb-memory-server`.
 
 `apps/web/` uses **pnpm**; `pnpm dev` serves :3100 (pinned with `-p`, because
 `apps/extension/auth.js` lists that origin). `pnpm lint` is clean — no warnings,
@@ -318,9 +354,9 @@ Every route under `apps/web/src/app/(dash)/` has a `loading.tsx`, and the segmen
 shares one error component and one `not-found.tsx`. There is no sidebar: the
 64px header (`components/shell/app-header.tsx` — wordmark, the Rekods tab, the
 workspace chip, the theme toggle, the account menu) lives in
-`(dash)/(home)/layout.tsx`, not `(dash)/layout.tsx`: **the report page has no
+`(dash)/rekod/layout.tsx`, not `(dash)/layout.tsx`: **the report page has no
 app header** — it has its own bar, and the DevTools pane holds the viewport
-height. `(home)/error.tsx` re-exports the shared one so an error on `/` keeps
+height. `rekod/error.tsx` re-exports the shared one so an error on the list keeps
 the header. A page is a **static shell plus
 a Suspense'd async child** — never an `async` component that awaits before
 returning its layout, which blocks first paint on a database round trip. The
@@ -333,7 +369,7 @@ Mutations are server actions in `(dash)/actions.ts`; each re-derives the actor
 and validates its input, because an action is a public POST endpoint. When two children need the same rows, pass
 them one *promise* rather than fetching twice.
 
-**There is one list, and it is the home page.** `/` is the grid of recordings,
+**There is one list.** `/rekod` (`app/(dash)/rekod/`) is the grid of recordings,
 filtered by search params; there is no separate inbox route. **The card carries
 no error count and there is no `Has errors` filter** — both deleted 23 Sep 2026,
 which is also why the grid no longer selects `error_count` / `failed_count`. A
@@ -412,7 +448,8 @@ root because it mirrors all of them.
 prop is `render`, not `asChild`). Compose those primitives — do not hand-roll a
 nav or a raw `<button>`. The primitives were restyled in place (button
 variants per §6.4 incl. `destructive-solid` for confirm dialogs, 38px inputs,
-no zoom/slide entrances); re-running `shadcn add` on one reverts it.
+no zoom/slide entrances); re-running `shadcn add` on one reverts it. `components/ui/combobox.tsx` is
+hand-restyled the same way — never `shadcn add combobox`.
 
 ## Next.js 16 is not the Next.js you know
 
