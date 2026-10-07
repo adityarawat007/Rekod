@@ -328,9 +328,9 @@ pnpm lint
 pnpm build
 ```
 
-CI (`.github/workflows/ci.yml`) runs these, with `test` as a matrix over both
-adapters, plus `pnpm audit --prod --audit-level=high` and gitleaks;
-`security.yml` adds CodeQL, dependency review, zizmor and Scorecard. Local Postgres + S3:
+CI (`.github/workflows/ci.yml`) is one job, one check, on every push and PR:
+these four, then `pnpm audit --prod --audit-level=high`. `pnpm test` covers both
+adapters. Deliberately simple (8 Oct 2026): no security workflow, no Dependabot. Local Postgres + S3:
 `docker compose -f docker-compose.dev.yml up`, then `apps/web/.env.example`.
 
 `test-tenancy.ts` needs neither: given `postgres` it runs the real repo, the real postgres-js
