@@ -7,8 +7,8 @@
 //
 // Run: pnpm ext:zip   (from the repo root; no dependencies, no `zip` binary)
 // `next build` runs it first (the `build` script), so a deploy never serves a
-// stale zip. `--check` writes nothing and exits 1 if the committed zip is not
-// what the source makes — test-logic.ts runs that, so CI catches a forgotten
+// stale zip. `--check` writes nothing and exits 1 if the committed zip does not
+// hold exactly the current source files — test-logic.ts runs that, so CI catches a forgotten
 // re-run after any change under apps/extension/, not only a version bump.
 //
 // The archive has one folder at its root, rekod-extension/, so "Load unpacked"
@@ -107,8 +107,25 @@ end.writeUInt32LE(offset, 16);
 
 const zip = Buffer.concat([...locals, dir, end]);
 if (process.argv.includes('--check')) {
-  const same = (() => { try { return readFileSync(out).equals(zip); } catch { return false; } })();
-  if (!same) { console.error('public/rekod-extension.zip is stale: run `pnpm ext:zip`'); process.exit(1); }
+  // Compares what is IN the zip — names, sizes, CRC-32s from its central
+  // directory — not its bytes: zlib versions (Node 23 here, Node 24 in CI)
+  // compress the same file differently, so the bytes never match across machines.
+  const entries = (buf) => {
+    const list = [];
+    let p = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+    if (p < 0) return null;
+    const count = buf.readUInt16LE(p + 10);
+    p = buf.readUInt32LE(p + 16);
+    for (let i = 0; i < count; i++) {
+      const n = buf.readUInt16LE(p + 28), x = buf.readUInt16LE(p + 30), c = buf.readUInt16LE(p + 32);
+      list.push(`${buf.toString('utf8', p + 46, p + 46 + n)} ${buf.readUInt32LE(p + 24)} ${buf.readUInt32LE(p + 16)}`);
+      p += 46 + n + x + c;
+    }
+    return list.join('\n');
+  };
+  let committed = null;
+  try { committed = entries(readFileSync(out)); } catch {}
+  if (committed !== entries(zip)) { console.error('public/rekod-extension.zip is stale: run `pnpm ext:zip`'); process.exit(1); }
   process.exit(0);
 }
 writeFileSync(out, zip);
