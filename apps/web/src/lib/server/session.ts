@@ -27,8 +27,13 @@ export const currentActor = cache(async () => actorFrom(await headers()));
 /** Who is signed in, without the workspace lookup: the session alone comes
  *  from the 5-minute signed cookie cache, so this makes no query. For display
  *  only — anything that reads or writes rows goes through requireActor(). */
-export const currentUser = cache(async () =>
-  (await (await auth()).api.getSession({ headers: await headers() }))?.user ?? null);
+// headers() first, always: it is what marks the render dynamic. With auth()
+// first, `next build` prerenders the shell, builds Better Auth, reads env, and
+// fails on a machine with none (CI).
+export const currentUser = cache(async () => {
+  const h = await headers();
+  return (await (await auth()).api.getSession({ headers: h }))?.user ?? null;
+});
 
 /** For pages and server actions. proxy.ts only checks the cookie exists. */
 export async function requireActor(): Promise<Actor> {

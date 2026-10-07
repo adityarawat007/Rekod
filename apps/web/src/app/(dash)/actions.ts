@@ -71,7 +71,8 @@ export async function revokeShare(id: string) {
  *  round trip but not headers(), which getSession() reads. */
 export async function switchWorkspace(id: string) {
   await requireActor();
-  await (await auth()).api.setActiveOrganization({ headers: await headers(), body: { organizationId: z.string().min(1).parse(id) } });
+  const h = await headers();
+  await (await auth()).api.setActiveOrganization({ headers: h, body: { organizationId: z.string().min(1).parse(id) } });
 }
 
 /** A refusal is returned as data with a `message` for people. */
