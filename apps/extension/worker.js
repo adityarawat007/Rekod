@@ -199,28 +199,37 @@ async function startVideo(tab) {
   // while AUDIO is off in offscreen.js, which ignores the flag anyway; the read
   // stays so the switch is the only thing that has to come back.
   const { fjMic } = await chrome.storage.local.get('fjMic');
-  // tabCapture needs activeTab, which the popup click or the command gesture
-  // grants. Asked alongside the plan check, not after it, so the check adds
-  // no wait before recording starts.
-  const [streamId] = await Promise.all([
-    chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id }),
-    allowed('record'),
-  ]);
+  // The plan check is a round trip to the dashboard (~0.3s in production,
+  // seconds against a dev server), so recording does not wait for it: it
+  // starts now, and a refusal that lands afterwards throws the capture away
+  // and says why on the pill. Handled from the start so it never floats
+  // unhandled; POST /api/v1/reports enforces the limit regardless.
+  const refused = allowed('record').then(() => null, (e) => e);
+  // tabCapture needs activeTab, which the popup click or the command gesture grants.
+  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
   await ensureWidget(tab.id);
   const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: !!fjMic });
   if (r?.err) throw new Error(r.err);
+  dropIfRefused(tab, refused);
   return { ok: true };
 }
 
+/** A refusal that lands after the capture began throws it away, on the pill. */
+const dropIfRefused = (tab, refused) => refused.then(async (e) => {
+  if (!e) return;
+  await ask({ t: 'discard' });
+  toTab(tab.id, { t: 'state', s: 'failed', err: String(e?.message || e) });
+});
+
 async function startShot(tab) {
   refuse(tab);
-  const [dataUrl] = await Promise.all([
-    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }),
-    allowed('shot'),
-  ]);
+  // Same as video: the check runs beside the capture, never in front of it.
+  const refused = allowed('shot').then(() => null, (e) => e);
+  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
   await ensureWidget(tab.id);
   const r = await ask({ t: 'shot', dataUrl, tabId: tab.id });
   if (r?.err) throw new Error(r.err);
+  dropIfRefused(tab, refused);
   return { ok: true };
 }
 
