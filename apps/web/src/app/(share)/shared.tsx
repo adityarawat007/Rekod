@@ -7,6 +7,7 @@ import { Brand } from '@/components/shell/brand';
 import { Comments } from '@/components/report/notes';
 import { timeline, type Entry, type Env, type NetEntry } from '@/lib/types';
 import { urlParts } from '@/lib/format';
+import { serverEnv } from '@/lib/env';
 
 /** The whole anonymous surface (see sharedReport). /c/ is the full view, /v/
  *  the video only — and /v/ never fetches the log files. The two paths are a
@@ -19,12 +20,21 @@ export async function sharedMetadata(token: string, withLogs: boolean) {
   if (!report) return { title: 'Link not found', robots: { index: false } };
 
   const title = `${report.title || 'Shared rekod'} · rekod`;
+  // What a Slack or Twitter card calls it: the title, else the site.
+  const cardTitle = report.title || report.project || 'Shared rekod';
+  // A still exists for a screenshot, or for a video recorded with a poster;
+  // older videos get a text-only card. The signed URL would expire in the
+  // unfurl cache, so the card names this stable route, which signs on request.
+  const hasImage = !!report.media && (report.media.kind === 'shot' || !!report.media.poster);
+  const base = new URL(serverEnv().BETTER_AUTH_URL).origin;
+  const image = hasImage ? [{ url: `${base}/${withLogs ? 'c' : 'v'}/${token}/og`, alt: cardTitle }] : undefined;
   return {
     title,
     description: `Bug report from ${report.project ?? 'an unknown project'}, captured with console and network log.`,
     // They carry customer traffic and internal URLs: never index.
     robots: { index: false, follow: false },
-    openGraph: { title, type: 'article' as const },
+    openGraph: { title: cardTitle, type: 'article' as const, ...(image && { images: image }) },
+    twitter: { card: image ? ('summary_large_image' as const) : ('summary' as const), title: cardTitle, ...(image && { images: image }) },
   };
 }
 

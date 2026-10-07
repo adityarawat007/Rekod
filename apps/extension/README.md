@@ -153,24 +153,5 @@ missing from `host_permissions` (next section).
 
 ## Running your own dashboard
 
-The extension is set up for `https://rekody.vercel.app`. To point it at your
-own deployment, change two files and reload it:
-
-1. **`auth.js`**: put your dashboard's origin first in `DASH_ORIGINS`. The
-   first entry is also where the popup's Log in button goes.
-
-   ```js
-   const DASH_ORIGINS = ['https://rekod.example.com', 'http://localhost:3100'];
-   ```
-
-2. **`manifest.json`**: add `host_permissions` for
-   - every origin in `DASH_ORIGINS` (without it, `chrome.cookies` returns
-     nothing for that origin and you look signed out), and
-   - your bucket's origin, because the files are uploaded straight to it with
-     presigned URLs (for example `https://<account>.r2.cloudflarestorage.com/*`
-     or `https://s3.<region>.amazonaws.com/*`). `https://*.supabase.co/*` and
-     `http://localhost/*` (any port, so a local MinIO too) are already there.
-
-The session cookie name is fixed (`rekod.session_token`, with the `__Secure-`
-prefix over https), so the server needs no change for the extension to find
-it. Run `pnpm ext:zip` afterwards if you hand the zip to other people.
+See "Point the extension at your server" in the repo's main README: two edits
+(`auth.js` DASH_ORIGINS, `manifest.json` host_permissions), then `pnpm ext:zip`.

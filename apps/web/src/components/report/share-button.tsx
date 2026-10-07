@@ -11,6 +11,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useReportMarkdown } from '@/components/report/markdown-context';
 import { cn } from '@/lib/utils';
 
 /** The dashboard's own origin, with no NEXT_PUBLIC_SITE_URL to drift.
@@ -30,7 +31,10 @@ type Props = {
 };
 
 export function ShareButton({ id, shareToken }: Props) {
-  const [token, setToken] = useState(shareToken);
+  const [token, setTokenState] = useState(shareToken);
+  const md = useReportMarkdown();
+  // The Markdown's link follows the token: minted here, dead after Stop sharing.
+  const setToken = (t: string | null) => { setTokenState(t); md?.setShareToken(t); };
   const [mode, setMode] = useState<Mode>('devtools');
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);

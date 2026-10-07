@@ -7,6 +7,8 @@ import { ReportView } from '@/components/report/view';
 import { Comments, ReportNotes } from '@/components/report/notes';
 import { timeline, type Entry, type Env, type NetEntry } from '@/lib/types';
 import { ago, urlParts } from '@/lib/format';
+import { serverEnv } from '@/lib/env';
+import { ReportMarkdownProvider } from '@/components/report/markdown-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 /** Keyed on a primitive so generateMetadata and the page share one query. */
@@ -18,7 +20,7 @@ const getReport = cache(async (id: string) => {
 export async function generateMetadata(props: PageProps<'/reports/[id]'>) {
   const { id } = await props.params;
   const report = await getReport(id);
-  return { title: report?.title || 'Rekod' };
+  return { title: report?.title || report?.project || 'Rekod' };
 }
 
 export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
@@ -27,13 +29,27 @@ export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
   if (!report) notFound();
 
   const by = report.creator;
+  const entries = timeline({ logs: report.logs as Entry[], network: report.network as NetEntry[] });
+  const env = report.env as Env;
+  const origin = new URL(serverEnv().BETTER_AUTH_URL).origin;
+  const fixed = {
+    id: report.id,
+    origin,
+    project: report.project,
+    pageUrl: report.pageUrl,
+    createdAt: report.createdAt,
+    env,
+    t0: report.t0,
+    entries,
+  };
 
   return (
+    <ReportMarkdownProvider init={{ title: report.title, description: report.description, shareToken: report.shareToken }} fixed={fixed}>
     <ReportView
       toolbar={<ReportHeader id={report.id} shareToken={report.shareToken} />}
-      entries={timeline({ logs: report.logs as Entry[], network: report.network as NetEntry[] })}
+      entries={entries}
       t0={report.t0}
-      env={report.env as Env}
+      env={env}
       media={report.media}
       info={{ project: report.project, pageUrl: report.pageUrl, createdAt: report.createdAt }}
       heading={
@@ -59,6 +75,7 @@ export default async function ReportPage(props: PageProps<'/reports/[id]'>) {
       </p>
       <Comments id={report.id} comments={report.comments} />
     </ReportView>
+    </ReportMarkdownProvider>
   );
 }
 

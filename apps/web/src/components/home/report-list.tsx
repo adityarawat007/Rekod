@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Camera, Check, Loader2, Play, Trash2, Video, X } from 'lucide-react';
+import { ArrowDownToLine, Camera, Check, Link2, Loader2, Play, Trash2, Video, X } from 'lucide-react';
 import { ago, clock } from '@/lib/format';
 import { GRID } from '@/components/skeletons';
 import { Shortcut } from '@/components/home/shortcut';
-import { Button } from '@/components/ui/button';
+import { EXTENSION_KB, EXTENSION_VERSION, EXTENSION_ZIP, INSTALL_STEPS } from '@/components/install-steps';
+import { useCopy } from '@/components/report/copy-button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -76,17 +78,74 @@ function Thumb({ row }: { row: ListRow }) {
   );
 }
 
-/** §6.16: text only, inside a panel. The title block's "New rekod" is the
- *  view's one primary button, so this one points at the hotkey instead. */
+/** First run: a three-step checklist in a panel. Being signed in is the
+ *  connection, so the middle step is a statement, not a task. */
 function FirstRun() {
   return (
-    <div className="space-y-3 border bg-panel px-[26px] py-6">
+    <section className="space-y-6 border bg-panel px-4 py-6 narrow:px-[26px]">
       <h2 className="text-xl">No rekods yet</h2>
-      <p className="text-muted-foreground">
-        With the extension installed, press the hotkey on any tab. The five minutes before it come too.
-      </p>
-      <Shortcut />
-    </div>
+      <ol className="space-y-6">
+        <Step n={1} title="Install the extension">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <a href={EXTENSION_ZIP} download className={buttonVariants({ size: 'sm' })}>
+              <ArrowDownToLine /> Download
+            </a>
+            <span className="mono text-xs text-muted-foreground">
+              Version {EXTENSION_VERSION}, a {EXTENSION_KB} KB zip
+            </span>
+          </div>
+          <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground marker:font-mono marker:text-xs">
+            {INSTALL_STEPS.map((s, i) => <li key={i}>{s}</li>)}
+          </ol>
+        </Step>
+        <Step n={2} title="You're already connected">
+          <p className="text-muted-foreground">Being signed in here is the connection. There is nothing to paste.</p>
+        </Step>
+        <Step n={3} title={<span className="flex flex-wrap items-center gap-3">Press <Shortcut small /> on any tab</span>}>
+          <p className="text-muted-foreground">
+            Recording starts, and the five minutes before it come too. Your first rekod lands here when you press Send.
+          </p>
+        </Step>
+      </ol>
+    </section>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-4">
+      <span className="mono w-5 shrink-0 pt-px font-medium text-primary">{n}</span>
+      <div className="min-w-0 flex-1 space-y-3">
+        <h3 className="font-medium text-ink">{title}</h3>
+        {children}
+      </div>
+    </li>
+  );
+}
+
+/** Top-right, mirroring the checkbox. A sibling of the link, so a click never navigates. */
+function CopyLink({ id }: { id: string }) {
+  const { state, copy } = useCopy();
+  const done = state === 'copied';
+  const bad = state === 'failed';
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      aria-label="Copy link"
+      title={done ? 'Copied' : bad ? 'Copy failed' : 'Copy link'}
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); void copy(`${window.location.origin}/reports/${id}`); }}
+      className={cn(
+        'absolute right-2 top-2 z-10 bg-panel transition-opacity duration-150',
+        // Touch has no hover: stay visible there rather than leave an invisible tap target.
+        state === 'idle' && 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
+      )}
+    >
+      {done ? <Check /> : <Link2 />}
+      <span role="status" className="sr-only">{done ? 'Copied' : bad ? 'Copy failed' : ''}</span>
+    </Button>
   );
 }
 
@@ -228,6 +287,7 @@ export function ReportList({
                   {on ? <Check className="size-3 [stroke-width:3]" /> : null}
                 </span>
               </label>
+              <CopyLink id={r.id} />
             </li>
           );
         })}

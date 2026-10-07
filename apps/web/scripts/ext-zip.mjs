@@ -6,6 +6,10 @@
 //   apps/web/public/rekod-extension-README.txt  the README, linked from the landing page
 //
 // Run: pnpm ext:zip   (from the repo root; no dependencies, no `zip` binary)
+// `next build` runs it first (the `build` script), so a deploy never serves a
+// stale zip. `--check` writes nothing and exits 1 if the committed zip is not
+// what the source makes — test-logic.ts runs that, so CI catches a forgotten
+// re-run after any change under apps/extension/, not only a version bump.
 //
 // The archive has one folder at its root, rekod-extension/, so "Load unpacked"
 // points at exactly one thing. Entries are sorted and stamped with a fixed
@@ -102,6 +106,11 @@ end.writeUInt32LE(dir.length, 12);
 end.writeUInt32LE(offset, 16);
 
 const zip = Buffer.concat([...locals, dir, end]);
+if (process.argv.includes('--check')) {
+  const same = (() => { try { return readFileSync(out).equals(zip); } catch { return false; } })();
+  if (!same) { console.error('public/rekod-extension.zip is stale: run `pnpm ext:zip`'); process.exit(1); }
+  process.exit(0);
+}
 writeFileSync(out, zip);
 writeFileSync(readme, readFileSync(join(src, 'README.md')));
 writeFileSync(facts, JSON.stringify({ version: manifest.version, bytes: zip.length, files: files.length }, null, 2) + '\n');

@@ -89,7 +89,7 @@ async function commentsOf(ws: string, reportId: string): Promise<CommentView[]> 
 }
 
 /** Everything the player needs: signed media, the two log files, the thread. */
-async function hydrate(ws: string, row: BaseRow, assets: { kind: Kind; key: string }[], withLogs = true) {
+async function hydrate(ws: string, row: BaseRow, assets: { kind: Kind; key: string }[], withLogs = true, withComments = true) {
   const key = (k: Kind) => assets.find((a) => a.kind === k)?.key;
   const mediaKey = key('video') ?? key('screenshot');
   const logsKey = withLogs ? key('logs') : undefined;
@@ -98,7 +98,7 @@ async function hydrate(ws: string, row: BaseRow, assets: { kind: Kind; key: stri
   const [logs, network, comments, mediaUrl, posterUrl] = await Promise.all([
     logsKey ? blob().readJson<unknown[]>(logsKey) : [],
     netKey ? blob().readJson<unknown[]>(netKey) : [],
-    commentsOf(ws, row.id),
+    withComments ? commentsOf(ws, row.id) : [],
     // An hour: a viewer who seeks after that re-opens the page.
     mediaKey ? blob().presignDownload(mediaKey, 3600) : null,
     posterKey ? blob().presignDownload(posterKey, 3600) : null,
@@ -125,14 +125,14 @@ export async function getReport(ws: string, id: string) {
 /** A v4 UUID, or the 64-hex tokens minted before 1 Oct 2026. */
 const SHARE_TOKEN = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[0-9a-f]{64})$/;
 
-export async function sharedReport(token: string, withLogs = true) {
+export async function sharedReport(token: string, withLogs = true, withComments = true) {
   // typeof: RegExp.test() coerces, and ['<a real token>'] would pass it.
   if (typeof token !== 'string' || !SHARE_TOKEN.test(token)) return null;
   const row = await store().sharedReport(token);
   if (!row) return null;
   // The row's own workspace scopes its comments; it goes no further.
   const { assets, workspaceId, ...base } = row;
-  return hydrate(workspaceId, base, assets, withLogs);
+  return hydrate(workspaceId, base, assets, withLogs, withComments);
 }
 
 // ── writes ──────────────────────────────────────────────────────────────────

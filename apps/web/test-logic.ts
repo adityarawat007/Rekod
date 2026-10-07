@@ -3,10 +3,13 @@
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
 import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { offset, stamp, clock, ms, urlParts, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 import { olderThan } from './src/lib/version.ts';
+import { reportMarkdown } from './src/lib/report-markdown.ts';
 
 const T0 = 1700000000000;
 
@@ -155,6 +158,35 @@ assert.strictEqual(uaSummary('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Firefox/
 assert.deepStrictEqual(uaSummary(''), null, 'no UA is no claim');
 assert.deepStrictEqual(uaSummary('something entirely unknown'), { browser: null, os: null, apple: false });
 
+// ── Copy as Markdown ────────────────────────────────────────────────────────
+{
+  const many = Array.from({ length: 7 }, (_, i) => ({ kind: 'console', lvl: 'error', msg: `bad ${i}\nstack line`, t: T0 + i * 1000, seq: 10 + i }));
+  const entries = [
+    { kind: 'console', lvl: 'error', msg: 'early `x`', t: T0 - 12000, seq: 1 },
+    ...many,
+    { kind: 'console', lvl: 'warn', msg: 'only a warning', t: T0, seq: 30 },
+    ...network,
+    { kind: 'net', method: 'GET', url: 'wss://x/s', status: 0, rtype: 'ws', ev: 'frame', t: T0, seq: 31 },
+  ] as Entry[];
+  const base = {
+    title: 'Cart breaks', project: 'shop.example', link: 'https://r.test/c/tok', pageUrl: 'https://shop.example/cart',
+    createdAt: '2026-10-08T14:03:59.000Z', description: 'Click pay.', t0: T0,
+    env: { ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36', viewport: '1440x900', dpr: 2, build: 'abc123' },
+    entries,
+  };
+  const md = reportMarkdown(base);
+  assert.ok(md.startsWith('## Cart breaks\n'));
+  for (const s of ['https://r.test/c/tok', 'Page: https://shop.example/cart', '2026-10-08 14:03 UTC', 'Chrome 130', 'Window: 1440x900 @2x', 'Build: abc123', 'Click pay.']) assert.ok(md.includes(s), s);
+  assert.ok(md.includes("`−0:12` early 'x'"), 'pre-roll sign kept, backticks defused');
+  assert.equal(md.split('\n').filter((l) => /^- `[−\d]/.test(l)).length, 5, 'top five errors');
+  assert.ok(md.includes('…and 3 more'));
+  assert.ok(!md.includes('stack line') && !md.includes('only a warning'), 'first line only, warnings left out');
+  assert.ok(md.includes('`POST https://api.example/v2/render` → 500'));
+  assert.ok(!md.includes('/ok') && !md.includes('wss://'), 'a 200 and a socket frame are not failures');
+  const bare = reportMarkdown({ ...base, title: '', description: null, env: {}, entries: [], pageUrl: null });
+  assert.equal(bare, '## shop.example\n\n- Rekod: https://r.test/c/tok\n- When: 2026-10-08 14:03 UTC\n', 'empty sections and rows are omitted');
+}
+
 // ── the extension version gate ──────────────────────────────────────────────
 assert.equal(olderThan('0.2.0', '0.3.0'), true);
 assert.equal(olderThan('0.10.0', '0.9.9'), false, 'numeric, not string, order');
@@ -170,6 +202,9 @@ assert.equal(olderThan('1.0-beta', '0.1.0'), true, 'garbage is too old');
   const release = JSON.parse(readFileSync(new URL('./src/lib/extension-release.json', import.meta.url), 'utf8'));
   assert.equal(release.version, manifest.version, 'public/rekod-extension.zip is stale: run `pnpm ext:zip`');
   assert.ok(existsSync(new URL('./public/rekod-extension.zip', import.meta.url)), 'public/rekod-extension.zip is missing: run `pnpm ext:zip`');
+  // Byte-for-byte: any edit under apps/extension/ without a re-run fails here.
+  const check = spawnSync(process.execPath, [fileURLToPath(new URL('./scripts/ext-zip.mjs', import.meta.url)), '--check'], { encoding: 'utf8' });
+  assert.equal(check.status, 0, check.stderr.trim() || 'public/rekod-extension.zip is stale: run `pnpm ext:zip`');
 }
 
 console.log('viewer logic ok');

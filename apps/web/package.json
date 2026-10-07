@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
-    "build": "next build",
+    "build": "node scripts/ext-zip.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "pnpm test:postgres && pnpm test:mongo",

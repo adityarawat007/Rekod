@@ -8,8 +8,7 @@ import { Dither } from '@/components/marketing/dither';
 import { Reveal } from '@/components/marketing/motion';
 import { Newsreader } from 'next/font/google';
 import { cn } from '@/lib/utils';
-// Written by `pnpm ext:zip` with public/rekod-extension.zip, from manifest.json.
-import release from '@/lib/extension-release.json';
+import { Code, EXTENSION_KB, EXTENSION_VERSION, EXTENSION_ZIP, INSTALL_STEPS } from '@/components/install-steps';
 
 /** The public landing page. Static: it never reads the session or the
  *  database (proxy.ts lets `/` through without a cookie). Signed in or not,
@@ -24,9 +23,8 @@ export const metadata: Metadata = {
   description: SUB,
 };
 
-const ZIP = '/rekod-extension.zip';
+const ZIP = EXTENSION_ZIP;
 const README = '/rekod-extension-README.txt';
-const kb = Math.round(release.bytes / 1024);
 const WRAP = 'mx-auto w-full max-w-[1200px] px-4 narrow:px-7';
 // Headings only, and only on this page: a crisp display serif, the free
 // stand-in for the commercial Flecha the brief pointed at. Emphasis is the
@@ -178,12 +176,8 @@ function Sharing() {
 
 // ── Install ───────────────────────────────────────────────────────────────
 
-const Code = ({ children }: { children: React.ReactNode }) => <code className="mono text-[13px] text-ink">{children}</code>;
-
 const STEPS: React.ReactNode[] = [
-  <>Unzip it and keep the <Code>rekod-extension</Code> folder somewhere permanent.</>,
-  <>Open <Code>chrome://extensions</Code> and turn on Developer mode.</>,
-  <>Click Load unpacked and pick that folder.</>,
+  ...INSTALL_STEPS,
   <>Pin rekod, then sign in on the dashboard. The extension uses that session.</>,
   <>On any page, press <Code>⌥⇧J</Code> to record.</>,
 ];
@@ -202,7 +196,7 @@ function Install() {
           </h2>
           <Download onDusk />
           <p className="mono text-xs text-on-chrome-muted">
-            Version {release.version}, a {kb} KB zip
+            Version {EXTENSION_VERSION}, a {EXTENSION_KB} KB zip
           </p>
           <p id="self-host" className="max-w-[44ch] scroll-mt-4 border-t border-on-chrome/20 pt-6 text-[15px] leading-[24px] text-on-chrome-muted">
             Running your own? The backend is one Next.js app on any Postgres and any S3-compatible bucket.{' '}
