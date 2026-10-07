@@ -149,6 +149,10 @@ create, Bearer with `requireSignature`, extra user fields surviving updates).
 
 ## Phase 4: security and CI
 
+> **Superseded 8 Oct 2026:** CI was cut down to one job (`ci.yml` → `check`:
+> typecheck, lint, test on both adapters, build, audit). The security workflow,
+> gitleaks and Dependabot below were removed as more than this project needs.
+
 Surveyed: Payload (DB matrix by env var — the model for us), Better Auth
 (Postgres + Mongo in one test job, zizmor, SHA-pinned actions, `alls-green`,
 dependabot cooldowns, SECURITY.md), cal.com (integration tests on a real
