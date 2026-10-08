@@ -1,11 +1,13 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { REPORT_TYPES, type ReportType } from '@/lib/server/reports';
+import { REPORT_TYPES, projectsOf, type ReportType } from '@/lib/server/reports';
+import { currentActor } from '@/lib/server/session';
 import { reportPage, type Page } from './rows';
 import { NewReportButton } from '@/components/home/new-report-button';
 import { ReportFilters } from '@/components/home/report-filters';
 import { ReportList } from '@/components/home/report-list';
-import { ReportGridSkeleton } from '@/components/skeletons';
+import { SiteFilter } from '@/components/shell/site-filter';
+import { ReportGridSkeleton, SiteFilterSkeleton } from '@/components/skeletons';
 
 type Search = Awaited<PageProps<'/rekod'>['searchParams']>;
 const one = (sp: Search, k: string) =>
@@ -28,7 +30,13 @@ export default async function Home(props: PageProps<'/rekod'>) {
     <div className="space-y-7 p-4 narrow:p-7">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <Suspense fallback={<div className="h-[38px] flex-1" />}>
-          <ReportFilters />
+          <ReportFilters
+            site={
+              <Suspense fallback={<SiteFilterSkeleton />}>
+                <Sites />
+              </Suspense>
+            }
+          />
         </Suspense>
         <NewReportButton />
       </div>
@@ -38,6 +46,13 @@ export default async function Home(props: PageProps<'/rekod'>) {
       </Suspense>
     </div>
   );
+}
+
+/** The site list for the picker: cache()d actor, one grouped query. */
+async function Sites() {
+  const a = await currentActor();
+  if (!a) return null;
+  return <SiteFilter sites={await projectsOf(a.workspaceId)} />;
 }
 
 async function Grid({ page, q, project, types, filtered }: { page: Promise<Page>; q?: string; project?: string; types: ReportType[]; filtered: boolean }) {
