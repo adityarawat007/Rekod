@@ -100,6 +100,8 @@ export default function Landing() {
         <Sharing />
 
         <Install />
+
+        <Hands />
       </main>
 
       <Footer />
@@ -219,6 +221,19 @@ function Install() {
           </ol>
         </Reveal>
       </div>
+    </section>
+  );
+}
+
+// ── The two hands: an image band, nothing else ───────────────────────────
+
+// Photo: Michelangelo, "The Creation of Adam" (detail), Wikimedia Commons
+// "Michelangelo - Creation of Adam (cropped).jpg", public domain.
+function Hands() {
+  return (
+    <section aria-hidden className="bg-chrome">
+      {/* focus is the gap between the fingertips, so it stays centred at any width. */}
+      <Dither src="/dither/adam.jpg" focus={[0.53, 0.52]} className="h-[260px] w-full narrow:h-[520px]" />
     </section>
   );
 }
