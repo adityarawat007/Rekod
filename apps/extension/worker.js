@@ -8,12 +8,9 @@ async function ensureOffscreen() {
   try {
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
-      // AUDIO_PLAYBACK is declared for the day AUDIO goes back on in
-      // offscreen.js: capturing a tab's audio takes it from the speakers, so
-      // that document has to play it back out. Declaring it costs nothing while
-      // recordings are silent, and keeps turning sound on a one-line change.
-      reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
-      justification: 'Buffer logs, record the tab, and play its audio back while recording.',
+      // AUDIO_PLAYBACK comes back here with AUDIO = true in offscreen.js.
+      reasons: ['USER_MEDIA'],
+      justification: 'Record the tab being captured and buffer its console and network logs.',
     });
   } catch (e) {
     if (!/single offscreen/i.test(String(e))) throw e;
@@ -53,10 +50,14 @@ async function reinject() {
 async function ensureWidget(tabId) {
   // capture.js is deliberately NOT re-injected: its patches cannot be applied
   // twice. Only the UI is replaceable.
+  // Returns whether it went in. A page that refuses injection (Web Store, the
+  // PDF viewer, file:// without access) would record with no pill to stop it.
   try {
     await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', files: ['widget.js'] });
-  } catch {}   // restricted pages reject injection; the callers already refuse those
+    return true;
+  } catch { return false; }
 }
+const CANT_RUN = "ReKod can't run on this page. Try another tab.";
 
 // ── renewing a stale session ────────────────────────────────────────────────
 // Only the dashboard may spend the refresh token, and it only spends it when a
@@ -140,7 +141,7 @@ async function route(msg, sender) {
     // DASH_ORIGINS (auth.js), else it falls back to DASH. So a message can pick
     // prod or the dev server — where the upload landed — and nothing else.
     const origin = DASH_ORIGINS.includes(msg.origin) ? msg.origin : DASH;
-    chrome.tabs.create({ url: origin + (msg.path || '/rekod'), active: false });
+    chrome.tabs.create({ url: origin + dashPath(msg.path), active: false });
     return { ok: true };
   }
 
@@ -163,10 +164,15 @@ async function route(msg, sender) {
   }
 }
 
-const RESTRICTED = /^(chrome|edge|about|devtools):/;
-const refuse = (tab) => {
+// A same-origin path only: '//host' would be a different site once appended.
+const dashPath = (p) => (typeof p === 'string' && p.startsWith('/') && !p.startsWith('//') ? p : '/rekod');
+
+const RESTRICTED = /^(chrome|edge|about|devtools|view-source):|^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)/;
+const refuse = async (tab) => {
   if (!tab?.id) throw new Error('No active tab');
-  if (RESTRICTED.test(tab.url || '')) throw new Error("Chrome's own pages can't be captured");
+  if (RESTRICTED.test(tab.url || '')) throw new Error("ReKod can't capture this page. Try another tab.");
+  // Up front, so the hotkey says so too instead of recording and failing at Save.
+  if (!(await fjLiveSession())) throw new Error('Sign in to ReKod on the dashboard first.');
 };
 
 /** Asks the dashboard whether this capture may start (GET /api/v1/me), so a
@@ -188,12 +194,12 @@ async function allowed(kind) {
   // 426 "please update" from an outdated version. A bare 401 is not either.
   const blocked = me?.[kind] === false || !!(me?.error && me?.message);
   if (!blocked) return;
-  if (me.path && DASH_ORIGINS.includes(session.origin)) chrome.tabs.create({ url: session.origin + me.path });
+  if (me.path && DASH_ORIGINS.includes(session.origin)) chrome.tabs.create({ url: session.origin + dashPath(me.path) });
   throw new Error(me.message || "Your plan doesn't allow this right now");
 }
 
 async function startVideo(tab) {
-  refuse(tab);
+  await refuse(tab);
   // The mic setting lives in storage, not in the message, because the hotkey
   // path never opens the popup — one switch for both ways in. Nothing writes it
   // while AUDIO is off in offscreen.js, which ignores the flag anyway; the read
@@ -207,7 +213,9 @@ async function startVideo(tab) {
   const refused = allowed('record').then(() => null, (e) => e);
   // tabCapture needs activeTab, which the popup click or the command gesture grants.
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
-  await ensureWidget(tab.id);
+  // After the stream id (which needs this gesture's activeTab grant), before
+  // anything records: no pill means no way to stop, and `rec` must stay unset.
+  if (!(await ensureWidget(tab.id))) throw new Error(CANT_RUN);
   const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: !!fjMic });
   if (r?.err) throw new Error(r.err);
   dropIfRefused(tab, refused);
@@ -222,11 +230,11 @@ const dropIfRefused = (tab, refused) => refused.then(async (e) => {
 });
 
 async function startShot(tab) {
-  refuse(tab);
+  await refuse(tab);
   // Same as video: the check runs beside the capture, never in front of it.
   const refused = allowed('shot').then(() => null, (e) => e);
   const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
-  await ensureWidget(tab.id);
+  if (!(await ensureWidget(tab.id))) throw new Error(CANT_RUN);
   const r = await ask({ t: 'shot', dataUrl, tabId: tab.id });
   if (r?.err) throw new Error(r.err);
   dropIfRefused(tab, refused);

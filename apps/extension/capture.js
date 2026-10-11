@@ -212,7 +212,7 @@
     const meta = this.__fj;
     if (meta) {
       meta.t = performance.now();
-      if (typeof a[0] === 'string') meta.b = fjRedactBody(a[0].slice(0, BODY_CAP));
+      if (typeof a[0] === 'string') meta.b = cut(fjRedactBody(a[0].slice(0, BODY_CAP)));
       this.addEventListener('loadend', () => {
         let body = null;
         if (this.responseType === '' || this.responseType === 'text') {
@@ -386,20 +386,28 @@
   addEventListener('popstate', () => event('nav', 'Back/forward to ' + fjRedactUrl(location.href)));
 
   // --- environment -----------------------------------------------------
-  const env = () => {
-    let gpu = null;
+  // Asked for on every 2s pull in every frame, and a WebGL context is not cheap
+  // (browsers cap them, too) — so it is made once, the first time, and kept.
+  let gpu;
+  const gpuName = () => {
+    if (gpu !== undefined) return gpu;
+    gpu = null;
     try {
       const gl = document.createElement('canvas').getContext('webgl');
       const ext = gl?.getExtension('WEBGL_debug_renderer_info');
       if (ext) gpu = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+      gl?.getExtension('WEBGL_lose_context')?.loseContext();
     } catch {}
+    return gpu;
+  };
+  const env = () => {
     return {
       ua: navigator.userAgent,
       url: fjRedactUrl(location.href),
       host: location.hostname,
       viewport: `${innerWidth}x${innerHeight}`,
       dpr: devicePixelRatio,
-      gpu,
+      gpu: gpuName(),
       build: document.querySelector('meta[name="build"], meta[name="build-sha"]')?.content || null,
     };
   };

@@ -383,7 +383,7 @@ async function upload(title, desc, env) {
     // uploads to the dev server, and the report only exists there.
     chrome.runtime.sendMessage({ to: 'bg', t: 'open', origin: session.origin, path: `/reports/${id}` }).catch(() => {});
   } catch (err) {
-    toTab(tabId, { t: 'state', s: 'failed', err: String(err) });
+    toTab(tabId, { t: 'state', s: 'failed', err: err?.message || String(err) });
   }
 }
 

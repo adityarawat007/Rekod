@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "set-plan": "node --env-file=.env.local --conditions=react-server --experimental-strip-types --no-warnings scripts/set-plan.ts",
-    "ext:zip": "node scripts/ext-zip.mjs"
+    "ext:zip": "node scripts/ext-zip.mjs",
+    "ext:store": "node scripts/ext-zip.mjs --store"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

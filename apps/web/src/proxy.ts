@@ -11,6 +11,7 @@ import { olderThan } from './lib/version';
  * here and is sent to /login from there.
  *
  * Open without a cookie:
+ *  - /privacy: the privacy policy the Chrome Web Store listing links to
  *  - / exactly: the landing page (static, never reads the session). The
  *    dashboard is /rekod, behind the gate like everything else.
  *  - /rekod-extension.zip, its README (.txt) and other static files: excluded
@@ -21,7 +22,7 @@ import { olderThan } from './lib/version';
  *  - /api/cron: Vercel's scheduler, which authenticates by CRON_SECRET itself
  *  - /api/health (excluded by the matcher, it never runs this at all)
  */
-const OPEN = ['/login', '/api/auth', '/api/v1', '/api/cron', '/c/', '/v/', '/s/'];
+const OPEN = ['/privacy', '/login', '/api/auth', '/api/v1', '/api/cron', '/c/', '/v/', '/s/'];
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;

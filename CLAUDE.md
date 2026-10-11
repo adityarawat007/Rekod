@@ -180,6 +180,15 @@ extension lives in `apps/extension/` and not at the repo root — the root holds
 dependency tree inside `apps/extension/`. Load unpacked from `apps/extension/`,
 never from the root.
 
+**The extension ships to the Chrome Web Store** ([`CHROME_WEB_STORE.md`](CHROME_WEB_STORE.md)
+has the listing, permission justifications and data disclosures). `pnpm ext:store`
+writes the upload (manifest at the zip's root) to the Desktop; `pnpm ext:zip` is
+still the Load-unpacked download. Every permission must be used and justified —
+adding one later disables the extension for every user until they accept it.
+`apps/web/src/app/privacy/page.tsx` is the policy the listing links to: what the
+extension captures, when it leaves the browser and what redaction covers. Change
+capture, upload or `redact.js`, and change that page with it.
+
 **The extension is authenticated, but it never signs in.** `auth.js` reads the
 dashboard's session cookie via `chrome.cookies` — from the first origin in
 `DASH_ORIGINS` that has one (prod, then the dev server), and every origin listed
@@ -217,7 +226,8 @@ reaches the mime string, and every line behaves as it did before audio existed.
 Flipping it to true brings back tab audio plus an optional mic — the popup's
 mic switch (`<label class="toggle">` in `popup.html` and the commented block in
 `popup.js`, which must be uncommented **together**: `popup.js` reads `#mic` at
-load) and the mute in `components/report/player.tsx` come back with it. Nothing tests the
+load), the mute in `components/report/player.tsx` and the `AUDIO_PLAYBACK`
+offscreen reason in `worker.js` come back with it. Nothing tests the
 dormant path any more (the root test files were removed 27 Sep 2026), so
 flipping the flag means checking the audio by hand. Do not delete the flag.
 

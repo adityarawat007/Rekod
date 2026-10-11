@@ -237,6 +237,7 @@ function Footer() {
           <a href={ZIP} download className="flex h-8 items-center underline-offset-4 hover:underline">Download the extension</a>
           <Link href="/rekod" className="flex h-8 items-center underline-offset-4 hover:underline">Open dashboard</Link>
           <a href={README} className="flex h-8 items-center underline-offset-4 hover:underline">README</a>
+          <Link href="/privacy" className="flex h-8 items-center underline-offset-4 hover:underline">Privacy</Link>
         </nav>
       </div>
     </footer>

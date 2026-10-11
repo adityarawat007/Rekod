@@ -246,8 +246,12 @@
             'stroke-width="1.8" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
   const idle = () => { stopTicker(); ui.innerHTML = ''; };            // nothing on the page until asked
 
-  const note = (cls, text) => { stopTicker(); ui.innerHTML =
-    `<div class="bar msg"><span class="dot ${cls}"></span><span>${text}</span></div>`; };
+  // `text` can be a server message or a page-influenced error: textContent only.
+  const note = (cls, text) => {
+    stopTicker();
+    ui.innerHTML = `<div class="bar msg"><span class="dot ${cls}"></span><span></span></div>`;
+    ui.querySelector('.msg span:last-child').textContent = text;
+  };
 
   const recording = (t0) => {
     stopTicker();

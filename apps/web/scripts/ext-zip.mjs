@@ -17,6 +17,7 @@
 // change leaves git clean. test-logic.ts fails if the JSON's version is not
 // manifest.json's, which is how a version bump without a re-run gets caught.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +28,10 @@ const out = join(root, 'apps/web/public/rekod-extension.zip');
 const facts = join(root, 'apps/web/src/lib/extension-release.json');
 const readme = join(root, 'apps/web/public/rekod-extension-README.txt');
 const FOLDER = 'rekod-extension';
+// `--store [path]`: the Chrome Web Store upload instead — manifest.json at the
+// zip's root (the store refuses a nested folder), no README, written to the
+// Desktop by default. Nothing else is touched.
+const STORE = process.argv.includes('--store');
 
 // Chrome loads everything in the folder, so only what the extension needs goes
 // in. Dotfiles (.DS_Store, .env), dependency trees and lockfiles never ship.
@@ -53,14 +58,14 @@ const DOS_TIME = 0;
 const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1;
 
 const manifest = JSON.parse(readFileSync(join(src, 'manifest.json'), 'utf8'));
-const files = walk(src).sort();
+const files = walk(src).filter((f) => !(STORE && relative(src, f) === 'README.md')).sort();
 if (!files.some((f) => relative(src, f) === 'manifest.json')) throw new Error(`no manifest.json in ${src}`);
 
 const locals = [];
 const centrals = [];
 let offset = 0;
 for (const file of files) {
-  const name = Buffer.from(`${FOLDER}/${relative(src, file).split(sep).join('/')}`);
+  const name = Buffer.from(`${STORE ? '' : `${FOLDER}/`}${relative(src, file).split(sep).join('/')}`);
   const data = readFileSync(file);
   const packed = deflateRawSync(data, { level: 9 });
   const crc = crc32(data);
@@ -106,6 +111,13 @@ end.writeUInt32LE(dir.length, 12);
 end.writeUInt32LE(offset, 16);
 
 const zip = Buffer.concat([...locals, dir, end]);
+if (STORE) {
+  const arg = process.argv[process.argv.indexOf('--store') + 1];
+  const dest = arg && !arg.startsWith('-') ? arg : join(homedir(), 'Desktop', `rekod-${manifest.version}-chrome-web-store.zip`);
+  writeFileSync(dest, zip);
+  console.log(`ReKod ${manifest.version} for the Chrome Web Store: ${files.length} files, ${(zip.length / 1024).toFixed(0)} KB\n  wrote ${dest}`);
+  process.exit(0);
+}
 if (process.argv.includes('--check')) {
   // Compares what is IN the zip — names, sizes, CRC-32s from its central
   // directory — not its bytes: zlib versions (Node 23 here, Node 24 in CI)

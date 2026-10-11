@@ -44,7 +44,7 @@ function render({ state, session }) {
   show($('hotkey'), on);
   show($('who'), on);
   if (on) {
-    $('me').textContent = session.user?.email ?? 'signed in';
+    $('me').textContent = 'Signed in to ' + new URL(session.origin).host;
     return;
   }
   const g = GATE[state];

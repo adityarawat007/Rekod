@@ -11,6 +11,7 @@
     "test:postgres": "pnpm -C apps/web test:postgres",
     "test:mongo": "pnpm -C apps/web test:mongo",
     "ext:zip": "pnpm -C apps/web ext:zip",
+    "ext:store": "pnpm -C apps/web ext:store",
     "set-plan": "pnpm -C apps/web set-plan"
   }
 }

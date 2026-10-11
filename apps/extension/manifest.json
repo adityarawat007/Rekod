@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "rekod",
-  "version": "0.3.4",
-  "description": "Records a tab with the last 5 minutes of console and network already captured.",
+  "name": "ReKod",
+  "version": "0.4.0",
+  "description": "Record a tab with the last 5 minutes of console and network already captured, and send it as a bug report.",
+  "homepage_url": "https://rekody.vercel.app",
+  "minimum_chrome_version": "116",
   "permissions": [
     "tabCapture",
     "activeTab",
@@ -13,7 +15,6 @@
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
-    "https://storage.googleapis.com/*",
     "https://rekody.vercel.app/*",
     "http://localhost/*"
   ],
@@ -57,7 +58,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "rekod",
+    "default_title": "ReKod",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png",
