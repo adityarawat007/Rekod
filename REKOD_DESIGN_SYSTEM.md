@@ -1,18 +1,18 @@
-# ReKod Design System — v1.2 (Electric blue + pink)
+# Rekod Design System — v1.2 (Electric blue + pink)
 
 > **v1.2:** the marketing gradient is a left-to-right dusk (midnight → blue → pink → peach), ordered-dithered into pixels (§2.4); no outer frame — the app runs edge to edge on `--bg`; no display-size page titles — pages open on a summary row, and a rekod's title is `h1` size; the wordmark is four pixels (a 2×2 block) then "rekod"; the dashboard grid is four across.
 
-> **For Claude (or any developer) implementing this:** this file is the single source of truth for ReKod's UI. Follow the tokens and rules exactly. When something isn't covered, choose the option that is quieter, flatter and more data-first, and never invent new colours — derive from the tokens below. Read the whole file before writing code, then follow the **Implementation checklist** at the end.
+> **For Claude (or any developer) implementing this:** this file is the single source of truth for Rekod's UI. Follow the tokens and rules exactly. When something isn't covered, choose the option that is quieter, flatter and more data-first, and never invent new colours — derive from the tokens below. Read the whole file before writing code, then follow the **Implementation checklist** at the end.
 
 ---
 
-## 0. What ReKod is
+## 0. What Rekod is
 
-ReKod is a bug-reporting tool: a **Chrome extension** that records what went wrong (screen recording, screenshot, console logs, network requests, user steps, device info) and a **web dashboard** where teams review, triage and share those recordings ("rekods"). It is for everyone — developers, QA, PMs, support — so it must feel precise and data-dense **and** friendly.
+Rekod is a bug-reporting tool: a **Chrome extension** that records what went wrong (screen recording, screenshot, console logs, network requests, user steps, device info) and a **web dashboard** where teams review, triage and share those recordings ("rekods"). It is for everyone — developers, QA, PMs, support — so it must feel precise and data-dense **and** friendly.
 
 **Main screens:** All Rekods (list/grid), Rekod detail (video + DevTools panel: Info / Console / Network / Steps), Overview/analytics, Settings, Extension popup.
 
-**Naming:** the product is written **ReKod** in prose. A single recording is a **rekod** (plural **rekods**). IDs are written `RK-1042`.
+**Naming:** the product is written **Rekod** in prose. A single recording is a **rekod** (plural **rekods**). IDs are written `RK-1042`.
 
 ---
 

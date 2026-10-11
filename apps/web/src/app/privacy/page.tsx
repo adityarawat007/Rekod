@@ -5,8 +5,8 @@ import { Brand } from '@/components/shell/brand';
  *  (proxy.ts lets /privacy through without a cookie). Every claim here is a
  *  fact about apps/extension/ and apps/web/ — change the code, change this. */
 export const metadata: Metadata = {
-  title: 'Privacy policy · ReKod',
-  description: 'What the ReKod extension and dashboard collect, when it leaves your browser, and how to delete it.',
+  title: 'Privacy policy · Rekod',
+  description: 'What the Rekod extension and dashboard collect, when it leaves your browser, and how to delete it.',
 };
 
 const UPDATED = '12 October 2026';
@@ -34,7 +34,7 @@ export default function Privacy() {
           <h1 className="text-2xl text-ink">Privacy policy</h1>
           <p className="mono text-xs">Last updated {UPDATED}</p>
           <p>
-            ReKod is a Chrome extension and a dashboard at rekody.vercel.app for filing bug reports: it records a
+            Rekod is a Chrome extension and a dashboard at rekody.vercel.app for filing bug reports: it records a
             browser tab, or takes a screenshot, together with what the page logged to its console and the network
             requests it made. This page says what that involves, plainly.
           </p>
@@ -66,7 +66,7 @@ export default function Privacy() {
         <Section title="What is uploaded, and when">
           <p>
             Only when <strong>you start a capture</strong>, by clicking the extension or pressing its shortcut. When the
-            recording stops (or the screenshot is cropped), the extension uploads to your ReKod dashboard:
+            recording stops (or the screenshot is cropped), the extension uploads to your Rekod dashboard:
           </p>
           <ul>
             <li>the video of that tab (no audio, up to 3 minutes) or the screenshot, plus a still frame for the thumbnail;</li>
@@ -136,7 +136,7 @@ export default function Privacy() {
 
         <Section title="Self-hosted instances">
           <p>
-            ReKod can be self-hosted. If your organisation runs its own dashboard, your recordings go to that server and
+            Rekod can be self-hosted. If your organisation runs its own dashboard, your recordings go to that server and
             are governed by that organisation, not by this policy.
           </p>
         </Section>
@@ -150,12 +150,12 @@ export default function Privacy() {
             >
               Chrome Web Store User Data Policy
             </a>
-            , including the Limited Use requirements. Data is used only to provide ReKod&apos;s bug-reporting features.
+            , including the Limited Use requirements. Data is used only to provide Rekod&apos;s bug-reporting features.
           </p>
         </Section>
 
         <Section title="Children">
-          <p>ReKod is a developer tool and is not directed at children under 13.</p>
+          <p>Rekod is a developer tool and is not directed at children under 13.</p>
         </Section>
 
         <Section title="Changes and contact">

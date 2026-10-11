@@ -1,4 +1,4 @@
-# ReKod
+# Rekod
 
 A Chrome extension (MV3) that records a tab with the last 5 minutes of console
 and network already captured, and a Next.js app that plays it back on one
@@ -180,8 +180,7 @@ extension lives in `apps/extension/` and not at the repo root — the root holds
 dependency tree inside `apps/extension/`. Load unpacked from `apps/extension/`,
 never from the root.
 
-**The extension ships to the Chrome Web Store** ([`CHROME_WEB_STORE.md`](CHROME_WEB_STORE.md)
-has the listing, permission justifications and data disclosures). `pnpm ext:store`
+**The extension ships to the Chrome Web Store.** `pnpm ext:store`
 writes the upload (manifest at the zip's root) to the Desktop; `pnpm ext:zip` is
 still the Load-unpacked download. Every permission must be used and justified —
 adding one later disables the extension for every user until they accept it.
@@ -276,10 +275,10 @@ can open anywhere else. `active: false` — nothing is torn away from whatever
 was being reported on. It fires after the insert returns, never before, because
 a tab onto a row that was never written is a 404 that reads as data loss.
 
-**In the UI the product is ReKod and the thing is a rekod** (4 Oct 2026,
-`REKOD_DESIGN_SYSTEM.md` §0, replacing "Rekod everywhere"): ReKod in prose,
-rekod / rekods lowercase mid-sentence, capitalised only to start a label
-("Rekods" tab, "Delete rekod"). The wordmark is lowercase "rekod".
+**In the UI the product is Rekod and the thing is a rekod** (12 Oct 2026,
+reversing 4 Oct's "ReKod"; the Chrome Web Store name comes from the manifest):
+Rekod in prose, rekod / rekods lowercase mid-sentence, capitalised only to start
+a label ("Rekods" tab, "Delete rekod"). The wordmark is lowercase "rekod".
 `X-ReKod-Version` is protocol, not copy. The code, the database and these notes still say report: the
 table is `reports`, the route is `/reports/[id]`, and renaming those buys
 nothing. Keep the two apart; do not rename the column.

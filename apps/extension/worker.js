@@ -57,7 +57,7 @@ async function ensureWidget(tabId) {
     return true;
   } catch { return false; }
 }
-const CANT_RUN = "ReKod can't run on this page. Try another tab.";
+const CANT_RUN = "Rekod can't run on this page. Try another tab.";
 
 // ── renewing a stale session ────────────────────────────────────────────────
 // Only the dashboard may spend the refresh token, and it only spends it when a
@@ -170,9 +170,9 @@ const dashPath = (p) => (typeof p === 'string' && p.startsWith('/') && !p.starts
 const RESTRICTED = /^(chrome|edge|about|devtools|view-source):|^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)/;
 const refuse = async (tab) => {
   if (!tab?.id) throw new Error('No active tab');
-  if (RESTRICTED.test(tab.url || '')) throw new Error("ReKod can't capture this page. Try another tab.");
+  if (RESTRICTED.test(tab.url || '')) throw new Error("Rekod can't capture this page. Try another tab.");
   // Up front, so the hotkey says so too instead of recording and failing at Save.
-  if (!(await fjLiveSession())) throw new Error('Sign in to ReKod on the dashboard first.');
+  if (!(await fjLiveSession())) throw new Error('Sign in to Rekod on the dashboard first.');
 };
 
 /** Asks the dashboard whether this capture may start (GET /api/v1/me), so a
