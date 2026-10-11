@@ -205,8 +205,7 @@ for origins it is told about. Two edits in `apps/extension/`:
    entry for **every** origin in `DASH_ORIGINS` (`"https://rekod.example.com/*"`;
    `http://localhost/*` is already there and covers any port) **and** for your
    bucket's origin (`"https://<account>.r2.cloudflarestorage.com/*"`).
-   `*.supabase.co` and localhost are already listed; a GCS bucket needs
-   `"https://storage.googleapis.com/*"`.
+   `*.supabase.co`, `storage.googleapis.com` and localhost are already listed.
    Without the dashboard entry you look signed out; without the bucket entry the
    upload fails with a CORS error.
 

@@ -2,8 +2,9 @@
 
 Everything the Developer Dashboard asks for, ready to paste. The store build
 talks to production only: `https://rekody.vercel.app` (Supabase Postgres +
-Supabase Storage). `http://localhost` stays for people running the dashboard
-themselves.
+Supabase Storage today, MongoDB + Google Cloud Storage soon — both bucket hosts
+are in the manifest so that move needs no new permission). `http://localhost`
+stays for people running the dashboard themselves.
 
 ## 1. Before you submit (blocking)
 
@@ -21,6 +22,8 @@ themselves.
       listing; EU users see a "not a trader" notice). **Switch to trader** the day
       paid plans or any monetisation go live, or if it is run as a business.
 - [ ] **Real screenshots** (see §3). The generated ones are a start, not enough.
+- [ ] **When production moves to MongoDB + Google Cloud Storage:** update the
+      "Where it is stored" section of `/privacy` (it names Supabase today).
 - [ ] Check the contact email in `apps/web/src/app/privacy/page.tsx` (`CONTACT`)
       is the one you want public.
 
@@ -90,7 +93,8 @@ screenshot. Don't show real customer data.
 | `cookies` | Reads the ReKod dashboard's own sign-in cookie (rekod.session_token) on rekody.vercel.app to authenticate uploads. No other site's cookies are read. |
 | `scripting` | Re-injects the on-page recording control into an already-open tab (after install or update) so the user can stop a recording without reloading the page. |
 | Host `https://rekody.vercel.app/*` | The ReKod dashboard: reads its sign-in cookie and uploads reports to its API. |
-| Host `https://*.supabase.co/*` | The storage bucket recordings are uploaded to, via short-lived presigned URLs the dashboard issues. |
+| Host `https://*.supabase.co/*` | The storage bucket recordings are uploaded to (Supabase Storage), via short-lived presigned URLs the dashboard issues. |
+| Host `https://storage.googleapis.com/*` | The Google Cloud Storage bucket recordings are uploaded to, via short-lived presigned URLs the dashboard issues. (ReKod's storage is moving from Supabase to Google Cloud Storage; both are listed so the move needs no permission change.) |
 | Host `http://localhost/*` | For developers running the open-source ReKod dashboard on their own machine. |
 | Content scripts on `<all_urls>` | The product's core feature is including the five minutes *before* the user presses record. That requires buffering each page's console and network activity from page load, in memory on the user's device. Nothing is sent anywhere until the user starts a capture. Secrets are masked before buffering. |
 

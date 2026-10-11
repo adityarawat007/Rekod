@@ -15,6 +15,7 @@
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
+    "https://storage.googleapis.com/*",
     "https://rekody.vercel.app/*",
     "http://localhost/*"
   ],
