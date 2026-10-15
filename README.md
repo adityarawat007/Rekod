@@ -27,7 +27,7 @@
 
 ## What it does
 
-- **Chrome extension (MV3).** Records a tab (video) or takes a screenshot, with
+- **Chrome extension (MV3)**, [on the Chrome Web Store](https://chromewebstore.google.com/detail/mldnjcigeamapdffjohhgiajjbikjcjc). Records a tab (video) or takes a screenshot, with
   the previous 5 minutes of console and network traffic already captured.
   Secrets are redacted in the page before anything leaves the tab. Nothing is
   uploaded until you press Send.
@@ -160,7 +160,7 @@ the same fields.) The extension's own uploads are covered by its
 Vercel is the documented path.
 
 1. Import the repo, set **Root Directory** to `apps/web`. The build is
-   `pnpm build`, which re-zips the extension first and then runs `next build`.
+   `pnpm build` (`next build`).
 2. Add the environment variables below, with `BETTER_AUTH_URL` set to the
    production origin. Add `<that origin>/api/auth/callback/google` as a redirect
    URI on the Google client.
@@ -209,21 +209,13 @@ for origins it is told about. Two edits in `apps/extension/`:
    Without the dashboard entry you look signed out; without the bucket entry the
    upload fails with a CORS error.
 
-Then rebuild the zip the dashboard serves, and load the extension:
+The Web Store build only knows the hosted dashboard, so a self-hosted one needs
+its own copy of the extension:
 
-```sh
-pnpm ext:zip      # rewrites apps/web/public/rekod-extension.zip; commit the result
-```
-
-`pnpm build` also re-zips, and `pnpm test` fails if the committed zip is stale,
-so commit it with your edit. Bump `version` in `manifest.json` if you hand the
-zip to others. To install, either load [`apps/extension/`](apps/extension/)
-directly or download the zip from your dashboard's landing page and:
-
-1. Unzip it and keep the `rekod-extension` folder somewhere permanent.
-2. Open `chrome://extensions` and turn on Developer mode.
-3. Click **Load unpacked** and pick that folder (never the repo root: Chrome
-   loads everything under it, `node_modules` and `.env` files included).
+1. Open `chrome://extensions` and turn on Developer mode.
+2. Click **Load unpacked** and pick [`apps/extension/`](apps/extension/) (never
+   the repo root: Chrome loads everything under it, `node_modules` and `.env`
+   files included).
 
 Sign in on the dashboard first, then click the toolbar icon.
 

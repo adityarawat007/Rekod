@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDownToLine, Camera, Check, Link2, Loader2, Play, Trash2, Video, X } from 'lucide-react';
+import { ArrowUpRight, Camera, Check, Link2, Loader2, Play, Trash2, Video, X } from 'lucide-react';
 import { ago, clock } from '@/lib/format';
 import { GRID } from '@/components/skeletons';
 import { Shortcut } from '@/components/home/shortcut';
-import { EXTENSION_KB, EXTENSION_VERSION, EXTENSION_ZIP, INSTALL_STEPS } from '@/components/install-steps';
+import { EXTENSION_URL } from '@/components/install-steps';
 import { useCopy } from '@/components/report/copy-button';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -86,17 +86,9 @@ function FirstRun() {
       <h2 className="text-xl">No rekods yet</h2>
       <ol className="space-y-6">
         <Step n={1} title="Install the extension">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <a href={EXTENSION_ZIP} download className={buttonVariants({ size: 'sm' })}>
-              <ArrowDownToLine /> Download
-            </a>
-            <span className="mono text-xs text-muted-foreground">
-              Version {EXTENSION_VERSION}, a {EXTENSION_KB} KB zip
-            </span>
-          </div>
-          <ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground marker:font-mono marker:text-xs">
-            {INSTALL_STEPS.map((s, i) => <li key={i}>{s}</li>)}
-          </ol>
+          <a href={EXTENSION_URL} target="_blank" rel="noopener" className={buttonVariants({ size: 'sm' })}>
+            Add to Chrome <ArrowUpRight />
+          </a>
         </Step>
         <Step n={2} title="You're already connected">
           <p className="text-muted-foreground">Being signed in here is the connection. There is nothing to paste.</p>

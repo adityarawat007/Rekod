@@ -372,15 +372,16 @@ All: radius 0, focus = 2px `--focus` outline, 2px offset. Disabled = 50% opacity
 ---
 
 ### 6.17 Landing page (`/`)
-The public page is a marketing surface, so §2.4's dither is allowed here. It stays short on purpose: five parts, no product replicas, no animated "videos".
+The public page is a marketing surface, so §2.4's dither is allowed here. It stays short on purpose: six parts, no product replicas, no animated "videos".
 
 **Type.** Headings on this page only are **Newsreader** (Google Fonts, display optical size, weight 400), the free stand-in for the commercial Flecha the brief referenced. Emphasis is the same family's *italic*, never a second face; italic display lines use leading 1.1 and `pb-1` so descenders keep clear. Body, buttons and labels stay Inter Tight and IBM Plex Mono.
 
-1. **Hero.** A full-bleed photo rendered as a **two-colour Bayer dither** on a `<canvas>` (`components/marketing/dither.tsx`): `--primary` on `--panel` in light, `--link` on `--bg` in dark, with the picture inverted so bright stays bright. No pink in the photos: a full pink midtone ink and a lighter pink accent were both tried and rejected. Pixels are 3px, tone curve `gamma` 0.6 (mostly paper, ink for the shapes). Still: no animation and no hover effect. The title sits **top-left** on a solid `--panel` block with a 1px `--line` border, so text never sits on pixels: a 72px serif headline (product marketing, not technical; never the word "bug"), subtext of 20 words or fewer, then the one primary ("Download the extension") and one secondary ("Open dashboard"). No reveal animation in the hero.
+1. **Hero.** A full-bleed photo rendered as a **two-colour Bayer dither** on a `<canvas>` (`components/marketing/dither.tsx`): `--primary` on `--panel` in light, `--link` on `--bg` in dark, with the picture inverted so bright stays bright. No pink in the photos: a full pink midtone ink and a lighter pink accent were both tried and rejected. Pixels are 3px, tone curve `gamma` 0.6 (mostly paper, ink for the shapes). Still: no animation and no hover effect. The title sits **top-left** on a solid `--panel` block with a 1px `--line` border, so text never sits on pixels: a 72px serif headline (product marketing, not technical; never the word "bug"), subtext of 20 words or fewer, then the one primary ("Add to Chrome", the Web Store listing) and one secondary ("Open dashboard"). No reveal animation in the hero.
 2. **What it catches.** A square dithered photo beside a 2×2 list of product benefits in plain words (no technical terms; those live in Install only): 17px semibold term, 15px muted line, each with a 1px `--ink` top rule.
 3. **Sharing.** Mirrors section 2: words left, a tall dithered photo right, on `--panel` between hairlines. Who the link is for (engineers get the full recording, everyone else just the video) as a two-row list under a 1px `--ink` rule.
-4. **Install.** A `--chrome` band with the dusk strip (`.bg-electric-wide`) behind it on wide screens, the download button and version, a one-line self-host note linking the README, and the steps on a `--panel` card with a hard offset `--chrome` block behind it.
-5. **Footer.** A short dithered strip of a third photo, then the links on midnight.
+4. **Install.** A `--chrome` band with the dusk strip (`.bg-electric-wide`) behind it on wide screens, the Add to Chrome button, a one-line self-host note linking section 5, and the steps on a `--panel` card with a hard offset `--chrome` block behind it.
+5. **Self-host.** Mirrors section 2 without a photo, on `--bg`: what it runs on (database, storage incl. Google Cloud Storage, sign-in, hosting) as a 2×2 list, beside the five env lines in a mono `--panel` block and a link to the README. Technical terms are allowed here.
+6. **Footer.** A short dithered strip of a third photo, then the links on midnight.
 
 **Hover.** None: the dithered photos are still. (The component has opt-in `develop`, `sweep` and `lens` modes; the landing page uses none of them.)
 

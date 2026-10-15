@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
-    "build": "node scripts/ext-zip.mjs && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "pnpm test:postgres && pnpm test:mongo",
@@ -14,8 +14,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "set-plan": "node --env-file=.env.local --conditions=react-server --experimental-strip-types --no-warnings scripts/set-plan.ts",
-    "ext:zip": "node scripts/ext-zip.mjs",
-    "ext:store": "node scripts/ext-zip.mjs --store"
+    "ext:store": "node scripts/ext-zip.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

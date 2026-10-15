@@ -180,9 +180,10 @@ extension lives in `apps/extension/` and not at the repo root — the root holds
 dependency tree inside `apps/extension/`. Load unpacked from `apps/extension/`,
 never from the root.
 
-**The extension ships to the Chrome Web Store.** `pnpm ext:store`
-writes the upload (manifest at the zip's root) to the Desktop; `pnpm ext:zip` is
-still the Load-unpacked download. Every permission must be used and justified —
+**The extension ships to the Chrome Web Store** (live 15 Oct 2026,
+`EXTENSION_URL` in `components/install-steps.tsx`; there is no zip download
+any more). `pnpm ext:store` writes the upload (manifest at the zip's root) to
+the Desktop; bump `manifest.json`'s version first. Every permission must be used and justified —
 adding one later disables the extension for every user until they accept it.
 `apps/web/src/app/privacy/page.tsx` is the policy the listing links to: what the
 extension captures, when it leaves the browser and what redaction covers. Change

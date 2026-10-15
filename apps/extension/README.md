@@ -9,21 +9,11 @@ and you can share it with a link.
 
 Nothing is uploaded until you press Send.
 
-## Install from the zip
+## Install
 
-1. Download `rekod-extension.zip` from the rekod landing page.
-2. Unzip it. You get one folder, `rekod-extension`. Put it somewhere it can
-   stay: Chrome loads the extension from that folder every time it starts, so
-   deleting or moving it removes the extension.
-3. Open `chrome://extensions` in Chrome.
-4. Turn on **Developer mode** (top right).
-5. Click **Load unpacked** and pick the `rekod-extension` folder (the one that
-   has `manifest.json` directly inside it).
-6. Click the puzzle-piece icon in the toolbar and pin rekod, so its button is
-   always one click away.
-
-This works in Chrome and other Chromium browsers that allow unpacked
-extensions (Edge, Brave, Arc).
+Add it from the [Chrome Web Store](https://chromewebstore.google.com/detail/mldnjcigeamapdffjohhgiajjbikjcjc), then click the
+puzzle-piece icon in the toolbar and pin rekod, so its button is always one
+click away. Chrome keeps it up to date.
 
 ## Install from source
 
@@ -35,17 +25,14 @@ Chrome reads and packages everything inside the folder you give it, and the
 root holds `node_modules` (over a gigabyte) and `.env` files with secrets in
 them.
 
-To rebuild the downloadable zip after changing the extension, run this from
-the repository root:
+To package a release for the Chrome Web Store, bump `version` in
+`manifest.json`, then run this from the repository root:
 
 ```
-pnpm ext:zip
+pnpm ext:store
 ```
 
-It writes `apps/web/public/rekod-extension.zip` (the file the landing page
-serves) and `apps/web/src/lib/extension-release.json` (the version and size
-the landing page shows). Bump `version` in `manifest.json` first if the change
-is going out to people.
+It writes `rekod-<version>-chrome-web-store.zip` to the Desktop.
 
 ## Signing in
 
@@ -115,13 +102,10 @@ want to share before you record.
 
 ## Updating
 
-1. Download the new `rekod-extension.zip`.
-2. Unzip it and replace the old `rekod-extension` folder with the new one
-   (same place, same name).
-3. Open `chrome://extensions` and click the reload arrow on the rekod card.
-
-The version is on that card. Reload any tab you want to capture from, so it
-runs the new version from its first request.
+Chrome updates Web Store extensions on its own. To get a new version now, open
+`chrome://extensions`, turn on Developer mode and click **Update**. Reload any
+tab you want to capture from, so it runs the new version from its first
+request.
 
 ## Troubleshooting
 
@@ -130,8 +114,8 @@ dashboard session. Sign in on the dashboard, then open the popup again. If you
 run your own dashboard, its origin has to be in the extension (see below).
 
 **"This version of Rekod is out of date."** The dashboard you upload to
-refuses versions older than its `MIN_EXTENSION_VERSION`. Download the current
-zip and follow the update steps above.
+refuses versions older than its `MIN_EXTENSION_VERSION`. Follow the update
+steps above.
 
 **"Chrome's own pages can't be captured."** Chrome does not let extensions
 record `chrome://` pages, the Web Store, or other extensions' pages. Use a
@@ -154,4 +138,5 @@ missing from `host_permissions` (next section).
 ## Running your own dashboard
 
 See "Point the extension at your server" in the repo's main README: two edits
-(`auth.js` DASH_ORIGINS, `manifest.json` host_permissions), then `pnpm ext:zip`.
+(`auth.js` DASH_ORIGINS, `manifest.json` host_permissions), then load
+`apps/extension/` unpacked.

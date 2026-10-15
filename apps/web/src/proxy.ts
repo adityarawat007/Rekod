@@ -14,8 +14,7 @@ import { olderThan } from './lib/version';
  *  - /privacy: the privacy policy the Chrome Web Store listing links to
  *  - / exactly: the landing page (static, never reads the session). The
  *    dashboard is /rekod, behind the gate like everything else.
- *  - /rekod-extension.zip, its README (.txt) and other static files: excluded
- *    by the matcher
+ *  - static files: excluded by the matcher
  *  - /login, and /api/auth (Better Auth's own routes, the Google callback too)
  *  - /api/v1: the extension's API, which authenticates by Bearer itself
  *  - /c/, /v/ (and the legacy /s/) <token>: share pages — the token is the credential

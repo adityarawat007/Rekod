@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowDownToLine, ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { Brand } from '@/components/shell/brand';
 import { ThemeToggle } from '@/components/theme/toggle';
@@ -8,13 +8,14 @@ import { Dither } from '@/components/marketing/dither';
 import { Reveal } from '@/components/marketing/motion';
 import { Newsreader } from 'next/font/google';
 import { cn } from '@/lib/utils';
-import { Code, EXTENSION_KB, EXTENSION_VERSION, EXTENSION_ZIP, INSTALL_STEPS } from '@/components/install-steps';
+import { Code, EXTENSION_URL } from '@/components/install-steps';
 
 /** The public landing page. Static: it never reads the session or the
  *  database (proxy.ts lets `/` through without a cookie). Signed in or not,
  *  "Open dashboard" is a plain link to /rekod; the proxy sends a signed-out
  *  visitor on to /login. REKOD_DESIGN_SYSTEM.md "Landing page" has the rules.
- *  Few sections on purpose: hero, what it catches, install, footer. */
+ *  Few sections on purpose: hero, what it catches, sharing, install,
+ *  self-host, footer. */
 
 const SUB = 'Record any tab and rekod brings the five minutes before it, so nobody has to ask what happened.';
 
@@ -23,8 +24,7 @@ export const metadata: Metadata = {
   description: SUB,
 };
 
-const ZIP = EXTENSION_ZIP;
-const README = '/rekod-extension-README.txt';
+const README = 'https://github.com/adityarawat007/Rekod#self-hosting';
 const WRAP = 'mx-auto w-full max-w-[1200px] px-4 narrow:px-7';
 // Headings only, and only on this page: a crisp display serif, the free
 // stand-in for the commercial Flecha the brief pointed at. Emphasis is the
@@ -32,18 +32,19 @@ const WRAP = 'mx-auto w-full max-w-[1200px] px-4 narrow:px-7';
 const serif = Newsreader({ subsets: ['latin'], axes: ['opsz'], style: ['normal', 'italic'], variable: '--font-display' });
 const DISPLAY = 'font-[family-name:var(--font-display)] font-normal tracking-[-0.025em] text-ink [font-variation-settings:"opsz"_72]';
 
-function Download({ onDusk = false }: { onDusk?: boolean }) {
+function AddToChrome({ onDusk = false }: { onDusk?: boolean }) {
   return (
     <a
-      href={ZIP}
-      download
+      href={EXTENSION_URL}
+      target="_blank"
+      rel="noopener"
       className={cn(
         buttonVariants({ size: 'lg', variant: onDusk ? 'outline' : 'default' }),
         'h-11 px-5 text-[15px] active:translate-y-px',
         onDusk && 'border-panel hover:bg-tint-soft',
       )}
     >
-      <ArrowDownToLine /> Download the extension
+      Add to Chrome <ArrowUpRight />
     </a>
   );
 }
@@ -88,7 +89,7 @@ export default function Landing() {
               </h1>
               <p className="max-w-[48ch] text-[17px] leading-[26px] text-muted-foreground narrow:text-[19px] narrow:leading-[29px]">{SUB}</p>
               <div className="flex flex-wrap gap-3 pt-1">
-                <Download />
+                <AddToChrome />
                 <OpenDashboard big />
               </div>
             </div>
@@ -100,6 +101,8 @@ export default function Landing() {
         <Sharing />
 
         <Install />
+
+        <SelfHost />
 
         <Hands />
       </main>
@@ -179,7 +182,7 @@ function Sharing() {
 // ── Install ───────────────────────────────────────────────────────────────
 
 const STEPS: React.ReactNode[] = [
-  ...INSTALL_STEPS,
+  <>Add rekod from the Chrome Web Store.</>,
   <>Pin rekod, then sign in on the dashboard. The extension uses that session.</>,
   <>On any page, press <Code>⌥⇧J</Code> to record.</>,
 ];
@@ -196,16 +199,13 @@ function Install() {
           <h2 className={cn(DISPLAY, 'pb-1 text-[48px] leading-[1.05] text-on-chrome narrow:text-[76px]')}>
             Install it <em>in Chrome.</em>
           </h2>
-          <Download onDusk />
-          <p className="mono text-xs text-on-chrome-muted">
-            Version {EXTENSION_VERSION}, a {EXTENSION_KB} KB zip
-          </p>
-          <p id="self-host" className="max-w-[44ch] scroll-mt-4 border-t border-on-chrome/20 pt-6 text-[15px] leading-[24px] text-on-chrome-muted">
-            Running your own? The backend is one Next.js app on any Postgres and any S3-compatible bucket.{' '}
-            <a href={README} className="font-medium text-on-chrome underline underline-offset-4">
-              The README
-            </a>{' '}
-            says what to point where.
+          <AddToChrome onDusk />
+          <p className="max-w-[44ch] border-t border-on-chrome/20 pt-6 text-[15px] leading-[24px] text-on-chrome-muted">
+            Running your own? It runs on Postgres or MongoDB and any S3-compatible bucket, Google Cloud Storage included.{' '}
+            <a href="#self-host" className="font-medium text-on-chrome underline underline-offset-4">
+              Self-host it
+            </a>
+            .
           </p>
         </Reveal>
 
@@ -221,6 +221,53 @@ function Install() {
           </ol>
         </Reveal>
       </div>
+    </section>
+  );
+}
+
+// ── Self-host: what it runs on, and the five lines that point it there ────
+
+const STACK = [
+  ['Database', 'Postgres (Supabase, Neon, RDS or your own) or MongoDB (Atlas or a single mongod). The URL picks which.'],
+  ['Storage', 'Any S3-compatible bucket: AWS S3, Google Cloud Storage, Cloudflare R2, Supabase Storage or MinIO. It stays private.'],
+  ['Sign-in', 'Google, with optional switches to close sign-up or allow only your email domain.'],
+  ['Hosting', 'Vercel, or anywhere that runs Next.js. One app is the whole backend.'],
+] as const;
+
+const ENV = [
+  'DATABASE_URL=postgres://…  # or mongodb+srv://…',
+  'S3_ENDPOINT=https://storage.googleapis.com',
+  'S3_BUCKET=rekod',
+  'BETTER_AUTH_SECRET=…',
+  'GOOGLE_CLIENT_ID=…',
+];
+
+function SelfHost() {
+  return (
+    <section id="self-host" className={cn(WRAP, 'grid scroll-mt-4 grid-cols-[minmax(0,1fr)] items-start gap-12 py-16 narrow:py-24 wide:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] wide:gap-16')}>
+      <Reveal className="space-y-10">
+        <h2 className={cn(DISPLAY, 'pb-1 text-[38px] leading-[1.1] narrow:text-[54px]')}>
+          Run it yourself. <em>On what you already have.</em>
+        </h2>
+        <dl className="grid gap-x-10 gap-y-8 narrow:grid-cols-2">
+          {STACK.map(([k, v]) => (
+            <div key={k} className="space-y-2 border-t border-ink pt-4">
+              <dt className="text-[17px] font-semibold text-ink">{k}</dt>
+              <dd className="text-[15px] leading-[23px] text-muted-foreground">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </Reveal>
+      <Reveal delay={0.1} className="space-y-6 wide:pt-4">
+        <pre className="mono overflow-x-auto border bg-panel p-6 text-[13px] leading-[22px] text-ink">{ENV.join('\n')}</pre>
+        <p className="text-[15px] leading-[24px] text-muted-foreground">
+          Recordings go from the browser straight to your bucket. Nothing passes through us.{' '}
+          <a href={README} className="font-medium text-ink underline underline-offset-4">
+            The README
+          </a>{' '}
+          has every step.
+        </p>
+      </Reveal>
     </section>
   );
 }
@@ -249,7 +296,7 @@ function Footer() {
       <div className={cn(WRAP, 'flex flex-col gap-6 py-10 narrow:flex-row narrow:items-center narrow:justify-between')}>
         <Brand href="/" className="text-on-chrome" />
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-1 font-medium text-on-chrome">
-          <a href={ZIP} download className="flex h-8 items-center underline-offset-4 hover:underline">Download the extension</a>
+          <a href={EXTENSION_URL} className="flex h-8 items-center underline-offset-4 hover:underline">Chrome Web Store</a>
           <Link href="/rekod" className="flex h-8 items-center underline-offset-4 hover:underline">Open dashboard</Link>
           <a href={README} className="flex h-8 items-center underline-offset-4 hover:underline">README</a>
           <Link href="/privacy" className="flex h-8 items-center underline-offset-4 hover:underline">Privacy</Link>

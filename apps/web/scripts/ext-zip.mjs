@@ -1,22 +1,12 @@
-// Packs apps/extension/ into the zip the landing page serves, and writes the
-// facts the page shows about it. One command, every copy:
+// Packs apps/extension/ into the Chrome Web Store upload: manifest.json at the
+// zip's root (the store refuses a nested folder), no README, written to the
+// Desktop by default.
 //
-//   apps/web/public/rekod-extension.zip       the download (/rekod-extension.zip)
-//   apps/web/src/lib/extension-release.json   version + size, read by the landing page
-//   apps/web/public/rekod-extension-README.txt  the README, linked from the landing page
+// Run: pnpm ext:store [path]   (from the repo root; no dependencies, no `zip` binary)
 //
-// Run: pnpm ext:zip   (from the repo root; no dependencies, no `zip` binary)
-// `next build` runs it first (the `build` script), so a deploy never serves a
-// stale zip. `--check` writes nothing and exits 1 if the committed zip does not
-// hold exactly the current source files — test-logic.ts runs that, so CI catches a forgotten
-// re-run after any change under apps/extension/, not only a version bump.
-//
-// The archive has one folder at its root, rekod-extension/, so "Load unpacked"
-// points at exactly one thing. Entries are sorted and stamped with a fixed
-// date, so the same source always makes the same bytes and a re-run with no
-// change leaves git clean. test-logic.ts fails if the JSON's version is not
-// manifest.json's, which is how a version bump without a re-run gets caught.
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+// Entries are sorted and stamped with a fixed date, so the same source always
+// makes the same bytes.
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
@@ -24,14 +14,6 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const src = join(root, 'apps/extension');
-const out = join(root, 'apps/web/public/rekod-extension.zip');
-const facts = join(root, 'apps/web/src/lib/extension-release.json');
-const readme = join(root, 'apps/web/public/rekod-extension-README.txt');
-const FOLDER = 'rekod-extension';
-// `--store [path]`: the Chrome Web Store upload instead — manifest.json at the
-// zip's root (the store refuses a nested folder), no README, written to the
-// Desktop by default. Nothing else is touched.
-const STORE = process.argv.includes('--store');
 
 // Chrome loads everything in the folder, so only what the extension needs goes
 // in. Dotfiles (.DS_Store, .env), dependency trees and lockfiles never ship.
@@ -58,14 +40,14 @@ const DOS_TIME = 0;
 const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1;
 
 const manifest = JSON.parse(readFileSync(join(src, 'manifest.json'), 'utf8'));
-const files = walk(src).filter((f) => !(STORE && relative(src, f) === 'README.md')).sort();
+const files = walk(src).filter((f) => relative(src, f) !== 'README.md').sort();
 if (!files.some((f) => relative(src, f) === 'manifest.json')) throw new Error(`no manifest.json in ${src}`);
 
 const locals = [];
 const centrals = [];
 let offset = 0;
 for (const file of files) {
-  const name = Buffer.from(`${STORE ? '' : `${FOLDER}/`}${relative(src, file).split(sep).join('/')}`);
+  const name = Buffer.from(relative(src, file).split(sep).join('/'));
   const data = readFileSync(file);
   const packed = deflateRawSync(data, { level: 9 });
   const crc = crc32(data);
@@ -111,43 +93,7 @@ end.writeUInt32LE(dir.length, 12);
 end.writeUInt32LE(offset, 16);
 
 const zip = Buffer.concat([...locals, dir, end]);
-if (STORE) {
-  const arg = process.argv[process.argv.indexOf('--store') + 1];
-  const dest = arg && !arg.startsWith('-') ? arg : join(homedir(), 'Desktop', `rekod-${manifest.version}-chrome-web-store.zip`);
-  writeFileSync(dest, zip);
-  console.log(`ReKod ${manifest.version} for the Chrome Web Store: ${files.length} files, ${(zip.length / 1024).toFixed(0)} KB\n  wrote ${dest}`);
-  process.exit(0);
-}
-if (process.argv.includes('--check')) {
-  // Compares what is IN the zip — names, sizes, CRC-32s from its central
-  // directory — not its bytes: zlib versions (Node 23 here, Node 24 in CI)
-  // compress the same file differently, so the bytes never match across machines.
-  const entries = (buf) => {
-    const list = [];
-    let p = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-    if (p < 0) return null;
-    const count = buf.readUInt16LE(p + 10);
-    p = buf.readUInt32LE(p + 16);
-    for (let i = 0; i < count; i++) {
-      const n = buf.readUInt16LE(p + 28), x = buf.readUInt16LE(p + 30), c = buf.readUInt16LE(p + 32);
-      list.push(`${buf.toString('utf8', p + 46, p + 46 + n)} ${buf.readUInt32LE(p + 24)} ${buf.readUInt32LE(p + 16)}`);
-      p += 46 + n + x + c;
-    }
-    return list.join('\n');
-  };
-  let committed = null;
-  try { committed = entries(readFileSync(out)); } catch {}
-  if (committed !== entries(zip)) { console.error('public/rekod-extension.zip is stale: run `pnpm ext:zip`'); process.exit(1); }
-  process.exit(0);
-}
-writeFileSync(out, zip);
-writeFileSync(readme, readFileSync(join(src, 'README.md')));
-writeFileSync(facts, JSON.stringify({ version: manifest.version, bytes: zip.length, files: files.length }, null, 2) + '\n');
-
-const kb = (zip.length / 1024).toFixed(0);
-console.log(`ReKod ${manifest.version}: ${files.length} files, ${kb} KB`);
-console.log(`  wrote ${relative(root, out)}`);
-console.log(`  wrote ${relative(root, facts)}`);
-console.log(`  wrote ${relative(root, readme)}`);
-// Never let a stray file slip in unnoticed: say what shipped.
-console.log(files.map((f) => `  + ${FOLDER}/${relative(src, f).split(sep).join('/')} (${statSync(f).size} B)`).join('\n'));
+const arg = process.argv[2];
+const dest = arg && !arg.startsWith('-') ? arg : join(homedir(), 'Desktop', `rekod-${manifest.version}-chrome-web-store.zip`);
+writeFileSync(dest, zip);
+console.log(`Rekod ${manifest.version} for the Chrome Web Store: ${files.length} files, ${(zip.length / 1024).toFixed(0)} KB\n  wrote ${dest}`);
