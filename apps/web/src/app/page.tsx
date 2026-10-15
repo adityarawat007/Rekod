@@ -24,7 +24,8 @@ export const metadata: Metadata = {
   description: SUB,
 };
 
-const README = 'https://github.com/adityarawat007/Rekod#self-hosting';
+const REPO = 'https://github.com/adityarawat007/Rekod';
+const README = `${REPO}#self-hosting`;
 const WRAP = 'mx-auto w-full max-w-[1200px] px-4 narrow:px-7';
 // Headings only, and only on this page: a crisp display serif, the free
 // stand-in for the commercial Flecha the brief pointed at. Emphasis is the
@@ -49,6 +50,15 @@ function AddToChrome({ onDusk = false }: { onDusk?: boolean }) {
   );
 }
 
+// lucide dropped brand icons, so the GitHub mark is drawn here.
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3" />
+    </svg>
+  );
+}
+
 function OpenDashboard({ big = false }: { big?: boolean }) {
   return (
     <Link href="/rekod" className={cn(buttonVariants({ size: 'lg', variant: 'outline' }), big && 'h-11 px-5 text-[15px]')}>
@@ -68,6 +78,9 @@ export default function Landing() {
             <a href="#self-host" className="flex h-[38px] items-center hover:text-ink">Self-host</a>
           </nav>
           <div className="ml-auto flex items-center gap-2 narrow:ml-0">
+            <a href={REPO} target="_blank" rel="noopener" aria-label="Rekod on GitHub" className={buttonVariants({ variant: 'outline', size: 'icon-lg' })}>
+              <GitHubMark />
+            </a>
             <ThemeToggle />
             <OpenDashboard />
           </div>
@@ -298,6 +311,7 @@ function Footer() {
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-1 font-medium text-on-chrome">
           <a href={EXTENSION_URL} className="flex h-8 items-center underline-offset-4 hover:underline">Chrome Web Store</a>
           <Link href="/rekod" className="flex h-8 items-center underline-offset-4 hover:underline">Open dashboard</Link>
+          <a href={REPO} className="flex h-8 items-center underline-offset-4 hover:underline">GitHub</a>
           <a href={README} className="flex h-8 items-center underline-offset-4 hover:underline">README</a>
           <Link href="/privacy" className="flex h-8 items-center underline-offset-4 hover:underline">Privacy</Link>
         </nav>
