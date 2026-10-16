@@ -19,9 +19,16 @@ import { Code, EXTENSION_URL } from '@/components/install-steps';
 
 const SUB = 'Record any tab and rekod brings the five minutes before it, so nobody has to ask what happened.';
 
+const TITLE = 'rekod: every report arrives with its backstory';
+// og.png is a 1200×630 screenshot of the hero; retake it when the hero changes.
+// Relative: Next resolves it against the Vercel production URL.
+const OG = { url: '/og.png', width: 1200, height: 630, alt: 'rekod: every report arrives with its backstory.' };
+
 export const metadata: Metadata = {
-  title: 'rekod: every report arrives with its backstory',
+  title: TITLE,
   description: SUB,
+  openGraph: { title: TITLE, description: SUB, type: 'website', siteName: 'rekod', images: [OG] },
+  twitter: { card: 'summary_large_image', title: TITLE, description: SUB, images: [OG] },
 };
 
 const REPO = 'https://github.com/adityarawat007/Rekod';
