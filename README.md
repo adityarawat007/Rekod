@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/banner.png" alt="" width="100%">
-</p>
-
 <h1 align="center">
   <img src="apps/web/public/rekod-mark.svg" alt="" width="40" align="absmiddle">
   rekod

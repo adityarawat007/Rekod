@@ -7,6 +7,8 @@ import { clock, stamp, trackPct } from '@/lib/format';
 import { isError, isNet, isWarn, netFailed, type TimelineEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
+const RATES = [1, 1.5, 2, 0.5];
+
 export type Media = { url: string; kind: 'video' | 'shot'; poster?: string };
 
 /** Shared by the player and the log pane: a log row seeks the video. */
@@ -22,7 +24,10 @@ export function usePlayhead() {
     seekTo(s);
     void video.current?.play();
   };
-  return { video, now, setNow, dur, setDur, seekTo, playFrom };
+  const setSpeed = (r: number) => {
+    if (video.current) video.current.playbackRate = r;
+  };
+  return { video, now, setNow, dur, setDur, seekTo, playFrom, setSpeed };
 }
 
 type Playhead = ReturnType<typeof usePlayhead>;
@@ -40,7 +45,7 @@ export function ReportPlayer({
   offsetOf: (e: TimelineEntry) => number;
   span: { lo: number; hi: number };
 }) {
-  const { video, now, setNow, dur, setDur, seekTo, playFrom } = playhead;
+  const { video, now, setNow, dur, setDur, seekTo, playFrom, setSpeed } = playhead;
   const [ready, setReady] = useState(false);
   const [broken, setBroken] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -70,22 +75,21 @@ export function ReportPlayer({
     }
   };
 
-  /** "Fullscreen" restyles this same <video> as a fixed overlay. A second
-   *  player in a dialog would start at 0:00 with an empty buffer. */
+  /** Native fullscreen on the whole stage, not the <video>: the custom track
+   *  (pre-roll, error ticks) has to come along. The browser owns Esc. */
   const stage = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
 
   useEffect(() => {
-    if (!full) return;
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && setFull(false);
-    document.addEventListener('keydown', key);
-    const { overflow } = document.documentElement.style;
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', key);
-      document.documentElement.style.overflow = overflow;
-    };
-  }, [full]);
+    const sync = () => setFull(document.fullscreenElement === stage.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  const toggleFull = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void stage.current?.requestFullscreen();
+  };
 
   const toggle = () => {
     const v = video.current;
@@ -94,6 +98,31 @@ export function ReportPlayer({
     else v.pause();
   };
 
+  const skip = (d: number) => video.current && seekTo(video.current.currentTime + d);
+
+  const [rate, setRate] = useState(1);
+  const cycleRate = () => {
+    const r = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+    setRate(r);
+    setSpeed(r);
+  };
+
+  /** Space/k play, ←/→ 5s, f fullscreen — while focus is in the player, so the
+   *  editable title and the log search keep their keys. */
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!media || (e.target as HTMLElement).closest('input, button')) return;
+    const act: Record<string, () => void> = { f: toggleFull };
+    if (media.kind === 'video') {
+      Object.assign(act, { ' ': toggle, k: toggle, ArrowLeft: () => skip(-5), ArrowRight: () => skip(5) });
+    }
+    const fn = act[e.key];
+    if (!fn) return;
+    e.preventDefault();
+    fn();
+  };
+
+  const ghost = full ? 'text-on-chrome hover:bg-on-chrome/10' : undefined;
+
   const pct = (s: number) => trackPct(s, span.lo, span.hi);
   // Failures only: every request would turn the track into a barcode.
   const ticks = entries.filter((e) => isError(e) || isWarn(e) || (isNet(e) && netFailed(e)));
@@ -101,17 +130,15 @@ export function ReportPlayer({
   return (
     <div
       ref={stage}
-      role={full ? 'dialog' : undefined}
-      aria-modal={full || undefined}
-      aria-label={full ? 'Rekod' : undefined}
-      onClick={full ? (e) => e.target === stage.current && setFull(false) : undefined}
+      tabIndex={-1}
+      onKeyDown={onKey}
       className={cn(
-        'flex shrink-0 flex-col overflow-hidden border bg-panel',
-        full && 'fixed inset-0 z-50 border-0 bg-chrome p-4 narrow:p-8',
+        'flex shrink-0 flex-col overflow-hidden border bg-panel outline-none',
+        full && 'border-0 bg-chrome',
       )}
     >
       <div
-        onDoubleClick={media ? () => setFull((v) => !v) : undefined}
+        onDoubleClick={media ? toggleFull : undefined}
         className={cn('group/stage relative bg-chrome', full ? 'min-h-0 flex-1' : 'aspect-video')}
       >
         {!media ? (
@@ -154,12 +181,12 @@ export function ReportPlayer({
           <div className="absolute inset-0 animate-pulse bg-on-chrome/5" aria-hidden />
         )}
 
-        {media && (
+        {media?.kind === 'shot' && (
           <Button
             size="icon-sm"
-            onClick={() => setFull((v) => !v)}
-            aria-label={full ? 'Close the large player' : 'Open the large player'}
-            title={full ? 'Close (Esc)' : 'Expand — or double-click the picture'}
+            onClick={toggleFull}
+            aria-label={full ? 'Exit full screen' : 'Full screen'}
+            title={full ? 'Exit full screen (f)' : 'Full screen (f) — or double-click the picture'}
             className="absolute right-3 top-3 z-20 border-0 bg-chrome text-on-chrome transition-opacity duration-150 hover:bg-primary focus-visible:opacity-100 narrow:opacity-0 narrow:group-hover/stage:opacity-100"
           >
             {full ? <Minimize /> : <Maximize />}
@@ -191,7 +218,8 @@ export function ReportPlayer({
             onClick={toggle}
             disabled={broken}
             aria-label={playing ? 'Pause' : 'Play'}
-            className={full ? 'text-on-chrome hover:bg-on-chrome/10' : undefined}
+            title={playing ? 'Pause (k)' : 'Play (k)'}
+            className={ghost}
           >
             {playing ? <Pause className="fill-current" /> : <Play className="fill-current" />}
           </Button>
@@ -239,6 +267,14 @@ export function ReportPlayer({
           </div>
 
           <span className={cn('mono shrink-0 text-xs', full ? 'text-on-chrome-muted' : 'text-muted-foreground')}>{dur ? clock(dur) : '—:—'}</span>
+
+          {/* ponytail: a cycling button, not a menu — a portalled menu renders under a fullscreen element. */}
+          <Button size="sm" variant="ghost" onClick={cycleRate} disabled={broken} aria-label={`Playback speed ${rate}×`} title="Playback speed" className={cn('mono w-12 text-xs', ghost)}>
+            {rate}×
+          </Button>
+          <Button size="icon-sm" variant="ghost" onClick={toggleFull} aria-label={full ? 'Exit full screen' : 'Full screen'} title={full ? 'Exit full screen (f)' : 'Full screen (f)'} className={ghost}>
+            {full ? <Minimize /> : <Maximize />}
+          </Button>
         </div>
       )}
     </div>
