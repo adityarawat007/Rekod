@@ -15,7 +15,8 @@ const TYPES = [
 ] as const;
 
 /** Filters live in the URL, so a filtered list is a link you can paste. */
-export function ReportFilters() {
+/** `site` is the site picker, a server-fed chip that sits just before the search box. */
+export function ReportFilters({ site }: { site?: React.ReactNode }) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, start] = useTransition();
@@ -107,6 +108,8 @@ export function ReportFilters() {
           </button>
         ) : null}
       </div>
+
+      {site}
 
       <div className="relative min-w-0 flex-1 sm:w-80 sm:flex-none">
         <Icon
