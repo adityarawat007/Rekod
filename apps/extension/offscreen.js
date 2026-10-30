@@ -6,12 +6,13 @@
 const CAP_MS = 180_000;
 const WINDOW_MS = 300_000;
 const MAX = 2000;              // ponytail: entry ceiling per tab. Raise if long sessions truncate.
-// Sound is built and switched off. Recordings are silent again: no tab audio,
-// no mic, no permission page, no audio graph — this one flag gates all of it,
-// and with it false every line below behaves exactly as it did before audio
-// existed. Flip it to true to bring the feature back whole, then check the audio
-// by hand — nothing tests the dormant path.
-const AUDIO = false;
+// Sound is on: the tab's own audio rides along with the video (30 Oct 2026).
+// This one flag gates all of it — tab audio, mic, the audio graph — and with it
+// false every line below behaves exactly as it did before audio existed. The
+// mic is still off: its switch in popup.html / popup.js is commented out, and
+// worker.js sends `mic: false` until it comes back. Nothing tests this path;
+// check the audio by hand.
+const AUDIO = true;
 // Picked per recording, not once: the audio codec belongs in the string only
 // when the stream actually carries an audio track.
 const mimeFor = (audio) =>

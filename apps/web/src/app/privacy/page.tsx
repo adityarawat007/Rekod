@@ -60,7 +60,10 @@ export default function Privacy() {
               name and the page&apos;s build tag if it publishes one.
             </li>
           </ul>
-          <p>The extension does not record keystrokes, the values you type into forms, or the page&apos;s HTML.</p>
+          <p>
+            The extension does not record keystrokes, the values you type into forms, the page&apos;s HTML, your
+            microphone, or sound from other tabs and apps.
+          </p>
         </Section>
 
         <Section title="What is uploaded, and when">
@@ -69,7 +72,7 @@ export default function Privacy() {
             recording stops (or the screenshot is cropped), the extension uploads to your Rekod dashboard:
           </p>
           <ul>
-            <li>the video of that tab (no audio, up to 3 minutes) or the screenshot, plus a still frame for the thumbnail;</li>
+            <li>the video of that tab, with the sound that tab played (up to 3 minutes), or the screenshot, plus a still frame for the thumbnail;</li>
             <li>the console and network entries from the buffer and from the recording;</li>
             <li>the page URL and the environment details above;</li>
             <li>the title and description you type, when you save.</li>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Maximize, Minimize, Pause, Play } from 'lucide-react';
+import { AlertTriangle, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { clock, stamp, trackPct } from '@/lib/format';
 import { isError, isNet, isWarn, netFailed, type TimelineEntry } from '@/lib/types';
@@ -49,9 +49,9 @@ export function ReportPlayer({
   const [ready, setReady] = useState(false);
   const [broken, setBroken] = useState(false);
   const [playing, setPlaying] = useState(false);
-  // Recordings are silent (AUDIO in extension/offscreen.js); a mute control
-  // comes back with sound.
-  const muted = false;
+  // Recordings carry the tab's audio (AUDIO in extension/offscreen.js).
+  // ponytail: mute only, no volume slider — the OS has one.
+  const [muted, setMuted] = useState(false);
 
   // True mid-probe, while currentTime is 1e101 and must not reach `now`.
   const probing = useRef(false);
@@ -107,13 +107,13 @@ export function ReportPlayer({
     setSpeed(r);
   };
 
-  /** Space/k play, ←/→ 5s, f fullscreen — while focus is in the player, so the
+  /** Space/k play, ←/→ 5s, m mute, f fullscreen — while focus is in the player, so the
    *  editable title and the log search keep their keys. */
   const onKey = (e: React.KeyboardEvent) => {
     if (!media || (e.target as HTMLElement).closest('input, button')) return;
     const act: Record<string, () => void> = { f: toggleFull };
     if (media.kind === 'video') {
-      Object.assign(act, { ' ': toggle, k: toggle, ArrowLeft: () => skip(-5), ArrowRight: () => skip(5) });
+      Object.assign(act, { ' ': toggle, k: toggle, m: () => setMuted((x) => !x), ArrowLeft: () => skip(-5), ArrowRight: () => skip(5) });
     }
     const fn = act[e.key];
     if (!fn) return;
@@ -271,6 +271,9 @@ export function ReportPlayer({
           {/* ponytail: a cycling button, not a menu — a portalled menu renders under a fullscreen element. */}
           <Button size="sm" variant="ghost" onClick={cycleRate} disabled={broken} aria-label={`Playback speed ${rate}×`} title="Playback speed" className={cn('mono w-12 text-xs', ghost)}>
             {rate}×
+          </Button>
+          <Button size="icon-sm" variant="ghost" onClick={() => setMuted((x) => !x)} disabled={broken} aria-label={muted ? 'Unmute' : 'Mute'} title={muted ? 'Unmute (m)' : 'Mute (m)'} className={ghost}>
+            {muted ? <VolumeX /> : <Volume2 />}
           </Button>
           <Button size="icon-sm" variant="ghost" onClick={toggleFull} aria-label={full ? 'Exit full screen' : 'Full screen'} title={full ? 'Exit full screen (f)' : 'Full screen (f)'} className={ghost}>
             {full ? <Minimize /> : <Maximize />}

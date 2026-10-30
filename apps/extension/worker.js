@@ -8,7 +8,9 @@ async function ensureOffscreen() {
   try {
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
-      // AUDIO_PLAYBACK comes back here with AUDIO = true in offscreen.js.
+      // ponytail: USER_MEDIA covers playing the captured tab audio back out
+      // (Chrome's own tabcapture sample does the same). AUDIO_PLAYBACK would also
+      // close this document after 30s of silence, taking the log buffer with it.
       reasons: ['USER_MEDIA'],
       justification: 'Record the tab being captured and buffer its console and network logs.',
     });
@@ -201,10 +203,11 @@ async function allowed(kind) {
 async function startVideo(tab) {
   await refuse(tab);
   // The mic setting lives in storage, not in the message, because the hotkey
-  // path never opens the popup — one switch for both ways in. Nothing writes it
-  // while AUDIO is off in offscreen.js, which ignores the flag anyway; the read
-  // stays so the switch is the only thing that has to come back.
-  const { fjMic } = await chrome.storage.local.get('fjMic');
+  // path never opens the popup — one switch for both ways in. The switch is
+  // still commented out in popup.js, so the read is pinned off: a stale fjMic
+  // from a dev build must not record a mic nobody can see is on. Restore
+  // `!!fjMic` below together with the switch.
+  const fjMic = false;
   // The plan check is a round trip to the dashboard (~0.3s in production,
   // seconds against a dev server), so recording does not wait for it: it
   // starts now, and a refusal that lands afterwards throws the capture away
@@ -216,7 +219,7 @@ async function startVideo(tab) {
   // After the stream id (which needs this gesture's activeTab grant), before
   // anything records: no pill means no way to stop, and `rec` must stay unset.
   if (!(await ensureWidget(tab.id))) throw new Error(CANT_RUN);
-  const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: !!fjMic });
+  const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: fjMic });
   if (r?.err) throw new Error(r.err);
   dropIfRefused(tab, refused);
   return { ok: true };

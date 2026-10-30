@@ -2,8 +2,8 @@
 // record the tab, or take a screenshot of it (un-parked 23 Sep 2026; the routing
 // and the viewer had never gone away). Which view shows is just whether the
 // dashboard has a live session — the uploader needs a real token now that
-// reports are owned rows. Signing in happens on the dashboard. Sound is built
-// and switched off: see AUDIO in offscreen.js and the commented block below.
+// reports are owned rows. Signing in happens on the dashboard. Tab audio is
+// recorded (AUDIO in offscreen.js); the mic switch is the commented block below.
 const $ = (id) => document.getElementById(id);
 const show = (el, on) => { el.hidden = !on; };
 
@@ -68,9 +68,9 @@ const go = async (t, btn) => {
 $('rec').onclick = (e) => go('record', e.currentTarget);
 $('shot').onclick = (e) => go('shot', e.currentTarget);
 
-/* ── the microphone switch — off with the rest of the sound ─────────────────
-   Uncomment with the <label class="toggle"> block in popup.html and AUDIO in
-   offscreen.js. Tab audio needs no permission and rides along with the video;
+/* ── the microphone switch — off while tab audio is on ──────────────────────
+   Uncomment with the <label class="toggle"> block in popup.html and the fjMic
+   read in worker.js. Tab audio needs no permission and rides along with the video;
    the mic is a choice and a prompt. The setting lives in chrome.storage
    because the hotkey path never opens this popup — worker.js reads it there.
 
