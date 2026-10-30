@@ -49,8 +49,9 @@ export function ReportPlayer({
   const [ready, setReady] = useState(false);
   const [broken, setBroken] = useState(false);
   const [playing, setPlaying] = useState(false);
-  // Recordings are silent (AUDIO in extension/offscreen.js); a mute control
-  // comes back with sound.
+  // Recordings carry the tab's audio (AUDIO in extension/offscreen.js); the
+  // <video> plays it at the browser's volume. ponytail: no mute button — add
+  // one if loud recordings become a complaint.
   const muted = false;
 
   // True mid-probe, while currentTime is 1e101 and must not reach `now`.

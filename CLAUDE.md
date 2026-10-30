@@ -219,19 +219,21 @@ hatched rows. What remains is the clock, and `stamp()` still writes `−0:12`,
 because without the sign that row and the one twelve seconds after record read
 identically. Do not re-add the chrome.
 
-**Recordings are silent, and sound is switched off rather than absent.**
-`const AUDIO = false` at the top of `apps/extension/offscreen.js` is the whole
-control: with it false nothing asks for audio, no graph is built, no `,opus`
-reaches the mime string, and every line behaves as it did before audio existed.
-Flipping it to true brings back tab audio plus an optional mic — the popup's
-mic switch (`<label class="toggle">` in `popup.html` and the commented block in
-`popup.js`, which must be uncommented **together**: `popup.js` reads `#mic` at
-load), the mute in `components/report/player.tsx` and the `AUDIO_PLAYBACK`
-offscreen reason in `worker.js` come back with it. Nothing tests the
-dormant path any more (the root test files were removed 27 Sep 2026), so
-flipping the flag means checking the audio by hand. Do not delete the flag.
+**Recordings carry the tab's sound; the mic is switched off rather than absent.**
+`const AUDIO = true` at the top of `apps/extension/offscreen.js` (30 Oct 2026,
+reversing the silent recordings) gates all of it: with it false nothing asks for
+audio, no graph is built and no `,opus` reaches the mime string. Tab audio is
+`tabCapture`'s — only the captured tab, never other tabs, apps or the OS mix. The
+mic stays off: its popup switch (`<label class="toggle">` in `popup.html` and the
+commented block in `popup.js`, uncommented **together** — `popup.js` reads `#mic`
+at load) and the `fjMic` read in `worker.js` (pinned to `false` so a stale
+setting cannot record a mic nobody can see) come back as one change. The
+offscreen document keeps `USER_MEDIA` alone: `AUDIO_PLAYBACK` would close it
+after 30s of silence and lose the log buffer. Nothing tests the audio path (the
+root test files were removed 27 Sep 2026), so check it by hand. Do not delete
+the flag.
 
-What that dormant code knows, and why it is not obvious: capturing a tab's
+What the audio code knows, and why it is not obvious: capturing a tab's
 audio takes it **away from the speakers**, so the tab source is connected to
 `ctx.destination` as well as to the recording. The mic is mixed through a
 `MediaStreamDestination` and is **never** connected to `ctx.destination` —

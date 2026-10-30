@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rekod",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Record a tab with the last 5 minutes of console and network already captured, and send it as a bug report.",
   "homepage_url": "https://rekody.vercel.app",
   "minimum_chrome_version": "116",
