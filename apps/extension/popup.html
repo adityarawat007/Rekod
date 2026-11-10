@@ -98,22 +98,25 @@
       <rect x="1.5" y="3" width="9.5" height="10" rx="2"/><path d="M11 7.2l3.5-2.2v6L11 8.8z"/></svg>
     <span>Record this tab<small>Up to 3 minutes</small></span>
   </button>
+  <button id="screen">
+    <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+      <rect x="1.5" y="2.5" width="13" height="8.5" rx="1"/><path d="M5.5 14h5M8 11v3"/></svg>
+    <span>Record a window or screen<small>Pick it in Chrome's dialog</small></span>
+  </button>
   <button id="shot">
     <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
       <path d="M1.5 5.5a1 1 0 0 1 1-1h1.8l1-1.7h4.4l1 1.7h1.8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1z"/>
       <circle cx="8" cy="8.3" r="2.4"/></svg>
     <span>Screenshot this tab<small>Drag to pick the area</small></span>
   </button>
-  <!-- The mic switch, off while tab audio is on (AUDIO in offscreen.js).
-       Uncomment this and the block in popup.js together — popup.js reads #mic
-       at load, so one without the other is a popup that does not paint.
+  <!-- The mic switch (AUDIO in offscreen.js). popup.js reads #mic at load:
+       remove one and remove the other, or the popup does not paint. -->
   <label class="toggle">
     <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
       <rect x="5.7" y="1.5" width="4.6" height="8" rx="2.3"/><path d="M3.2 7.4a4.8 4.8 0 0 0 9.6 0M8 12.2v2.3"/></svg>
     <span>Record my microphone<small id="mic-note">Off — tab audio only</small></span>
     <input type="checkbox" id="mic">
   </label>
-  -->
 </div>
 <div class="hint" id="hotkey" hidden><kbd>⌥⇧J</kbd> records straight away</div>
 <div class="who" id="who" hidden><span id="me"></span><button type="button" id="dash">Dashboard<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 11l6-6M6 5h5v5"/></svg></button></div>

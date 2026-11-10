@@ -2,8 +2,8 @@
 // record the tab, or take a screenshot of it (un-parked 23 Sep 2026; the routing
 // and the viewer had never gone away). Which view shows is just whether the
 // dashboard has a live session — the uploader needs a real token now that
-// reports are owned rows. Signing in happens on the dashboard. Tab audio is
-// recorded (AUDIO in offscreen.js); the mic switch is the commented block below.
+// reports are owned rows. Signing in happens on the dashboard. Sound is the
+// captured tab's, plus the mic when its switch is on (AUDIO in offscreen.js).
 const $ = (id) => document.getElementById(id);
 const show = (el, on) => { el.hidden = !on; };
 
@@ -67,12 +67,12 @@ const go = async (t, btn) => {
 
 $('rec').onclick = (e) => go('record', e.currentTarget);
 $('shot').onclick = (e) => go('shot', e.currentTarget);
+$('screen').onclick = (e) => go('screen', e.currentTarget);
 
-/* ── the microphone switch — off while tab audio is on ──────────────────────
-   Uncomment with the <label class="toggle"> block in popup.html and the fjMic
-   read in worker.js. Tab audio needs no permission and rides along with the video;
-   the mic is a choice and a prompt. The setting lives in chrome.storage
-   because the hotkey path never opens this popup — worker.js reads it there.
+/* ── the microphone switch ─────────────────────────────────────────────────
+   Tab audio needs no permission and rides along with the video; the mic is a
+   choice and a prompt. The setting lives in chrome.storage because the hotkey
+   path never opens this popup — worker.js reads it there. */
 
 const mic = $('mic');
 const micNote = $('mic-note');
@@ -117,7 +117,6 @@ async function askMic() {
     fail('Microphone blocked. Allow it for this extension, or record with tab audio only.');
   }
 }
-─────────────────────────────────────────────────────────────────────────── */
 
 const openDash = (path) => {
   chrome.tabs.create({ url: DASH + path });
@@ -136,4 +135,8 @@ async function boot() {
   render(session ? { state: 'live', session } : await fjSessionState());
 }
 
-boot();
+if (new URLSearchParams(location.search).has('mic')) askMic();
+else {
+  boot();
+  chrome.storage.local.get('fjMic').then(({ fjMic }) => { mic.checked = !!fjMic; paintMic(!!fjMic); });
+}

@@ -6,12 +6,11 @@
 const CAP_MS = 180_000;
 const WINDOW_MS = 300_000;
 const MAX = 2000;              // ponytail: entry ceiling per tab. Raise if long sessions truncate.
-// Sound is on: the tab's own audio rides along with the video (30 Oct 2026).
-// This one flag gates all of it — tab audio, mic, the audio graph — and with it
-// false every line below behaves exactly as it did before audio existed. The
-// mic is still off: its switch in popup.html / popup.js is commented out, and
-// worker.js sends `mic: false` until it comes back. Nothing tests this path;
-// check the audio by hand.
+// Sound is on: the captured tab's (or window's) audio rides along with the
+// video, plus the mic when the popup's switch is on (10 Nov 2026). This one flag
+// gates all of it — tab audio, mic, the audio graph — and with it false every
+// line below behaves exactly as it did before audio existed. Nothing tests this
+// path; check the audio by hand.
 const AUDIO = true;
 // Picked per recording, not once: the audio codec belongs in the string only
 // when the stream actually carries an audio track.
@@ -72,7 +71,7 @@ async function handle(msg, sender) {
 
     case 'shot':    return takeShot(msg.dataUrl, msg.tabId);
     case 'crop':    return cropShot(msg.rect, msg.vw);
-    case 'start':   return start(msg.streamId, msg.tabId, msg.mic);
+    case 'start':   return start(msg.streamId, msg.tabId, msg.mic, msg.screen);
     case 'stop':    return stop();
     case 'discard': return discard();
     case 'send':    return upload(msg.title, msg.desc, msg.env);
@@ -141,8 +140,22 @@ async function cropShot(rect, vw) {
 /** The tab's own picture and sound. One stream id serves both constraints.
  *  ponytail: one retry without audio — a tab that cannot hand over its audio
  *  (rare, but a capture already held elsewhere does it) is still worth
- *  recording silently. The retry may fail too: a stream id is short-lived. */
-async function grab(streamId) {
+ *  recording silently. The retry may fail too: a stream id is short-lived.
+ *
+ *  `screen` is a window or the whole screen, picked in Chrome's own share
+ *  dialog. getDisplayMedia, not chrome.desktopCapture: a desktopCapture stream
+ *  id is refused in an offscreen document ("Invalid state"), and this needs no
+ *  manifest permission — only the DISPLAY_MEDIA reason in worker.js. Audio is
+ *  whatever the dialog offers (a tab's, or the system's on Windows/ChromeOS;
+ *  macOS shares none for a window or screen). 1920 wide, not 1280: a screen's
+ *  text is smaller than a tab's. Same bitrate, so the same upload size. */
+async function grab(streamId, screen) {
+  if (screen) {
+    return navigator.mediaDevices.getDisplayMedia({
+      video: { width: { max: 1920 }, frameRate: { max: 10 } },
+      audio: AUDIO,
+    });
+  }
   const tab = (extra) => ({ mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId, ...extra } });
   const video = tab({ maxWidth: 1280, maxFrameRate: 10 });
   if (!AUDIO) return navigator.mediaDevices.getUserMedia({ video });
@@ -153,10 +166,20 @@ async function grab(streamId) {
   }
 }
 
-async function start(streamId, tabId, mic) {
+async function start(streamId, tabId, mic, screen) {
   if (rec) return { err: 'A capture is already in progress' };
-  stream = await grab(streamId);
-  stream.getVideoTracks()[0].contentHint = 'detail';
+  try {
+    stream = await grab(streamId, screen);
+  } catch (e) {
+    // Closing the share dialog is a NotAllowedError, not a failure.
+    if (screen && e?.name === 'NotAllowedError') return { err: 'Screen recording cancelled' };
+    throw e;
+  }
+  const track = stream.getVideoTracks()[0];
+  track.contentHint = 'detail';
+  // Chrome's own "Stop sharing" bar ends the track; treat it as our stop. Only
+  // for a screen: a tab's track ends when the tab closes, and tab-gone discards.
+  if (screen) track.onended = stop;
 
   // The mic is optional and its permission is granted on an extension PAGE —
   // an offscreen document has no window to prompt from. Denied means record
