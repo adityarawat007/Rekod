@@ -219,19 +219,31 @@ hatched rows. What remains is the clock, and `stamp()` still writes `−0:12`,
 because without the sign that row and the one twelve seconds after record read
 identically. Do not re-add the chrome.
 
-**Recordings carry the tab's sound; the mic is switched off rather than absent.**
-`const AUDIO = true` at the top of `apps/extension/offscreen.js` (30 Oct 2026,
-reversing the silent recordings) gates all of it: with it false nothing asks for
-audio, no graph is built and no `,opus` reaches the mime string. Tab audio is
-`tabCapture`'s — only the captured tab, never other tabs, apps or the OS mix. The
-mic stays off: its popup switch (`<label class="toggle">` in `popup.html` and the
-commented block in `popup.js`, uncommented **together** — `popup.js` reads `#mic`
-at load) and the `fjMic` read in `worker.js` (pinned to `false` so a stale
-setting cannot record a mic nobody can see) come back as one change. The
-offscreen document keeps `USER_MEDIA` alone: `AUDIO_PLAYBACK` would close it
-after 30s of silence and lose the log buffer. Nothing tests the audio path (the
-root test files were removed 27 Sep 2026), so check it by hand. Do not delete
-the flag.
+**Recordings carry sound, and the mic is a switch.** `const AUDIO = true` at
+the top of `apps/extension/offscreen.js` gates all of it: with it false nothing
+asks for audio, no graph is built and no `,opus` reaches the mime string. The
+sound is the captured source's (a tab's via `tabCapture`; for a window or screen,
+whatever Chrome's share dialog offers — none for those on macOS), plus the mic
+when the popup's switch is on (10 Nov 2026). The switch (`<label class="toggle">`
+in `popup.html`) and `popup.js` go together — `popup.js` reads `#mic` at load.
+The offscreen document never takes `AUDIO_PLAYBACK`: it would close it after 30s
+of silence and lose the log buffer. Nothing tests the audio path in CI, so check
+it by hand. Do not delete the flag.
+
+**A window or the whole screen is `getDisplayMedia` in the offscreen document**
+(the popup's one Record button opens Chrome's share dialog — tab, window or
+screen — 10 Nov 2026; the ⌥⇧J hotkey still records the tab with `tabCapture`,
+no dialog). A dialog-picked tab keeps playing out loud, so only `tabCapture`
+audio is piped back to `ctx.destination`; doing both plays it twice. The mic
+permission page is `popup.html?mic=1` in a tab: a drawing of Chrome's prompt
+(its own words, Chrome 157). That is why the offscreen reasons are `USER_MEDIA` + `DISPLAY_MEDIA`,
+and why there is no `desktopCapture` permission: a `chooseDesktopMedia` stream id
+is refused in an offscreen document ("Invalid state"), and a new permission
+would disable every install until accepted. The share dialog takes focus and
+closes the popup, so a cancel or a failure is said on the pill. The logs and
+the pill stay the tab's the recording was started from. Chrome's own "Stop
+sharing" ends the track, and `onended` is our `stop()` — screen only; a tab's
+track ends when the tab closes, which `tab-gone` already discards.
 
 What the audio code knows, and why it is not obvious: capturing a tab's
 audio takes it **away from the speakers**, so the tab source is connected to

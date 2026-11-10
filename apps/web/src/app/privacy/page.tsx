@@ -35,7 +35,7 @@ export default function Privacy() {
           <p className="mono text-xs">Last updated {UPDATED}</p>
           <p>
             Rekod is a Chrome extension and a dashboard at rekody.vercel.app for filing bug reports: it records a
-            browser tab, or takes a screenshot, together with what the page logged to its console and the network
+            browser tab (or a window or screen you choose), or takes a screenshot, together with what the page logged to its console and the network
             requests it made. This page says what that involves, plainly.
           </p>
         </div>
@@ -61,8 +61,9 @@ export default function Privacy() {
             </li>
           </ul>
           <p>
-            The extension does not record keystrokes, the values you type into forms, the page&apos;s HTML, your
-            microphone, or sound from other tabs and apps.
+            The extension does not record keystrokes, the values you type into forms, or the page&apos;s HTML. It
+            records your microphone only while you have switched it on in the extension, and a window or your
+            screen only when you pick one in Chrome&apos;s own sharing dialog.
           </p>
         </Section>
 
@@ -72,7 +73,10 @@ export default function Privacy() {
             recording stops (or the screenshot is cropped), the extension uploads to your Rekod dashboard:
           </p>
           <ul>
-            <li>the video of that tab, with the sound that tab played (up to 3 minutes), or the screenshot, plus a still frame for the thumbnail;</li>
+            <li>
+              the video (up to 3 minutes) of that tab, or of the window or screen you picked, with the sound it played
+              and your microphone if you switched it on, or the screenshot, plus a still frame for the thumbnail;
+            </li>
             <li>the console and network entries from the buffer and from the recording;</li>
             <li>the page URL and the environment details above;</li>
             <li>the title and description you type, when you save.</li>

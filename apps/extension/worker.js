@@ -11,8 +11,9 @@ async function ensureOffscreen() {
       // ponytail: USER_MEDIA covers playing the captured tab audio back out
       // (Chrome's own tabcapture sample does the same). AUDIO_PLAYBACK would also
       // close this document after 30s of silence, taking the log buffer with it.
-      reasons: ['USER_MEDIA'],
-      justification: 'Record the tab being captured and buffer its console and network logs.',
+      // DISPLAY_MEDIA is getDisplayMedia, the window / screen recording.
+      reasons: ['USER_MEDIA', 'DISPLAY_MEDIA'],
+      justification: 'Record the tab, window or screen being captured and buffer its console and network logs.',
     });
   } catch (e) {
     if (!/single offscreen/i.test(String(e))) throw e;
@@ -152,7 +153,9 @@ async function route(msg, sender) {
 
   switch (msg.t) {
     case 'hello':  return (await ask({ t: 'state?', tabId })) || { s: 'idle' };
-    case 'record': return startVideo(await activeTab());
+    // The popup's Record: Chrome's share dialog picks tab, window or screen.
+    // The hotkey still records this tab directly (commands listener below).
+    case 'record': return startVideo(await activeTab(), true);
     case 'shot':   return startShot(await activeTab());
 
     // from the content script — stamp the tab id here, where it is trustworthy
@@ -200,14 +203,14 @@ async function allowed(kind) {
   throw new Error(me.message || "Your plan doesn't allow this right now");
 }
 
-async function startVideo(tab) {
+/** `screen`: whatever is picked in Chrome's share dialog — a tab, a window or
+ *  the whole screen (offscreen.js). The logs are still this tab's, and so is
+ *  the pill. Without it, tabCapture records this tab with no dialog. */
+async function startVideo(tab, screen = false) {
   await refuse(tab);
   // The mic setting lives in storage, not in the message, because the hotkey
-  // path never opens the popup — one switch for both ways in. The switch is
-  // still commented out in popup.js, so the read is pinned off: a stale fjMic
-  // from a dev build must not record a mic nobody can see is on. Restore
-  // `!!fjMic` below together with the switch.
-  const fjMic = false;
+  // path never opens the popup — one switch for both ways in.
+  const { fjMic } = await chrome.storage.local.get('fjMic');
   // The plan check is a round trip to the dashboard (~0.3s in production,
   // seconds against a dev server), so recording does not wait for it: it
   // starts now, and a refusal that lands afterwards throws the capture away
@@ -215,12 +218,16 @@ async function startVideo(tab) {
   // unhandled; POST /api/v1/reports enforces the limit regardless.
   const refused = allowed('record').then(() => null, (e) => e);
   // tabCapture needs activeTab, which the popup click or the command gesture grants.
-  const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+  const streamId = screen ? null : await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
   // After the stream id (which needs this gesture's activeTab grant), before
   // anything records: no pill means no way to stop, and `rec` must stay unset.
   if (!(await ensureWidget(tab.id))) throw new Error(CANT_RUN);
-  const r = await ask({ t: 'start', streamId, tabId: tab.id, mic: fjMic });
-  if (r?.err) throw new Error(r.err);
+  const r = await ask({ t: 'start', streamId, screen, tabId: tab.id, mic: !!fjMic });
+  if (r?.err) {
+    // The share dialog took focus and closed the popup, so the pill says it.
+    if (screen) toTab(tab.id, { t: 'state', s: 'failed', err: r.err });
+    throw new Error(r.err);
+  }
   dropIfRefused(tab, refused);
   return { ok: true };
 }
