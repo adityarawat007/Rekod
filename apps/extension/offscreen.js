@@ -142,8 +142,8 @@ async function cropShot(rect, vw) {
  *  (rare, but a capture already held elsewhere does it) is still worth
  *  recording silently. The retry may fail too: a stream id is short-lived.
  *
- *  `screen` is a window or the whole screen, picked in Chrome's own share
- *  dialog. getDisplayMedia, not chrome.desktopCapture: a desktopCapture stream
+ *  `screen` is a tab, a window or the whole screen, picked in Chrome's own
+ *  share dialog. getDisplayMedia, not chrome.desktopCapture: a desktopCapture stream
  *  id is refused in an offscreen document ("Invalid state"), and this needs no
  *  manifest permission — only the DISPLAY_MEDIA reason in worker.js. Audio is
  *  whatever the dialog offers (a tab's, or the system's on Windows/ChromeOS;
@@ -196,6 +196,8 @@ async function start(streamId, tabId, mic, screen) {
   // Capturing a tab's audio takes it away from the speakers, so it is piped
   // back to the output as well as into the recording — otherwise the person
   // recording hears nothing and reports that as the bug.
+  // A getDisplayMedia tab keeps playing out loud, so only tabCapture needs it
+  // piped back — doing it for both plays the page twice, a beat apart.
   const tabAudio = stream.getAudioTracks();
   let recorded = stream;
   if (tabAudio.length || micStream) {
@@ -204,7 +206,7 @@ async function start(streamId, tabId, mic, screen) {
     const mix = ctx.createMediaStreamDestination();
     if (tabAudio.length) {
       const src = ctx.createMediaStreamSource(new MediaStream(tabAudio));
-      src.connect(ctx.destination);
+      if (!screen) src.connect(ctx.destination);
       src.connect(mix);
     }
     if (micStream) ctx.createMediaStreamSource(micStream).connect(mix);

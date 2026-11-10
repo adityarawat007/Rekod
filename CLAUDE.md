@@ -231,8 +231,12 @@ of silence and lose the log buffer. Nothing tests the audio path in CI, so check
 it by hand. Do not delete the flag.
 
 **A window or the whole screen is `getDisplayMedia` in the offscreen document**
-("Record a window or screen" in the popup, 10 Nov 2026; the hotkey still records
-the tab). That is why the offscreen reasons are `USER_MEDIA` + `DISPLAY_MEDIA`,
+(the popup's one Record button opens Chrome's share dialog — tab, window or
+screen — 10 Nov 2026; the ⌥⇧J hotkey still records the tab with `tabCapture`,
+no dialog). A dialog-picked tab keeps playing out loud, so only `tabCapture`
+audio is piped back to `ctx.destination`; doing both plays it twice. The mic
+permission page is `popup.html?mic=1` in a tab: a drawing of Chrome's prompt
+(its own words, Chrome 157) and an arrow at the top left where it appears. That is why the offscreen reasons are `USER_MEDIA` + `DISPLAY_MEDIA`,
 and why there is no `desktopCapture` permission: a `chooseDesktopMedia` stream id
 is refused in an offscreen document ("Invalid state"), and a new permission
 would disable every install until accepted. The share dialog takes focus and

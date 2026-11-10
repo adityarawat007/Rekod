@@ -65,9 +65,10 @@ const go = async (t, btn) => {
   window.close();          // the widget on the page takes over from here
 };
 
+// Record opens Chrome's share dialog (tab, window or screen), which takes
+// focus and closes this popup; the pill on the page carries on from there.
 $('rec').onclick = (e) => go('record', e.currentTarget);
 $('shot').onclick = (e) => go('shot', e.currentTarget);
-$('screen').onclick = (e) => go('screen', e.currentTarget);
 
 /* ── the microphone switch ─────────────────────────────────────────────────
    Tab audio needs no permission and rides along with the video; the mic is a
@@ -82,9 +83,9 @@ const micState = async () => {
 };
 
 const paintMic = async (on) => {
-  micNote.textContent = !on ? 'Off — tab audio only'
-    : (await micState()) === 'denied' ? 'Blocked — allow it in site settings'
-    : 'On — mixed with the tab audio';
+  micNote.textContent = !on ? 'Off — page sound only'
+    : (await micState()) === 'denied' ? 'Blocked — switch it on again to fix'
+    : 'On — mixed with the page sound';
 };
 
 mic.onchange = async () => {
@@ -94,7 +95,8 @@ mic.onchange = async () => {
   // window: the offscreen document that records has none, and this popup is
   // closed by the prompt taking focus. Same page in a tab can prompt, so that
   // is where a first grant happens — one file, not a second permission page.
-  if (on && (await micState()) === 'prompt') {
+  // Blocked goes there too: that page says how to unblock it.
+  if (on && (await micState()) !== 'granted') {
     chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?mic=1') });
     window.close();
     return;
@@ -105,18 +107,30 @@ mic.onchange = async () => {
 // This same page opened in a TAB with ?mic=1 is the permission prompt, and
 // nothing else: no session check, no capture buttons. Chrome remembers the
 // grant for the extension origin, which is what the offscreen recorder uses.
+const grantView = (v) => {
+  for (const k of ['ask', 'ok', 'no']) show($('g-' + k), k === v);
+  show($('g-pointer'), v === 'ask');
+};
+const closeTab = () => chrome.tabs.getCurrent().then((t) => chrome.tabs.remove(t.id));
+
 async function askMic() {
-  $('busy').textContent = 'Asking for the microphone…';
+  document.body.classList.add('page');
+  show($('busy'), false);
+  show($('grant'), true);
+  grantView('ask');
   try {
     const s = await navigator.mediaDevices.getUserMedia({ audio: true });
     s.getTracks().forEach((t) => t.stop());     // the grant is the point, not the stream
-    $('busy').textContent = 'Microphone enabled. Close this tab and record.';
+    chrome.storage.local.set({ fjMic: true });
+    grantView('ok');
   } catch {
-    chrome.storage.local.set({ fjMic: false });
-    $('busy').textContent = '';
-    fail('Microphone blocked. Allow it for this extension, or record with tab audio only.');
+    // Left on: a recording then says "no mic" on its composer, which is true.
+    grantView('no');
   }
 }
+$('g-close').onclick = closeTab;
+$('g-retry').onclick = askMic;
+$('g-skip').onclick = () => chrome.storage.local.set({ fjMic: false }).then(closeTab);
 
 const openDash = (path) => {
   chrome.tabs.create({ url: DASH + path });

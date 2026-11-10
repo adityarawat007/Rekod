@@ -153,8 +153,9 @@ async function route(msg, sender) {
 
   switch (msg.t) {
     case 'hello':  return (await ask({ t: 'state?', tabId })) || { s: 'idle' };
-    case 'record': return startVideo(await activeTab());
-    case 'screen': return startVideo(await activeTab(), true);
+    // The popup's Record: Chrome's share dialog picks tab, window or screen.
+    // The hotkey still records this tab directly (commands listener below).
+    case 'record': return startVideo(await activeTab(), true);
     case 'shot':   return startShot(await activeTab());
 
     // from the content script — stamp the tab id here, where it is trustworthy
@@ -202,8 +203,9 @@ async function allowed(kind) {
   throw new Error(me.message || "Your plan doesn't allow this right now");
 }
 
-/** `screen`: a window or the whole screen, chosen in Chrome's share dialog
- *  (offscreen.js). The logs are still this tab's, and so is the pill. */
+/** `screen`: whatever is picked in Chrome's share dialog — a tab, a window or
+ *  the whole screen (offscreen.js). The logs are still this tab's, and so is
+ *  the pill. Without it, tabCapture records this tab with no dialog. */
 async function startVideo(tab, screen = false) {
   await refuse(tab);
   // The mic setting lives in storage, not in the message, because the hotkey
