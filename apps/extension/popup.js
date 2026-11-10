@@ -107,10 +107,7 @@ mic.onchange = async () => {
 // This same page opened in a TAB with ?mic=1 is the permission prompt, and
 // nothing else: no session check, no capture buttons. Chrome remembers the
 // grant for the extension origin, which is what the offscreen recorder uses.
-const grantView = (v) => {
-  for (const k of ['ask', 'ok', 'no']) show($('g-' + k), k === v);
-  show($('g-pointer'), v === 'ask');
-};
+const grantView = (v) => { for (const k of ['ask', 'ok', 'no']) show($('g-' + k), k === v); };
 const closeTab = () => chrome.tabs.getCurrent().then((t) => chrome.tabs.remove(t.id));
 
 async function askMic() {

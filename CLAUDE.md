@@ -236,7 +236,7 @@ screen — 10 Nov 2026; the ⌥⇧J hotkey still records the tab with `tabCaptur
 no dialog). A dialog-picked tab keeps playing out loud, so only `tabCapture`
 audio is piped back to `ctx.destination`; doing both plays it twice. The mic
 permission page is `popup.html?mic=1` in a tab: a drawing of Chrome's prompt
-(its own words, Chrome 157) and an arrow at the top left where it appears. That is why the offscreen reasons are `USER_MEDIA` + `DISPLAY_MEDIA`,
+(its own words, Chrome 157). That is why the offscreen reasons are `USER_MEDIA` + `DISPLAY_MEDIA`,
 and why there is no `desktopCapture` permission: a `chooseDesktopMedia` stream id
 is refused in an offscreen document ("Invalid state"), and a new permission
 would disable every install until accepted. The share dialog takes focus and
