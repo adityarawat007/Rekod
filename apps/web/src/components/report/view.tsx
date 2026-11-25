@@ -36,11 +36,10 @@ export function ReportView({ entries, t0, env, media, info, showLog = true, tool
   const offsetOf = (e: Entry) => offset(e.t, t0);
   const seek = (e: Entry) => playhead.playFrom(offsetOf(e));
 
-  // The track spans the pre-roll buffer (negative offsets) too.
-  const span = useMemo(() => {
-    const offs = entries.map((e) => offset(e.t, t0));
-    return { lo: Math.min(0, ...offs), hi: Math.max(1, playhead.dur, ...offs) };
-  }, [entries, t0, playhead.dur]);
+  // The track is the video and nothing else (25 Nov 2026): spanning the
+  // pre-roll put 0:00 three quarters along a 5-minute bar for a 19s video.
+  // Pre-roll rows stay in the log pane; they just get no tick.
+  const span = useMemo(() => ({ lo: 0, hi: Math.max(1, playhead.dur) }), [playhead.dur]);
 
   return (
     <PanelFrame fill className="wide:flex-row">

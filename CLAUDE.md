@@ -437,9 +437,10 @@ the far right, which read as "already finished". `components/report/player.tsx` 
 (`currentTime = 1e101`, then `durationchange` puts it back at 0) and ignores
 `timeupdate` while the probe is in flight. Fixing it in the extension instead
 would need a bundler in `apps/extension/`, and would leave every recording already in
-the bucket unplayable. There is ONE transport, the custom one: the native
-`controls` scrubbed only the video while the track spans the rolling buffer too,
-and the two disagreed about where the start is.
+the bucket unplayable. There is ONE transport, the custom one, and its track
+is the video only — 0 to the duration (25 Nov 2026; it used to span the
+rolling buffer, which put 0:00 three quarters along for a short video).
+Pre-roll rows stay in the log pane and get no tick.
 
 **`REKOD_DESIGN_SYSTEM.md` is the UI's authority** (v1.2, 4 Oct 2026). Midnight
 ink, electric-blue primary, pink for highlight, Inter Tight + IBM Plex Mono,
