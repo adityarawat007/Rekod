@@ -4,7 +4,7 @@ import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import { serverEnv } from '../../env.ts';
 import { shareToken, uuidv7 } from '../../db/ids.ts';
 import { PLANS } from '../../plans.ts';
-import type { CommentRaw, Store } from './types.ts';
+import type { AdminUser, CommentRaw, DayCount, Store } from './types.ts';
 
 /**
  * The MongoDB adapter. Same contract as pg.ts, documented in ADAPTERS.md
@@ -258,7 +258,7 @@ export const mongoStore: Store = {
       durationMs: r.durationMs, env: r.env, createdAt: new Date(),
       // Born shareable, like the Postgres column default.
       shareToken: shareToken(),
-      assets: assets.map((a) => ({ kind: a.kind, mimeType: a.mimeType, storageKey: a.storageKey })),
+      assets: assets.map((a) => ({ kind: a.kind, mimeType: a.mimeType, storageKey: a.storageKey, sizeBytes: a.sizeBytes })),
     });
   },
 
@@ -446,5 +446,126 @@ export const mongoStore: Store = {
       M().countDocuments({ userId, role: 'owner' }),
     ]);
     return u ? { plan: u.plan ?? 'free', owned } : null;
+  },
+  // ── admin ─────────────────────────────────────────────────────────────────
+  // Unscoped on purpose: requireAdmin() is the gate.
+
+  async adminStats() {
+    await ready();
+    const since = (days: number) => ({ createdAt: { $gt: new Date(Date.now() - days * 86400e3) } });
+    const [users, users7, users30, pro, workspaces, videos, screenshots, processing, shared, kinds, dbs] = await Promise.all([
+      U().countDocuments({}), U().countDocuments(since(7)), U().countDocuments(since(30)),
+      U().countDocuments({ plan: 'pro' }), O().countDocuments({}),
+      R().countDocuments({ status: 'ready', type: 'video' }),
+      R().countDocuments({ status: 'ready', type: 'screenshot' }),
+      R().countDocuments({ status: 'processing' }),
+      R().countDocuments({ status: 'ready', shareToken: { $type: 'string' } }),
+      R().aggregate([
+        { $unwind: '$assets' },
+        { $group: {
+          _id: '$assets.kind',
+          bytes: { $sum: { $ifNull: ['$assets.sizeBytes', 0] } },
+          unsized: { $sum: { $cond: [{ $eq: [{ $type: '$assets.sizeBytes' }, 'missing'] }, 1, 0] } },
+        } },
+      ]).toArray(),
+      h().db.command({ dbStats: 1 }),
+    ]);
+    return {
+      users, users7, users30, pro, workspaces, videos, screenshots, processing, shared,
+      bytes: Object.fromEntries(kinds.map((k) => [String(k._id), Number(k.bytes)])),
+      unsized: kinds.reduce((n, k) => n + Number(k.unsized), 0),
+      dbBytes: Number(dbs.storageSize ?? 0) + Number(dbs.indexSize ?? 0),
+    };
+  },
+
+  async adminUsers() {
+    await ready();
+    const [users, per, owners] = await Promise.all([
+      U().find({}, { projection: { name: 1, email: 1, image: 1, createdAt: 1, plan: 1, videoLimit: 1 } })
+        .sort({ createdAt: -1 }).toArray(),
+      R().aggregate([
+        { $match: { createdBy: { $type: 'string' } } },
+        { $group: {
+          _id: '$createdBy',
+          videos: { $sum: { $cond: [{ $and: [{ $eq: ['$status', 'ready'] }, { $eq: ['$type', 'video'] }] }, 1, 0] } },
+          screenshots: { $sum: { $cond: [{ $and: [{ $eq: ['$status', 'ready'] }, { $eq: ['$type', 'screenshot'] }] }, 1, 0] } },
+          lastAt: { $max: { $cond: [{ $eq: ['$status', 'ready'] }, '$createdAt', null] } },
+          bytes: { $sum: { $sum: { $map: { input: { $ifNull: ['$assets', []] }, in: { $ifNull: ['$$this.sizeBytes', 0] } } } } },
+        } },
+      ]).toArray(),
+      M().aggregate([{ $match: { role: 'owner' } }, { $group: { _id: '$userId', n: { $sum: 1 } } }]).toArray(),
+    ]);
+    const by = new Map(per.map((p) => [String(p._id), p]));
+    const owned = new Map(owners.map((o) => [String(o._id), Number(o.n)]));
+    return users.map((u): AdminUser => {
+      const p = by.get(String(u._id));
+      return {
+        id: String(u._id), name: u.name ?? '', email: u.email ?? '', image: u.image ?? null,
+        createdAt: u.createdAt as Date, plan: u.plan ?? 'free', videoLimit: u.videoLimit ?? PLANS.free.videos,
+        videos: p?.videos ?? 0, screenshots: p?.screenshots ?? 0, lastAt: p?.lastAt ?? null,
+        bytes: Number(p?.bytes ?? 0), owned: owned.get(String(u._id)) ?? 0,
+      };
+    });
+  },
+
+  async adminDaily(since) {
+    await ready();
+    const perDay = (c: Collection<Doc>, match: Document) => c.aggregate([
+      { $match: { ...match, createdAt: { $gte: since } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+    ]).toArray().then((r) => r.map((d): DayCount => ({ day: String(d._id), count: Number(d.count) })));
+    const [rekods, signups] = await Promise.all([perDay(R(), { status: 'ready' }), perDay(U(), {})]);
+    return { rekods, signups };
+  },
+
+  async adminSites(limit) {
+    await ready();
+    const rows = await R().aggregate([
+      { $match: { status: 'ready', project: { $type: 'string' } } },
+      { $group: { _id: '$project', count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 } },
+      { $limit: limit },
+    ]).toArray();
+    return rows.map((r) => ({ project: String(r._id), count: r.count as number }));
+  },
+
+  async ownedWorkspaceIds(userId) {
+    await ready();
+    if (!isStr(userId)) return [];
+    const owned = await M().find({ userId, role: 'owner' }, { projection: { organizationId: 1 } }).toArray();
+    return Promise.all(owned.map(async (m) => ({
+      id: String(m.organizationId),
+      others: await M().countDocuments({ organizationId: m.organizationId, userId: { $ne: userId } }),
+    })));
+  },
+
+  async reportIdsIn(ws) {
+    await ready();
+    if (!isStr(ws)) return [];
+    return (await R().find({ workspaceId: ws }, { projection: { _id: 1 } }).toArray()).map((d) => String(d._id));
+  },
+
+  /** No foreign keys here, so every cascade pg.ts gets from the schema is
+   *  spelled out. Their reports in other people's workspaces stay, unnamed. */
+  async deleteUser(userId, wsIds) {
+    await ready();
+    if (!isStr(userId)) return false;
+    const ws = strs(wsIds);
+    await R().deleteMany({ workspaceId: { $in: ws } });
+    await C().deleteMany({ workspaceId: { $in: ws } });
+    await col('invitation').deleteMany({ $or: [{ organizationId: { $in: ws } }, { inviterId: userId }] });
+    await M().deleteMany({ $or: [{ organizationId: { $in: ws } }, { userId }] });
+    await O().deleteMany({ _id: { $in: ws } });
+    await col('session').deleteMany({ userId });
+    await col('account').deleteMany({ userId });
+    await R().updateMany({ createdBy: userId }, { $set: { createdBy: null } });
+    await C().updateMany({ authorId: userId }, { $set: { authorId: null } });
+    return (await U().deleteOne({ _id: userId })).deletedCount > 0;
+  },
+
+  async setAssetSize(key, bytes) {
+    await ready();
+    if (!isStr(key)) return;
+    await R().updateOne({ 'assets.storageKey': key }, { $set: { 'assets.$.sizeBytes': bytes } });
   },
 };

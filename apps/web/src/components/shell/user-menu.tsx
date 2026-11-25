@@ -1,6 +1,7 @@
 'use client';
 
-import { LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -11,6 +12,8 @@ export type NavUser = {
   name?: string | null;
   /** The Google profile picture. */
   image?: string | null;
+  /** In ADMIN_EMAILS: the menu links to /admin. */
+  admin?: boolean;
 };
 
 /** "Aditya Rawat" and "aditya.rawat" both → AR. */
@@ -20,7 +23,7 @@ function initials(name?: string | null, email?: string | null) {
   return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts.at(-1)![0] : '')).toUpperCase();
 }
 
-export function UserMenu({ email, name, image }: NavUser) {
+export function UserMenu({ email, name, image, admin }: NavUser) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -39,6 +42,14 @@ export function UserMenu({ email, name, image }: NavUser) {
           <p className="mono truncate text-xs text-muted-foreground">{email ?? 'signed in'}</p>
         </div>
         <DropdownMenuSeparator />
+        {admin ? (
+          <>
+            <DropdownMenuItem render={<Link href="/admin" />} className="gap-2.5 py-2">
+              <ShieldCheck /> Admin
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <form action="/auth/signout" method="post">
           <DropdownMenuItem render={<button type="submit" className="w-full" />} className="gap-2.5 py-2">
             <LogOut /> Log out

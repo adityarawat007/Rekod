@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { currentActor, currentUser } from '@/lib/server/session';
+import { isAdmin } from '@/lib/server/admin';
 import { workspacesLeft, workspacesOf } from '@/lib/server/workspaces';
 import { projectsOf } from '@/lib/server/reports';
 import { Brand } from '@/components/shell/brand';
@@ -64,5 +65,5 @@ async function HeaderSites() {
 /** From the signed cookie cache: no database round trip. Display only. */
 async function HeaderUser() {
   const u = await currentUser();
-  return <UserMenu email={u?.email ?? null} name={u?.name} image={u?.image} />;
+  return <UserMenu email={u?.email ?? null} name={u?.name} image={u?.image} admin={isAdmin(u?.email)} />;
 }

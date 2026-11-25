@@ -28,6 +28,8 @@ const schema = z.object({
   DISABLE_SIGNUP: flag,
   /** Comma-separated. Empty means any domain. */
   ALLOWED_EMAIL_DOMAINS: list,
+  /** Comma-separated emails that may open /admin. Empty: nobody can. */
+  ADMIN_EMAILS: list,
 
   S3_ENDPOINT: z.url(),
   S3_REGION: z.string().default('us-east-1'),
