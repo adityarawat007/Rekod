@@ -76,7 +76,7 @@ export function ReportPlayer({
   };
 
   /** Native fullscreen on the whole stage, not the <video>: the custom track
-   *  (pre-roll, error ticks) has to come along. The browser owns Esc. */
+   *  (error ticks) has to come along. The browser owns Esc. */
   const stage = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState(false);
 
@@ -124,8 +124,10 @@ export function ReportPlayer({
   const ghost = full ? 'text-on-chrome hover:bg-on-chrome/10' : undefined;
 
   const pct = (s: number) => trackPct(s, span.lo, span.hi);
-  // Failures only: every request would turn the track into a barcode.
-  const ticks = entries.filter((e) => isError(e) || isWarn(e) || (isNet(e) && netFailed(e)));
+  // Failures only: every request would turn the track into a barcode. And only
+  // inside the video — a pre-roll failure would pin to the left edge.
+  const inSpan = (e: TimelineEntry) => offsetOf(e) >= span.lo && offsetOf(e) <= span.hi;
+  const ticks = entries.filter((e) => inSpan(e) && (isError(e) || isWarn(e) || (isNet(e) && netFailed(e))));
 
   return (
     <div
@@ -208,8 +210,8 @@ export function ReportPlayer({
         )}
       </div>
 
-      {/* Not native controls: those scrub the video only, while this track
-          spans the pre-roll too. */}
+      {/* Not native controls: this track carries the failure ticks, and the
+          duration probe would show Infinity on the native one. */}
       {media?.kind === 'video' && (
         <div className={cn('flex shrink-0 items-center gap-3 border-t px-3 py-2', full ? 'border-on-chrome/20 text-on-chrome' : 'text-ink')}>
           <Button
