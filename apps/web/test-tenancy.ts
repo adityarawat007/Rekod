@@ -26,6 +26,8 @@ type Fixture = {
   /** Every `processing` report becomes two days old. */
   ageProcessing(): Promise<void>;
   processingCount(): Promise<number>;
+  /** `userId` joins workspace `ws` as a plain member. */
+  addMember(ws: string, userId: string): Promise<void>;
   /** Break the adapter's per-user video counter, if it has one. */
   corruptCounter?(userId: string, n: number): Promise<void>;
   close(): Promise<void>;
@@ -54,6 +56,9 @@ async function bootPostgres(): Promise<Fixture> {
       await admin`insert into rekod.member (id, organization_id, user_id, role, created_at) values (${'m' + who}, ${'w' + who}, ${'u' + who}, 'owner', ${now})`;
     },
     async rawPlan(userId, plan) { await admin`update rekod."user" set plan = ${plan} where id = ${userId}`; },
+    async addMember(ws, userId) {
+      await admin`insert into rekod.member (id, organization_id, user_id, role, created_at) values (${ws + userId}, ${ws}, ${userId}, 'member', ${new Date().toISOString()})`;
+    },
     async ageProcessing() { await admin`update rekod.reports set created_at = now() - interval '2 days' where status = 'processing'`; },
     async processingCount() { return (await admin`select count(*)::int as n from rekod.reports where status = 'processing'`)[0].n; },
     async close() { await admin.end(); },
@@ -76,6 +81,9 @@ async function bootMongo(): Promise<Fixture> {
       await db.collection('member').insertOne({ _id: ('m' + who) as never, organizationId: 'w' + who, userId: 'u' + who, role: 'owner', createdAt: now });
     },
     async rawPlan(userId, plan) { await db.collection('user').updateOne({ _id: userId as never }, { $set: { plan } }); },
+    async addMember(ws, userId) {
+      await db.collection('member').insertOne({ _id: (ws + userId) as never, organizationId: ws, userId, role: 'member', createdAt: new Date() });
+    },
     async ageProcessing() { await db.collection('reports').updateMany({ status: 'processing' }, { $set: { createdAt: new Date(Date.now() - 2 * 86400e3) } }); },
     processingCount: () => db.collection('reports').countDocuments({ status: 'processing' }),
     async corruptCounter(userId, n) { await db.collection('user').updateOne({ _id: userId as never }, { $set: { readyVideos: n } }); },
@@ -110,6 +118,7 @@ Object.assign(process.env, {
   BETTER_AUTH_URL: 'http://localhost:3100',
   S3_ENDPOINT: `http://127.0.0.1:${s3Port}`,
   S3_BUCKET: 'rekod', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's',
+  ADMIN_EMAILS: ' Boss@X.test ,"other@x.test"',
 });
 
 const { store } = await import('./src/lib/server/store/index.ts');
@@ -505,6 +514,61 @@ if (fx.corruptCounter) {
   const again = await made('wd', 'ud');
   assert.equal(await repo.completeReport('wd', again.id), true, 'the recount in purgeAbandoned() repaired it');
 }
+
+// ── admin: totals across every workspace, sizes recorded at create, and the
+// one delete that crosses workspaces — files first, nobody else's rows.
+const admin = await import('./src/lib/server/admin.ts');
+assert.equal(admin.isAdmin('boss@x.test'), true, 'ADMIN_EMAILS is case-insensitive and trimmed');
+assert.equal(admin.isAdmin('OTHER@x.test'), true, 'and quotes from a dashboard are stripped');
+assert.equal(admin.isAdmin('a@x.test'), false);
+assert.equal(admin.isAdmin(null), false);
+
+for (const who of ['e', 'f', 'g']) await fx.seed(who);
+const admBefore = await admin.adminStats();
+const putAll = async (u: { uploads: Record<string, string | undefined> }) => {
+  for (const [k, url] of Object.entries(u.uploads)) await fetch(url!, { method: 'PUT', body: k === 'media' ? 'webm' : '[]' });
+};
+const eRep = await made('we', 'ue', repo.CreateInput.parse({ ...input, project: 'admin.test' }));
+await putAll(eRep);
+assert.equal(await repo.completeReport('we', eRep.id), true);
+const fRep = await made('wf', 'uf');
+await putAll(fRep);
+assert.equal(await repo.completeReport('wf', fRep.id), true);
+
+const admAfter = await admin.adminStats();
+assert.equal(admAfter.users, admBefore.users, 'users counted across every workspace');
+assert.equal(admAfter.videos, admBefore.videos + 2);
+assert.equal((admAfter.bytes.video ?? 0) - (admBefore.bytes.video ?? 0), 2 * sizes.media, 'sizes come from create');
+assert.equal((admAfter.bytes.logs ?? 0) - (admBefore.bytes.logs ?? 0), 2 * sizes.logs);
+assert.ok(admAfter.dbBytes > 0, 'the database reports its size');
+const eRow = (await admin.adminUsers()).find((u) => u.email === 'e@x.test')!;
+assert.equal(eRow.videos, 1);
+assert.equal(eRow.bytes, sizes.media + sizes.logs + sizes.network);
+assert.equal(eRow.owned, 1);
+assert.ok(eRow.lastAt instanceof Date);
+assert.ok((await admin.adminSites()).some((s) => s.project === 'admin.test' && s.count === 1), 'sites span workspaces');
+const admDaily = await admin.adminDaily(30);
+assert.equal(admDaily.length, 30);
+assert.ok(admDaily.at(-1)!.rekods >= 2, "today's rekods are in the last bucket");
+
+await st.setAssetSize(eRep.uploads.media!.split('?')[0].replace(/^http:\/\/[^/]+\/rekod\//, ''), 99);
+assert.equal((await admin.adminUsers()).find((u) => u.email === 'e@x.test')!.bytes, 99 + sizes.logs + sizes.network, 'backfill sets a size by key');
+
+// refused: yourself, and an owner whose workspace has someone else in it
+assert.ok('refused' in await admin.deleteUser('ue', 'ue'));
+await fx.addMember('wg', 'uf');
+assert.ok('refused' in await admin.deleteUser('ua', 'ug'), 'a workspace with other members is not deleted');
+assert.ok('refused' in await admin.deleteUser('ua', 'nobody'));
+
+const fKeys = [...objects.keys()].filter((k) => k.includes('/wf/'));
+assert.deepEqual(await admin.deleteUser('ua', 'ue'), { ok: true });
+assert.equal([...objects.keys()].some((k) => k.includes('/we/')), false, "e's putAll are gone from the bucket");
+assert.deepEqual([...objects.keys()].filter((k) => k.includes('/wf/')), fKeys, "f's putAll are untouched");
+assert.equal(await repo.getReport('we', eRep.id), null);
+assert.ok(await repo.getReport('wf', fRep.id), "f's report is untouched");
+assert.equal((await admin.adminUsers()).some((u) => u.email === 'e@x.test'), false);
+assert.equal((await ws.workspacesOf('ue')).length, 0, 'and so are their memberships');
+assert.equal((await admin.adminStats()).users, admAfter.users - 1);
 
 console.log(`tenancy ok (${adapter})`);
 await fx.close();

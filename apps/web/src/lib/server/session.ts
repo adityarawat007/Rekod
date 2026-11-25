@@ -1,9 +1,10 @@
 import 'server-only';
 import { cache } from 'react';
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { auth } from './auth.ts';
 import { store } from './store/index.ts';
+import { isAdmin } from './admin.ts';
 
 export type Actor = { userId: string; email: string; name: string; image: string | null; workspaceId: string };
 
@@ -39,6 +40,14 @@ export const currentUser = cache(async () => {
 export async function requireActor(): Promise<Actor> {
   const a = await currentActor();
   if (!a) redirect('/login');
+  return a;
+}
+
+/** For /admin and its actions. A non-admin gets the not-found page, so the
+ *  route does not announce itself. */
+export async function requireAdmin(): Promise<Actor> {
+  const a = await requireActor();
+  if (!isAdmin(a.email)) notFound();
   return a;
 }
 

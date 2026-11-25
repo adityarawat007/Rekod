@@ -59,4 +59,27 @@ async function readJson<T>(key: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Every object in the bucket, 1000 per request. Not on BlobStore: only
+ *  scripts/backfill-sizes.ts lists, once. */
+export async function* listObjects(): AsyncGenerator<{ key: string; size: number }> {
+  const e = serverEnv();
+  let token: string | undefined;
+  do {
+    const url = new URL(`${e.S3_ENDPOINT.replace(/\/$/, '')}/${e.S3_BUCKET}`);
+    url.searchParams.set('list-type', '2');
+    if (token) url.searchParams.set('continuation-token', token);
+    const res = await aws().fetch(url.toString());
+    if (!res.ok) throw new Error(`storage list: ${res.status} ${await res.text()}`);
+    const xml = await res.text();
+    const unxml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+    for (const [, body] of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+      const key = /<Key>([\s\S]*?)<\/Key>/.exec(body)?.[1];
+      const size = /<Size>(\d+)<\/Size>/.exec(body)?.[1];
+      if (key && size) yield { key: unxml(key), size: Number(size) };
+    }
+    token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
+      ? /<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/.exec(xml)?.[1] : undefined;
+  } while (token);
+}
+
 export const s3Store: BlobStore = { presignUpload, presignDownload, removeObject, readJson };

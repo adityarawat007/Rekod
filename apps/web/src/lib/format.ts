@@ -48,6 +48,14 @@ export function httpUrl(u: string | null | undefined): string | null {
 }
 
 /** `s` on [lo, hi] as a clamped percentage; 0, not NaN, for an empty span. */
+/** 1536 → "1.5 KB". Binary units; one decimal below 10 so small sizes still move. */
+export function bytes(n: number) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${i && n < 10 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+}
+
 export const trackPct = (s: number, lo: number, hi: number) =>
   hi > lo ? Math.min(100, Math.max(0, ((s - lo) / (hi - lo)) * 100)) : 0;
 

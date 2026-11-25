@@ -69,6 +69,14 @@ const facade: DataStore = {
   workspaceOf: async (...a) => (await loadStore()).workspaceOf(...a),
   workspacesOf: async (...a) => (await loadStore()).workspacesOf(...a),
   ownedWorkspaces: async (...a) => (await loadStore()).ownedWorkspaces(...a),
+  adminStats: async () => (await loadStore()).adminStats(),
+  adminUsers: async () => (await loadStore()).adminUsers(),
+  adminDaily: async (...a) => (await loadStore()).adminDaily(...a),
+  adminSites: async (...a) => (await loadStore()).adminSites(...a),
+  ownedWorkspaceIds: async (...a) => (await loadStore()).ownedWorkspaceIds(...a),
+  reportIdsIn: async (...a) => (await loadStore()).reportIdsIn(...a),
+  deleteUser: async (...a) => (await loadStore()).deleteUser(...a),
+  setAssetSize: async (...a) => (await loadStore()).setAssetSize(...a),
 };
 
 export const store = (): DataStore => facade;

@@ -224,7 +224,7 @@ export async function createReport(
     title: input.title, description: input.description || null,
     pageUrl: input.pageUrl ?? null, project: input.project ?? null,
     t0: input.t0, durationMs: input.durationMs ?? null, env: input.env,
-  }, files.map((f) => ({ kind: f.kind, mimeType: f.mime, storageKey: keyFor(ws, id, f.kind) })));
+  }, files.map((f) => ({ kind: f.kind, mimeType: f.mime, storageKey: keyFor(ws, id, f.kind), sizeBytes: f.bytes })));
 
   const uploads: Partial<Record<'media' | 'poster' | 'logs' | 'network', string>> = {};
   for (const f of files) {
@@ -251,8 +251,8 @@ export const CompleteInput = z.object({
  *  after every PUT answered 200, and checking three objects cost ~1s against
  *  the bucket — for a failure that could only come from a client lying about
  *  its own upload, whose only victim is that client's own unplayable report.
- *  Sizes are not recorded either; nothing reads them until billing (ROADMAP
- *  Phase 5), and that job can HEAD the objects in bulk. */
+ *  Sizes are recorded at create instead: each is the exact Content-Length
+ *  signed into its PUT, so the bucket cannot hold a different one. */
 export async function completeReport(ws: string, id: string, f: z.infer<typeof CompleteInput> = {}) {
   if (!isId(id)) return false;
   const set: CompleteSet = {};

@@ -69,7 +69,8 @@ export type NewReport = {
   durationMs: number | null;
   env: Record<string, unknown>;
 };
-export type NewAsset = { kind: Kind; mimeType: string; storageKey: string };
+/** `sizeBytes` is exact: it is the Content-Length signed into the upload URL. */
+export type NewAsset = { kind: Kind; mimeType: string; storageKey: string; sizeBytes: number };
 
 /** What /complete may set besides the status, which the adapter flips itself. */
 export type CompleteSet = {
@@ -81,6 +82,21 @@ export type CompleteSet = {
 };
 
 export type Usage = { plan: string; limit: number; videos: number; lastHour: number };
+
+/** /admin: totals across every workspace. Bytes are recorded sizes; `unsized`
+ *  counts files from before sizes were recorded (scripts/backfill-sizes.ts). */
+export type AdminStats = {
+  users: number; users7: number; users30: number; pro: number; workspaces: number;
+  videos: number; screenshots: number; processing: number; shared: number;
+  dbBytes: number; bytes: Partial<Record<Kind, number>>; unsized: number;
+};
+export type AdminUser = {
+  id: string; name: string; email: string; image: string | null; createdAt: Date;
+  plan: string; videoLimit: number; videos: number; screenshots: number;
+  lastAt: Date | null; bytes: number; owned: number;
+};
+/** One UTC day, `YYYY-MM-DD`. Days with nothing are absent. */
+export type DayCount = { day: string; count: number };
 export type Workspace = { id: string; name: string };
 
 export interface Store {
@@ -135,4 +151,22 @@ export interface Store {
   /** Every membership, oldest first. */
   workspacesOf(userId: string): Promise<Workspace[]>;
   ownedWorkspaces(userId: string): Promise<{ plan: string; owned: number } | null>;
+
+  // admin — the unscoped reads and the one cross-workspace delete. Gated by
+  // requireAdmin() in session.ts; the rules live in admin.ts.
+  adminStats(): Promise<AdminStats>;
+  adminUsers(): Promise<AdminUser[]>;
+  /** Ready reports and sign-ups per UTC day since `since`. */
+  adminDaily(since: Date): Promise<{ rekods: DayCount[]; signups: DayCount[] }>;
+  /** Sites across every workspace's ready reports, most recorded first. */
+  adminSites(limit: number): Promise<{ project: string; count: number }[]>;
+  /** Workspaces this user owns, each with how many other members it has. */
+  ownedWorkspaceIds(userId: string): Promise<{ id: string; others: number }[]>;
+  /** Every report in the workspace, any status. */
+  reportIdsIn(ws: string): Promise<string[]>;
+  /** The user, their sessions and memberships, and these workspaces whole.
+   *  Rows only: the caller removed the workspaces' objects first. */
+  deleteUser(userId: string, wsIds: string[]): Promise<boolean>;
+  /** scripts/backfill-sizes.ts: the bucket's size for one object. */
+  setAssetSize(key: string, bytes: number): Promise<void>;
 }

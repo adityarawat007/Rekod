@@ -140,6 +140,23 @@ release. `X-ReKod-Version` + `MIN_EXTENSION_VERSION` is the kill switch for old
 installs. `/api/cron/cleanup` (daily, `CRON_SECRET`) purges `processing` rows
 older than a day, with their files.
 
+**`/admin` is the one place that reads across workspaces** (25 Nov 2026).
+`ADMIN_EMAILS` (comma-separated, env) decides who may open it; `requireAdmin()`
+in `session.ts` answers everyone else with the not-found page, and the page and
+both actions (`app/(dash)/admin/actions.ts`: set a plan, delete a user) call it
+first. The unscoped reads are `admin*` methods on `Store`, both adapters, and
+the rules sit in `lib/server/admin.ts`. Counts and sizes only — no admin read
+returns a report's contents, and none should. Deleting a user takes the
+workspaces they own whole (files first, through `deleteReports()`), and is
+refused for yourself and for an owner whose workspace has other members; their
+rekods in other people's workspaces stay, unnamed. **Sizes are recorded at
+create** (`report_assets.size_bytes`, Mongo `assets[].sizeBytes`) — exact,
+because each is the Content-Length signed into the PUT; `pnpm backfill-sizes`
+filled in files from before, from the bucket's listing. The storage figure is
+recorded bytes; the provider's quota is not readable over S3, so there is no
+"left". Action refusals are returned, not thrown: Next hides a thrown action's
+message in production.
+
 **The S3 keys and `BETTER_AUTH_SECRET` are the god keys now.** Server env only,
 never `NEXT_PUBLIC_`. Supabase's S3 access keys bypass its storage RLS.
 

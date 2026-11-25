@@ -41,6 +41,28 @@ export function ReportGridSkeleton({ cards = 8 }: { cards?: number }) {
   );
 }
 
+/** /admin under the header: tiles, two charts and sites, then the users table. */
+export function AdminSkeleton() {
+  return (
+    <div className="space-y-7 p-4 narrow:p-7">
+      <Skeleton className="h-7 w-32" />
+      <div className="grid grid-cols-2 gap-px border bg-line sm:grid-cols-4">
+        {Array.from({ length: 8 }, (_, i) => (
+          <div key={i} className="space-y-2 bg-panel p-4">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-7 w-16" />
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-5 narrow:grid-cols-2">
+        <Skeleton className="h-56 w-full" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+      <Skeleton className="h-96 w-full" />
+    </div>
+  );
+}
+
 /** ReportView's shape. */
 export function ReportViewSkeleton() {
   return (

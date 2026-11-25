@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle
 import { alias } from 'drizzle-orm/pg-core';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db, schema } from '../../db/index.ts';
-import type { Store } from './types.ts';
+import type { AdminUser, Kind, Store } from './types.ts';
 
 /**
  * The Postgres adapter: every Drizzle call the app makes, moved here from
@@ -13,6 +13,10 @@ import type { Store } from './types.ts';
 const { reports: R, reportAssets: A, comments: C, user: U, member: M, organization: O } = schema;
 
 const P = alias(A, 'poster');
+
+/** Raw rows for the admin reads: postgres-js returns bigint as a string. */
+const rows = async <T>(q: ReturnType<typeof sql>) => (await db().execute(q)) as unknown as T[];
+const num = (v: unknown) => Number(v ?? 0);
 
 /** LIKE treats % and _ as wildcards and \ as the escape; a search box does not. */
 const likeable = (q: string) => `%${q.replace(/[\\%_]/g, '\\$&')}%`;
@@ -240,5 +244,95 @@ export const pgStore: Store = {
         where m.user_id = rekod."user".id and m.role = 'owner')`,
     }).from(U).where(eq(U.id, userId));
     return u ?? null;
+  },
+
+  // ── admin ─────────────────────────────────────────────────────────────────
+  // Unscoped on purpose: requireAdmin() is the gate. One round trip each.
+
+  async adminStats() {
+    const [s] = await rows<Record<string, unknown>>(sql`select
+      (select count(*) from rekod."user") as users,
+      (select count(*) from rekod."user" where created_at > now() - interval '7 days') as users7,
+      (select count(*) from rekod."user" where created_at > now() - interval '30 days') as users30,
+      (select count(*) from rekod."user" where plan = 'pro') as pro,
+      (select count(*) from rekod.organization) as workspaces,
+      (select count(*) from rekod.reports where status = 'ready' and type = 'video') as videos,
+      (select count(*) from rekod.reports where status = 'ready' and type = 'screenshot') as screenshots,
+      (select count(*) from rekod.reports where status = 'processing') as processing,
+      (select count(*) from rekod.reports where status = 'ready' and share_token is not null) as shared,
+      (select count(*) from rekod.report_assets where size_bytes is null) as unsized,
+      pg_database_size(current_database()) as db_bytes`);
+    const kinds = await rows<{ kind: Kind; bytes: unknown }>(sql`
+      select kind, coalesce(sum(size_bytes), 0) as bytes from rekod.report_assets group by kind`);
+    return {
+      users: num(s.users), users7: num(s.users7), users30: num(s.users30), pro: num(s.pro),
+      workspaces: num(s.workspaces), videos: num(s.videos), screenshots: num(s.screenshots),
+      processing: num(s.processing), shared: num(s.shared), unsized: num(s.unsized), dbBytes: num(s.db_bytes),
+      bytes: Object.fromEntries(kinds.map((k) => [k.kind, num(k.bytes)])),
+    };
+  },
+
+  async adminUsers() {
+    const list = await rows<Record<string, unknown>>(sql`select u.id, u.name, u.email, u.image, u.created_at,
+      u.plan, u.video_limit,
+      (select count(*) from rekod.reports r where r.created_by = u.id and r.status = 'ready' and r.type = 'video') as videos,
+      (select count(*) from rekod.reports r where r.created_by = u.id and r.status = 'ready' and r.type = 'screenshot') as screenshots,
+      (select max(r.created_at) from rekod.reports r where r.created_by = u.id and r.status = 'ready') as last_at,
+      (select coalesce(sum(a.size_bytes), 0) from rekod.report_assets a
+        join rekod.reports r on r.id = a.report_id where r.created_by = u.id) as bytes,
+      (select count(*) from rekod.member m where m.user_id = u.id and m.role = 'owner') as owned
+      from rekod."user" u order by u.created_at desc`);
+    return list.map((u): AdminUser => ({
+      id: String(u.id), name: String(u.name), email: String(u.email), image: (u.image as string) ?? null,
+      createdAt: new Date(u.created_at as string), plan: String(u.plan), videoLimit: num(u.video_limit),
+      videos: num(u.videos), screenshots: num(u.screenshots),
+      lastAt: u.last_at ? new Date(u.last_at as string) : null, bytes: num(u.bytes), owned: num(u.owned),
+    }));
+  },
+
+  async adminDaily(since) {
+    // UTC days. user.created_at has no time zone and the server writes UTC.
+    // A string, not a Date: postgres-js cannot bind a Date in a raw query.
+    const from = since.toISOString();
+    const [rekods, signups] = await Promise.all([
+      rows<{ day: string; count: unknown }>(sql`select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD') as day,
+        count(*) as count from rekod.reports where status = 'ready' and created_at >= ${from}::timestamptz group by 1`),
+      rows<{ day: string; count: unknown }>(sql`select to_char(created_at, 'YYYY-MM-DD') as day,
+        count(*) as count from rekod."user" where created_at >= ${from}::timestamp group by 1`),
+    ]);
+    const days = (r: { day: string; count: unknown }[]) => r.map((d) => ({ day: d.day, count: num(d.count) }));
+    return { rekods: days(rekods), signups: days(signups) };
+  },
+
+  async adminSites(limit) {
+    return db().select({ project: sql<string>`${R.project}`, count: sql<number>`count(*)::int` }).from(R)
+      .where(and(eq(R.status, 'ready'), sql`${R.project} is not null`))
+      .groupBy(R.project)
+      .orderBy(sql`count(*) desc`, asc(R.project))
+      .limit(limit);
+  },
+
+  async ownedWorkspaceIds(userId) {
+    const list = await rows<{ id: string; others: unknown }>(sql`select m.organization_id as id,
+      (select count(*) from rekod.member o where o.organization_id = m.organization_id and o.user_id <> m.user_id) as others
+      from rekod.member m where m.user_id = ${userId} and m.role = 'owner'`);
+    return list.map((w) => ({ id: w.id, others: num(w.others) }));
+  },
+
+  async reportIdsIn(ws) {
+    return (await db().select({ id: R.id }).from(R).where(eq(R.workspaceId, ws))).map((r) => r.id);
+  },
+
+  async deleteUser(userId, wsIds) {
+    // Workspaces cascade to members, invitations, reports, assets, comments;
+    // the user to sessions, accounts and other memberships. Their reports in
+    // workspaces they did not own stay, with created_by set null.
+    if (wsIds.length) await db().delete(O).where(inArray(O.id, wsIds));
+    const res = await db().delete(U).where(eq(U.id, userId)).returning({ id: U.id });
+    return res.length > 0;
+  },
+
+  async setAssetSize(key, bytes) {
+    await db().update(A).set({ sizeBytes: bytes }).where(eq(A.storageKey, key));
   },
 };

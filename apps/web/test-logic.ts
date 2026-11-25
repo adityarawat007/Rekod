@@ -2,7 +2,7 @@
 // Guards the pure logic the pages lean on: timeline merge, pre-roll signs, and
 // the zero-filled day buckets. Not a render test — `next build` type-checks that.
 import assert from 'node:assert';
-import { offset, stamp, clock, ms, urlParts, httpUrl, trackPct, reindent, toCurl, uaSummary } from './src/lib/format.ts';
+import { offset, stamp, clock, ms, urlParts, httpUrl, trackPct, reindent, toCurl, uaSummary, bytes } from './src/lib/format.ts';
 import { timeline, isConsole, isError, netFailed } from './src/lib/types.ts';
 import type { Entry, NetEntry } from './src/lib/types.ts';
 import { olderThan } from './src/lib/version.ts';
@@ -39,6 +39,10 @@ assert.ok(
 // ── the timeline track: a percentage that cannot leave its container ───────
 assert.strictEqual(Math.round(trackPct(0, -4, 10)), 29, 'pre-roll shifts the origin right');
 assert.strictEqual(trackPct(-4, -4, 10), 0);
+assert.strictEqual(bytes(0), '0 B');
+assert.strictEqual(bytes(1536), '1.5 KB', 'one decimal below 10');
+assert.strictEqual(bytes(300 * 2 ** 20), '300 MB');
+assert.strictEqual(bytes(5 * 2 ** 40), '5.0 TB');
 assert.strictEqual(trackPct(10, -4, 10), 100);
 // the reported bug: the video outlives the last log entry, so `now` overshoots
 assert.strictEqual(trackPct(9, 0, 5), 100, 'clamped, not 180%');
